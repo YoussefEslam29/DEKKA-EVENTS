@@ -1,0 +1,340 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Trash2, UserPlus, Search } from "lucide-react";
+import { useI18n } from "@/components/I18nProvider";
+import { Button } from "@/components/ui/Button";
+import { Input, Select, FormRow } from "@/components/ui/Field";
+import { Card, Badge, EmptyState } from "@/components/ui/Surface";
+import { formatMoney, formatTime } from "@/lib/format";
+import type { CheckInDTO, ReservationDTO } from "@/lib/data";
+import type { PaymentMethod } from "@/lib/constants";
+
+type Props = {
+  eventId: string;
+  defaultPrice: number;
+  paymentMethods: PaymentMethod[];
+  initialReservations: ReservationDTO[];
+  initialCheckIns: CheckInDTO[];
+};
+
+/**
+ * The door, on event night. Optimised for one thing: typing a name and a phone
+ * number fast while someone waits. State is held locally and appended on
+ * success so the table never blanks out between entries.
+ */
+export function DoorTable({
+  eventId,
+  defaultPrice,
+  paymentMethods,
+  initialReservations,
+  initialCheckIns,
+}: Props) {
+  const { t, locale } = useI18n();
+  const [checkIns, setCheckIns] = useState<CheckInDTO[]>(initialCheckIns);
+  const [reservations, setReservations] = useState<ReservationDTO[]>(initialReservations);
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    paymentMethod: paymentMethods[0] ?? "cash",
+    amount: String(defaultPrice),
+    reservationId: "",
+  });
+
+  const totals = useMemo(() => {
+    const sum = checkIns.reduce((acc, c) => acc + c.amount, 0);
+    const cash = checkIns
+      .filter((c) => c.paymentMethod === "cash")
+      .reduce((acc, c) => acc + c.amount, 0);
+    return { sum, cash, instapay: sum - cash, count: checkIns.length };
+  }, [checkIns]);
+
+  const filteredReservations = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return reservations;
+    return reservations.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.phone.includes(q) ||
+        r.code.toLowerCase().includes(q)
+    );
+  }, [reservations, query]);
+
+  /** Clicking a reservation drops its details into the entry form. */
+  function prefill(reservation: ReservationDTO) {
+    setForm((f) => ({
+      ...f,
+      name: reservation.name,
+      phone: reservation.phone,
+      reservationId: reservation.id,
+      amount: String(defaultPrice),
+    }));
+  }
+
+  async function addAttendee(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/checkins`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          phone: form.phone,
+          paymentMethod: form.paymentMethod,
+          amount: Number(form.amount) || 0,
+          reservationId: form.reservationId || undefined,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.error === "ALREADY_CHECKED_IN" ? t.staff.checkedIn : t.common.somethingWrong);
+        return;
+      }
+
+      setCheckIns((rows) => [body.data as CheckInDTO, ...rows]);
+      if (form.reservationId) {
+        setReservations((rows) =>
+          rows.map((r) => (r.id === form.reservationId ? { ...r, checkedIn: true } : r))
+        );
+      }
+      setForm({
+        name: "",
+        phone: "",
+        paymentMethod: form.paymentMethod,
+        amount: String(defaultPrice),
+        reservationId: "",
+      });
+    } catch {
+      setError(t.common.somethingWrong);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeCheckIn(checkIn: CheckInDTO) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/checkins/${checkIn.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setError(t.common.somethingWrong);
+        return;
+      }
+      setCheckIns((rows) => rows.filter((r) => r.id !== checkIn.id));
+      if (checkIn.reservationId) {
+        setReservations((rows) =>
+          rows.map((r) => (r.id === checkIn.reservationId ? { ...r, checkedIn: false } : r))
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
+      <div className="space-y-6">
+        <Card className="p-4">
+          <h2 className="mb-3 flex items-center gap-2 font-bold">
+            <UserPlus className="h-4 w-4 text-gold-deep" />
+            {t.staff.addAttendee}
+          </h2>
+          <form onSubmit={addAttendee}>
+            <FormRow label={t.staff.name} htmlFor="attendee-name">
+              <Input
+                id="attendee-name"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                required
+                autoComplete="off"
+              />
+            </FormRow>
+            <FormRow label={t.staff.phone} htmlFor="attendee-phone">
+              <Input
+                id="attendee-phone"
+                type="tel"
+                inputMode="tel"
+                dir="ltr"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                required
+                autoComplete="off"
+              />
+            </FormRow>
+            <div className="grid grid-cols-2 gap-3">
+              <FormRow label={t.staff.method} htmlFor="attendee-method">
+                <Select
+                  id="attendee-method"
+                  value={form.paymentMethod}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      paymentMethod: e.target.value as PaymentMethod,
+                    }))
+                  }
+                >
+                  {paymentMethods.map((method) => (
+                    <option key={method} value={method}>
+                      {method === "cash" ? t.event.cash : t.event.instapay}
+                    </option>
+                  ))}
+                </Select>
+              </FormRow>
+              <FormRow label={t.staff.amount} htmlFor="attendee-amount">
+                <Input
+                  id="attendee-amount"
+                  type="number"
+                  min={0}
+                  step="1"
+                  dir="ltr"
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  required
+                />
+              </FormRow>
+            </div>
+
+            {form.reservationId ? (
+              <p className="mb-3 text-xs font-semibold text-good">
+                {t.staff.reservationList} ✓
+              </p>
+            ) : null}
+            {error ? <p className="mb-3 text-sm font-semibold text-bad">{error}</p> : null}
+
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? t.staff.adding : t.staff.add}
+            </Button>
+          </form>
+        </Card>
+
+        <Card className="p-4">
+          <h2 className="mb-3 font-bold">{t.staff.reservationList}</h2>
+          <div className="relative mb-3">
+            <Search className="pointer-events-none absolute inset-y-0 start-2 my-auto h-4 w-4 text-ink-faint" />
+            <Input
+              className="ps-8"
+              placeholder={t.staff.searchReservations}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+
+          <ul className="max-h-96 space-y-1 overflow-y-auto">
+            {filteredReservations.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => prefill(r)}
+                  disabled={r.checkedIn}
+                  className="flex w-full items-center justify-between gap-2 rounded-[4px] px-2 py-2 text-start hover:bg-gold-wash disabled:opacity-50"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">{r.name}</span>
+                    <span className="block text-xs text-ink-faint" dir="ltr">
+                      {r.phone} · {r.code}
+                    </span>
+                  </span>
+                  {r.checkedIn ? (
+                    <Badge tone="good">{t.staff.checkedIn}</Badge>
+                  ) : (
+                    <Badge tone="gold">{t.staff.checkIn}</Badge>
+                  )}
+                </button>
+              </li>
+            ))}
+            {filteredReservations.length === 0 ? (
+              <li className="px-2 py-4 text-sm text-ink-faint">{t.common.none}</li>
+            ) : null}
+          </ul>
+        </Card>
+      </div>
+
+      <div>
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <Card className="p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+              {t.staff.count}
+            </p>
+            <p className="text-2xl font-black">{totals.count}</p>
+          </Card>
+          <Card className="p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+              {t.staff.total}
+            </p>
+            <p className="text-2xl font-black text-gold-deep">
+              {formatMoney(totals.sum, locale)}
+            </p>
+          </Card>
+          <Card className="p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+              {t.event.cash} / {t.event.instapay}
+            </p>
+            <p className="text-sm font-bold" dir="ltr">
+              {formatMoney(totals.cash, locale)} / {formatMoney(totals.instapay, locale)}
+            </p>
+          </Card>
+        </div>
+
+        <Card className="overflow-hidden">
+          <h2 className="border-b border-line px-4 py-3 font-bold">{t.staff.attendees}</h2>
+          {checkIns.length === 0 ? (
+            <div className="p-6">
+              <EmptyState>{t.staff.noAttendees}</EmptyState>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-cream text-xs uppercase tracking-wider text-ink-faint">
+                  <tr>
+                    <th className="px-4 py-2 text-start font-semibold">{t.staff.name}</th>
+                    <th className="px-4 py-2 text-start font-semibold">{t.staff.phone}</th>
+                    <th className="px-4 py-2 text-start font-semibold">{t.staff.method}</th>
+                    <th className="px-4 py-2 text-end font-semibold">{t.staff.amount}</th>
+                    <th className="px-4 py-2 text-end font-semibold" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {checkIns.map((row) => (
+                    <tr key={row.id} className="border-t border-line">
+                      <td className="px-4 py-2 font-semibold">
+                        {row.name}
+                        <span className="ms-2 text-xs font-normal text-ink-faint">
+                          {formatTime(row.createdAt, locale)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2" dir="ltr">
+                        {row.phone}
+                      </td>
+                      <td className="px-4 py-2">
+                        {row.paymentMethod === "cash" ? t.event.cash : t.event.instapay}
+                      </td>
+                      <td className="px-4 py-2 text-end font-semibold">
+                        {formatMoney(row.amount, locale)}
+                      </td>
+                      <td className="px-4 py-2 text-end">
+                        <button
+                          type="button"
+                          onClick={() => removeCheckIn(row)}
+                          disabled={busy}
+                          aria-label={t.staff.remove}
+                          className="rounded-[4px] p-1 text-ink-faint hover:bg-bad/10 hover:text-bad"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}

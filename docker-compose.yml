@@ -1,0 +1,15 @@
+# Local MongoDB for development.
+#   docker compose up -d
+# Then: MONGODB_URI=mongodb://127.0.0.1:27017/dekka
+services:
+  mongo:
+    image: mongo:7
+    container_name: dekka-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - dekka-mongo-data:/data/db
+
+volumes:
+  dekka-mongo-data:

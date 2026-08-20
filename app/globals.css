@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/*
+ * Dekka design tokens.
+ * Palette comes straight from the brand: deep coffee ink, warm tan/gold accent,
+ * cream paper background. No gradients, no shadows — this should read as a warm
+ * printed poster taped to a cafe wall, not a SaaS dashboard.
+ */
+@theme {
+  --color-ink: #241611;
+  --color-ink-soft: #4a342a;
+  --color-ink-faint: #8a7466;
+
+  --color-gold: #c08b4a;
+  --color-gold-deep: #9a6b33;
+  --color-gold-wash: #f0e2cc;
+
+  --color-cream: #f5efe4;
+  --color-paper: #fffbf3;
+  --color-line: #e2d6c2;
+
+  --color-good: #3e6b4f;
+  --color-warn: #a8792a;
+  --color-bad: #a33c2a;
+
+  --font-latin: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-arabic: var(--font-cairo), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-brand: 4px;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  background-color: var(--color-cream);
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-latin);
+  -webkit-font-smoothing: antialiased;
+}
+
+html[dir="rtl"] body {
+  font-family: var(--font-arabic);
+}
+
+/* The tatreez motif — a mirrored diamond/chevron band lifted from the wordmark's
+   texture. Used as section dividers and as a texture behind headers. */
+.dk-tatreez {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='16' viewBox='0 0 32 16'%3E%3Cpath d='M8 0l8 8-8 8-8-8z' fill='%23c08b4a' fill-opacity='0.55'/%3E%3Cpath d='M24 0l8 8-8 8-8-8z' fill='%23241611' fill-opacity='0.35'/%3E%3Cpath d='M8 4l4 4-4 4-4-4z' fill='%23f5efe4'/%3E%3Cpath d='M24 4l4 4-4 4-4-4z' fill='%23f5efe4'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 32px 16px;
+}
+
+/* Same motif at low contrast, tiled in both directions, for large fill areas. */
+.dk-tatreez-field {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 0l12 12-12 12L0 12z' fill='none' stroke='%23c08b4a' stroke-opacity='0.28' stroke-width='1'/%3E%3Cpath d='M12 6l6 6-6 6-6-6z' fill='%23c08b4a' fill-opacity='0.10'/%3E%3C/svg%3E");
+  background-size: 24px 24px;
+}
+
+/* Wordmark: brand pattern showing through the glyphs. */
+.dk-wordmark {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Crect width='18' height='18' fill='%23241611'/%3E%3Cpath d='M9 1l8 8-8 8-8-8z' fill='none' stroke='%23c08b4a' stroke-width='1.6'/%3E%3Cpath d='M9 5.5l3.5 3.5L9 12.5 5.5 9z' fill='%23c08b4a'/%3E%3C/svg%3E");
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Inputs get one shared look so forms stay consistent across the 11 screens. */
+.dk-field {
+  width: 100%;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-paper);
+  border-radius: var(--radius-brand);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  outline: none;
+}
+
+.dk-field:focus {
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 2px rgba(192, 139, 74, 0.25);
+}
+
+.dk-field::placeholder {
+  color: var(--color-ink-faint);
+}
