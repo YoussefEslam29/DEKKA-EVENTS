@@ -13,5 +13,7 @@ export default async function StaffLayout({
   const user = await currentUser();
   if (!user) redirect("/login?next=/staff");
   if (!hasRole(user, "staff")) redirect("/");
-  return <>{children}</>;
+  // §8 exception: the door tool stays on the high-contrast cream workspace,
+  // which is faster and less error-prone for counter-side data entry.
+  return <div className="dk-workspace min-h-full flex-1">{children}</div>;
 }

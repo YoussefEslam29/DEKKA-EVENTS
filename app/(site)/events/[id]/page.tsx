@@ -7,11 +7,11 @@ import {
   getEvent,
   countReservations,
   getMyReservation,
-  eventTitle,
   eventText,
 } from "@/lib/data";
 import { formatDate, formatTime, formatMoney, formatNumber } from "@/lib/format";
-import { Card, Badge, TatreezDivider } from "@/components/ui/Surface";
+import { Card, Badge } from "@/components/ui/Surface";
+import { PatternAccent } from "@/components/ui/PatternAccent";
 import { ReserveButton } from "@/components/ReserveButton";
 import { site } from "@/lib/site";
 
@@ -66,8 +66,13 @@ export default async function EventDetailPage({
 
   return (
     <article>
-      {event.coverImage ? (
-        <div className="relative h-56 w-full md:h-80">
+      {/*
+       * §8: the event hero gets the same treatment as the auth left panel —
+       * dark image, gradient, bold English headline with the Arabic beneath —
+       * only showing the event's own artwork instead of the cafe interior.
+       */}
+      <section className="relative isolate flex min-h-[16rem] items-end overflow-hidden border-b border-border-dark md:min-h-[22rem]">
+        {event.coverImage ? (
           <Image
             src={event.coverImage}
             alt=""
@@ -76,46 +81,68 @@ export default async function EventDetailPage({
             className="object-cover"
             priority
           />
+        ) : (
+          <div aria-hidden className="absolute inset-0 bg-coffee">
+            <div className="absolute inset-0 bg-[radial-gradient(65%_50%_at_25%_10%,rgba(217,165,102,0.32)_0%,transparent_70%)]" />
+            <PatternAccent variant="field" className="absolute inset-0" />
+          </div>
+        )}
+
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-[linear-gradient(to_top,rgba(24,18,13,0.96)_0%,rgba(24,18,13,0.72)_45%,rgba(24,18,13,0.3)_100%)]"
+        />
+
+        <div className="relative mx-auto w-full max-w-[1180px] px-4 pb-8 pt-16 md:px-8">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Badge tone={event.status === "published" ? "good" : "neutral"}>
+              {t.event.status[event.status]}
+            </Badge>
+            {spotsLeft != null && !closed ? (
+              <Badge tone={isFull ? "bad" : "gold"}>
+                {isFull ? t.event.full : fill(t.event.spotsLeft, { n: formatNumber(spotsLeft, locale) })}
+              </Badge>
+            ) : null}
+            {spotsLeft == null && !closed ? (
+              <Badge tone="neutral">{t.event.unlimited}</Badge>
+            ) : null}
+          </div>
+
+          <h1
+            lang="en"
+            dir="ltr"
+            className="max-w-3xl text-3xl font-extrabold leading-tight text-cream md:text-5xl"
+          >
+            {event.titleEn || event.titleAr}
+          </h1>
+          {event.titleAr && event.titleAr !== event.titleEn ? (
+            <p className="mt-2 max-w-3xl text-lg font-light text-cream/70 md:text-xl">
+              <span lang="ar" dir="rtl" className="font-arabic">
+                {event.titleAr}
+              </span>
+            </p>
+          ) : null}
         </div>
-      ) : (
-        <div className="dk-tatreez-field h-24 w-full border-b border-line bg-paper" />
-      )}
+      </section>
 
       <div className="mx-auto max-w-[1180px] px-4 py-8 md:px-8">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <Badge tone={event.status === "published" ? "good" : "neutral"}>
-            {t.event.status[event.status]}
-          </Badge>
-          {spotsLeft != null && !closed ? (
-            <Badge tone={isFull ? "bad" : "gold"}>
-              {isFull ? t.event.full : fill(t.event.spotsLeft, { n: formatNumber(spotsLeft, locale) })}
-            </Badge>
-          ) : null}
-          {spotsLeft == null && !closed ? (
-            <Badge tone="neutral">{t.event.unlimited}</Badge>
-          ) : null}
-        </div>
-
-        <h1 className="text-3xl font-black tracking-tight md:text-4xl">
-          {eventTitle(event, locale)}
-        </h1>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_20rem]">
           <div>
             {description ? (
-              <p className="whitespace-pre-line text-base leading-relaxed text-ink-soft">
+              <p className="whitespace-pre-line text-base leading-relaxed text-text-muted">
                 {description}
               </p>
             ) : null}
 
-            <TatreezDivider className="my-6" />
+            <PatternAccent className="my-6" />
 
             <dl className="grid gap-4 sm:grid-cols-2">
               {facts.map(({ Icon, label, value }) => (
                 <div key={label} className="flex items-start gap-3">
-                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gold-deep" />
+                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gold-accent" />
                   <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                       {label}
                     </dt>
                     <dd className="font-semibold">{value}</dd>
@@ -125,17 +152,17 @@ export default async function EventDetailPage({
             </dl>
 
             <Card className="mt-6 p-4">
-              <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-ink-faint">
+              <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-text-muted">
                 {t.event.payment}
               </h2>
               <p className="font-semibold">{t.event.payAtDoor}</p>
-              <ul className="mt-2 space-y-1 text-sm text-ink-soft">
+              <ul className="mt-2 space-y-1 text-sm text-text-muted">
                 {event.paymentMethods.includes("cash") ? <li>• {t.event.cash}</li> : null}
                 {event.paymentMethods.includes("instapay") ? (
                   <li>
                     • {t.event.instapay}
                     {event.instapayNumber ? (
-                      <span className="ms-2 font-mono font-semibold text-ink">
+                      <span className="ms-2 font-mono font-semibold text-on-dark">
                         {event.instapayNumber}
                       </span>
                     ) : null}
@@ -146,10 +173,10 @@ export default async function EventDetailPage({
 
             {terms ? (
               <Card className="mt-4 p-4">
-                <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-ink-faint">
+                <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-text-muted">
                   {t.event.terms}
                 </h2>
-                <p className="whitespace-pre-line text-sm text-ink-soft">{terms}</p>
+                <p className="whitespace-pre-line text-sm text-text-muted">{terms}</p>
               </Card>
             ) : null}
           </div>
@@ -171,14 +198,14 @@ export default async function EventDetailPage({
                 href={mapUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-gold-deep hover:underline"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-gold-accent hover:underline"
               >
                 <ExternalLink className="h-4 w-4" />
                 {t.event.directions}
               </a>
 
               {hasRole(user, "admin") ? (
-                <p className="mt-4 border-t border-line pt-3 text-sm text-ink-soft">
+                <p className="mt-4 border-t border-border-dark pt-3 text-sm text-text-muted">
                   {t.event.reservedCount}: <strong>{reserved}</strong>
                 </p>
               ) : null}

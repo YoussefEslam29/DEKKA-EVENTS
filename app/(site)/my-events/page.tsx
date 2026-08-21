@@ -31,7 +31,7 @@ export default async function MyEventsPage() {
   ) =>
     items.length === 0 ? null : (
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-bold text-ink-soft">{title}</h2>
+        <h2 className="mb-3 text-lg font-bold text-text-muted">{title}</h2>
         <div className={`grid gap-3 ${dim ? "opacity-70" : ""}`}>
           {items.map(({ reservation, event }) => (
             <Card key={reservation.id} className="p-4">
@@ -39,21 +39,21 @@ export default async function MyEventsPage() {
                 <div className="min-w-0">
                   <Link
                     href={`/events/${event.id}`}
-                    className="text-lg font-bold hover:text-gold-deep"
+                    className="text-lg font-bold hover:text-gold-accent"
                   >
                     {eventTitle(event, locale)}
                   </Link>
-                  <p className="mt-1 text-sm text-ink-soft">
+                  <p className="mt-1 text-sm text-text-muted">
                     {formatDate(event.startsAt, locale)} · {formatTime(event.startsAt, locale)}
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-gold-deep">
+                  <p className="mt-1 text-sm font-semibold text-gold-accent">
                     {event.price > 0
                       ? `${formatMoney(event.price, locale)} ${t.common.egp} — ${t.event.payAtDoor}`
                       : t.common.free}
                   </p>
                 </div>
                 <div className="text-end">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                     {t.event.yourCode}
                   </p>
                   <p className="font-mono text-2xl font-black tracking-[0.15em]">

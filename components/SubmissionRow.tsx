@@ -72,7 +72,7 @@ export function SubmissionRow({ submission }: { submission: SubmissionDTO }) {
           {submission.status !== "declined" ? (
             <Button
               size="sm"
-              variant="outline"
+              variant="lightOutline"
               disabled={busy}
               onClick={() => update({ status: "declined" })}
             >
@@ -82,7 +82,7 @@ export function SubmissionRow({ submission }: { submission: SubmissionDTO }) {
           {submission.status !== "pending" ? (
             <Button
               size="sm"
-              variant="ghost"
+              variant="lightGhost"
               disabled={busy}
               onClick={() => update({ status: "pending" })}
             >
@@ -128,7 +128,7 @@ export function SubmissionRow({ submission }: { submission: SubmissionDTO }) {
               <Button size="sm" disabled={busy} onClick={() => update({ adminNote: note })}>
                 {t.common.save}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+              <Button size="sm" variant="lightGhost" onClick={() => setOpen(false)}>
                 {t.common.cancel}
               </Button>
             </div>

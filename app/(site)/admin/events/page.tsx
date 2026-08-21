@@ -25,7 +25,7 @@ export default async function AdminEventsPage() {
       <PageHeader
         title={t.admin.events}
         action={
-          <Link href="/admin/events/new" className={buttonStyles({ variant: "primary" })}>
+          <Link href="/admin/events/new" className={buttonStyles({ variant: "lightPrimary" })}>
             {t.admin.newEvent}
           </Link>
         }

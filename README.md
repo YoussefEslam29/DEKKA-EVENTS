@@ -2,7 +2,7 @@
 
 A bilingual (Arabic-first, RTL) web app for **Dekka**, a coffee shop that runs live
 events. It replaces the Instagram-DM-plus-Google-Form-plus-notebook workflow described
-in [idea.md](idea.md) with one system:
+in [PLAN/idea.md](PLAN/idea.md) with one system:
 
 - **Guests** browse upcoming nights without an account.
 - **Members** reserve a spot in one tap and get a door code.
@@ -22,10 +22,110 @@ the cafe** on the day.
 | Framework | Next.js 16 (App Router, Turbopack, React 19) |
 | Language | TypeScript, strict |
 | Database | MongoDB via Mongoose 9 |
-| Auth | Auth.js / NextAuth v5 — email+password, Google, Facebook |
-| Styling | Tailwind CSS v4 with brand tokens in `app/globals.css` |
+| Auth | Auth.js / NextAuth v5 — email+password, Google, Facebook, Apple |
+| Styling | Tailwind CSS v4, brand tokens + themed primitives in `app/globals.css` |
 | Validation | Zod 4 on every write path |
-| Icons | lucide-react (social marks are hand-drawn in `components/BrandIcons.tsx`) |
+| Icons | lucide-react (Google/Facebook/Apple/social marks in `components/BrandIcons.tsx`) |
+| Images | `sharp`, used once at build time to matte the logo (`npm run brand:assets`) |
+
+---
+
+## Design system
+
+Implements [PLAN/authorization-UI.md](PLAN/authorization-UI.md).
+
+### Two surfaces, one palette
+
+The public app (auth, events hub, event detail, my events, submit a show, about) is
+the dark **"coffeehouse at night"** theme. The back-office (**staff door check-in**,
+**admin dashboard**) stays on the light cream workspace — §8's own flagged exception,
+because those are counter-side, data-entry-heavy tools where contrast matters more
+than mood. Brand chrome (navbar, footer) is dark on both.
+
+Rather than threading a `tone` prop through every shared component, the primitives
+(`.dk-card`, `.dk-field`, `.dk-label`, `.dk-muted`, `.dk-thead`, `.dk-hairline`) each
+have one class whose colours flip inside a `.dk-workspace` ancestor. One `Card`
+renders dark on the public app and cream in the back-office.
+
+> **Gotcha worth keeping:** these classes live inside `@layer components`. Without
+> that, the `padding` shorthand in `.dk-field` outranks Tailwind's `ps-11` utility and
+> leading icons overlap the input text.
+
+### Brand assets
+
+`IMGS/` holds the supplied originals. `npm run brand:assets` turns them into
+web-ready files in `public/brand/`:
+
+| Output | What it is |
+|---|---|
+| `dekka-logo.png` | The دكة lockup with the white JPEG background matted out to alpha, trimmed tight |
+| `dekka-logo-square.png` | 512×512 square rendition, used as the favicon |
+| `dekka-banner.jpg` | The banner, copied through |
+
+§1 asked for a transparent PNG before implementation; the script produces one so the
+pipeline is reproducible rather than depending on a manual export. Re-run it if the
+source artwork changes.
+
+The mark is **dark brown ink** — verified to all but disappear on `ink-black`. So
+every appearance on a dark surface goes through `LogoBadge`, which sets it on a cream
+plate exactly as the mockups do. The fabricated "COFFEE & COMMUNITY" circle from the
+mockups is gone; the optional tagline is **"COFFEE SHOP"**, the real copy from the
+banner.
+
+### Component library (§6)
+
+| Component | Where |
+|---|---|
+| `LogoBadge` / `LogoLockup` | `components/ui/LogoBadge.tsx` |
+| `Button` (`gold` = PrimaryButton, `outline` = OutlineButton, `light*` = workspace) | `components/ui/Button.tsx` |
+| `TextField` / `PasswordField` / `TextAreaField` | `components/ui/TextField.tsx` |
+| `SectionDivider` | `components/ui/SectionDivider.tsx` |
+| `BilingualLabel` | `components/ui/BilingualLabel.tsx` |
+| `PatternAccent` | `components/ui/PatternAccent.tsx` |
+| `Card` / `Badge` / `PageHeader` / `EmptyState` | `components/ui/Surface.tsx` |
+
+`PatternAccent` is the tatreez motif from the wordmark's texture, drawn as a CSS
+**mask** tinted by `color` — so one definition serves a divider on dark panels, a
+watermark on cream, and a skeleton texture.
+
+### Bilingual labels (§3)
+
+`BilingualLabel` enforces `English / العربية` on one line, with each half wrapped in
+its own `lang` so Cairo renders the Arabic and Plus Jakarta Sans the Latin. It forces
+`dir="ltr"` on the pair — without that the run reverses inside the Arabic (RTL)
+layout and renders Arabic-first.
+
+Applied to **field labels, buttons and headings**. Body copy and event content still
+follow the locale toggle: making every paragraph bilingual would double the reading
+length of the whole site, which is not what the mockups show.
+
+### Auth screens (§4, §5, §7)
+
+`/login` and `/signup` live in an `(auth)` route group with no navbar or footer, so
+the split screen is genuinely full-bleed. Everything else sits in `(site)`.
+
+- **≥1024px:** 60/40 split — ambient left panel, form right.
+- **<1024px:** single dark column, heading in white rather than gold, social buttons
+  side-by-side instead of stacked.
+- Inputs carry leading icons at both breakpoints (§5's recommendation: one shared
+  input component).
+- **"Continue as Guest"** sits below the sign-up switch link — one tap away without
+  competing with the primary action.
+
+In RTL the split mirrors (form left, panel right). That is correct RTL behaviour, not
+a bug — the mockups are LTR.
+
+**No real Dekka photography exists yet (§9.5).** The left panel falls back to a
+brand-derived treatment: warm pendant-light gradients over deep coffee with the
+tatreez texture. Drop a photo at `public/brand/auth-hero.jpg` — or point
+`NEXT_PUBLIC_AUTH_HERO_IMAGE` at one — and it is picked up automatically, no code
+change.
+
+### Screenshots
+
+`node scripts/shoot.mjs <outDir> "name|path|WxH|locale"` renders pages through the
+Chrome already installed on the machine via `puppeteer-core` (no bundled browser
+download). Set `SHOOT_LOGIN="admin@dekka.test:dekka1234"` to capture signed-in routes.
 
 ---
 
@@ -52,8 +152,12 @@ At minimum set `MONGODB_URI` and `AUTH_SECRET`. Generate a secret with:
 npx auth secret
 ```
 
-Social sign-in is optional — leave `AUTH_GOOGLE_ID` / `AUTH_FACEBOOK_ID` blank and those
-buttons simply do not render.
+Social sign-in is optional — leave a provider's variables blank and that button simply
+does not render, rather than dead-ending at a broken callback.
+
+**Apple needs paid setup.** `AUTH_APPLE_ID` / `AUTH_APPLE_SECRET` require an Apple
+Developer Program membership (~$99/yr) plus a Services ID and a signed client-secret
+JWT. The provider and button are wired and will appear the moment those exist.
 
 Put your own email in `ADMIN_EMAILS` to be promoted to admin on first sign-in.
 
@@ -89,8 +193,9 @@ npm run dev        # dev server
 npm run build      # production build
 npm run start      # serve the production build
 npm run seed       # wipe and re-seed the database
-npm run typecheck  # tsc --noEmit
-npm run lint       # eslint
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint
+npm run brand:assets # regenerate public/brand/* from IMGS/
 ```
 
 ---
@@ -170,7 +275,7 @@ All writes are Zod-validated and role-guarded. Responses are `{ data }` or `{ er
 
 ## Decisions locked in
 
-These were the open questions in [idea.md](idea.md) §9:
+These were the open questions in [PLAN/idea.md](PLAN/idea.md) §9:
 
 1. **Capacity** — optional per event. Set it and the event flips to *Full* when reservations
    reach it; leave it blank for an open door.
@@ -183,6 +288,16 @@ These were the open questions in [idea.md](idea.md) §9:
 5. **Confirmation proof** — reservations carry a short code shown on the event page and in
    *My Events*. Staff can search the door list by name, phone, or code — the code is a
    convenience, not a requirement.
+
+And from [PLAN/authorization-UI.md](PLAN/authorization-UI.md) §9:
+
+1. **Dark theme scope** — the whole public app, with cream/logo as the accent.
+2. **Admin/Staff theme** — light cream workspace (§8's flagged exception).
+3. **Social providers** — Google, Facebook **and Apple** on both platforms. The
+   mockups' desktop/mobile split (Facebook vs Apple) was treated as mockup drift.
+4. **Tagline** — "COFFEE SHOP", the real copy from the banner.
+5. **Photography** — none yet; the auth hero uses a brand-derived fallback and reads a
+   real photo the moment one is added.
 
 ---
 
@@ -212,5 +327,5 @@ These were the open questions in [idea.md](idea.md) §9:
   simultaneous double-booking is unlikely; an admin can close reservations by hand.
 - `next.config.ts` allows images from any HTTPS host because cover images are admin-typed
   URLs. Narrow `remotePatterns` once you settle on an image host.
-- Out of scope for v1, per idea.md §8: online payments, loyalty, non-event table bookings,
+- Out of scope for v1, per PLAN/idea.md §8: online payments, loyalty, non-event table bookings,
   push reminders, waitlists, QR check-in.

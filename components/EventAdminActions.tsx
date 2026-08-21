@@ -61,7 +61,7 @@ export function EventAdminActions({
       {actions.map((action) => (
         <Button
           key={action.to + action.label}
-          variant="outline"
+          variant="lightOutline"
           size="sm"
           disabled={busy}
           onClick={() => setStatus(action.to)}

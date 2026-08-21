@@ -95,17 +95,17 @@ export function ReserveButton({
 
   if (code) {
     return (
-      <div className="rounded-[4px] border border-good/30 bg-good/5 p-4">
+      <div className="rounded-xl border border-good/30 bg-good/5 p-4">
         <p className="flex items-center gap-2 font-bold text-good">
           <Check className="h-5 w-5" />
           {t.event.reserved}
         </p>
         <div className="mt-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
             {t.event.yourCode}
           </p>
-          <p className="font-mono text-3xl font-black tracking-[0.2em] text-ink">{code}</p>
-          <p className="mt-1 text-xs text-ink-soft">{t.event.codeHint}</p>
+          <p className="font-mono text-3xl font-black tracking-[0.2em] text-on-dark">{code}</p>
+          <p className="mt-1 text-xs text-text-muted">{t.event.codeHint}</p>
         </div>
         <Button
           variant="ghost"

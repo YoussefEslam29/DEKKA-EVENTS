@@ -16,7 +16,7 @@ export function LocaleToggle({ className }: { className?: string }) {
       disabled={pending}
       onClick={() => startTransition(() => setLocale(locale === "ar" ? "en" : "ar"))}
       className={cn(
-        "rounded-[4px] border border-ink/20 px-2.5 py-1 text-xs font-semibold text-ink transition-colors hover:bg-gold-wash disabled:opacity-50",
+        "rounded-lg border border-border-dark px-2.5 py-1.5 text-xs font-semibold text-text-muted transition-colors hover:border-gold-accent/60 hover:text-on-dark disabled:opacity-50",
         className
       )}
       aria-label={t.common.language}

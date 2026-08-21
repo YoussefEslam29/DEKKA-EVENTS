@@ -2,8 +2,9 @@ import Link from "next/link";
 import { getI18n } from "@/lib/i18n";
 import { getPublicEvents, countReservationsForEvents } from "@/lib/data";
 import { EventCard } from "@/components/EventCard";
-import { Wordmark } from "@/components/Wordmark";
-import { EmptyState, TatreezDivider } from "@/components/ui/Surface";
+import { LogoBadge } from "@/components/ui/LogoBadge";
+import { EmptyState } from "@/components/ui/Surface";
+import { PatternAccent } from "@/components/ui/PatternAccent";
 import { buttonStyles } from "@/components/ui/Button";
 
 // The hub reflects reservation counts and admin publishes immediately.
@@ -20,14 +21,14 @@ export default async function EventsHubPage() {
   return (
     <div>
       {/* Framed-collage header, echoing the banner treatment in the brand assets. */}
-      <section className="border-b border-line bg-paper">
-        <TatreezDivider />
+      <section className="border-b border-border-dark bg-surface-dark">
+        <PatternAccent />
         <div className="mx-auto max-w-[1180px] px-4 py-12 text-center md:px-8 md:py-16">
-          <Wordmark size="xl" withLatin={false} />
-          <p className="mt-4 text-lg font-semibold text-ink">{t.home.heroLine}</p>
-          <p className="mx-auto mt-3 max-w-xl text-sm text-ink-soft">{t.home.heroBody}</p>
+          <LogoBadge size="xl" tagline priority />
+          <p className="mt-4 text-lg font-semibold text-on-dark">{t.home.heroLine}</p>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-text-muted">{t.home.heroBody}</p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link href="#upcoming" className={buttonStyles({ variant: "primary", size: "lg" })}>
+            <Link href="#upcoming" className={buttonStyles({ variant: "gold", size: "lg" })}>
               {t.home.browseEvents}
             </Link>
             <Link href="/submit-show" className={buttonStyles({ variant: "outline", size: "lg" })}>
@@ -35,7 +36,7 @@ export default async function EventsHubPage() {
             </Link>
           </div>
         </div>
-        <TatreezDivider />
+        <PatternAccent />
       </section>
 
       <section id="upcoming" className="mx-auto max-w-[1180px] px-4 py-10 md:px-8">
@@ -61,8 +62,8 @@ export default async function EventsHubPage() {
       </section>
 
       {past.length > 0 ? (
-        <section className="mx-auto max-w-[1180px] px-4 pb-10 md:px-8">
-          <h2 className="mb-5 text-xl font-bold tracking-tight text-ink-soft">
+        <section className="mx-auto max-w-[1180px] px-4 pb-16 md:px-8">
+          <h2 className="mb-5 text-xl font-bold tracking-tight text-text-muted">
             {t.home.past}
           </h2>
           <div className="grid gap-4 opacity-75">

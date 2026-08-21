@@ -2,6 +2,7 @@ import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import Facebook from "next-auth/providers/facebook";
+import Apple from "next-auth/providers/apple";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import { User, type UserRole } from "@/models/User";
@@ -26,12 +27,20 @@ function bootstrapRole(email: string): UserRole | null {
   return null;
 }
 
-/** Which social buttons to render — a provider with no credentials is hidden. */
+/**
+ * Which social buttons to render — a provider with no credentials is hidden, so
+ * a half-configured deploy never shows a button that dead-ends.
+ *
+ * Apple additionally requires a paid Apple Developer Program membership (a
+ * Services ID and a signing key); until those exist the button simply does not
+ * render rather than failing at the callback.
+ */
 export const enabledOAuthProviders = {
   google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
   facebook: Boolean(
     process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET
   ),
+  apple: Boolean(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET),
 };
 
 const providers: NextAuthConfig["providers"] = [
@@ -63,6 +72,7 @@ const providers: NextAuthConfig["providers"] = [
 
 if (enabledOAuthProviders.google) providers.push(Google);
 if (enabledOAuthProviders.facebook) providers.push(Facebook);
+if (enabledOAuthProviders.apple) providers.push(Apple);
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,

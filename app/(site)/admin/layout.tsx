@@ -22,7 +22,10 @@ export default async function AdminLayout({
   ];
 
   return (
-    <div className="mx-auto flex max-w-[1180px] flex-col gap-6 px-4 py-8 md:flex-row md:px-8">
+    // §8 exception: cream workspace for the data-heavy back-office. The tint is
+    // full-bleed so it doesn't leave dark gutters beside the centred column.
+    <div className="dk-workspace min-h-full flex-1">
+      <div className="mx-auto flex max-w-[1180px] flex-col gap-6 px-4 py-8 md:flex-row md:px-8">
       <aside className="md:w-52 md:shrink-0">
         <nav className="flex gap-1 overflow-x-auto md:flex-col">
           {links.map(({ href, label, Icon }) => (
@@ -37,7 +40,8 @@ export default async function AdminLayout({
           ))}
         </nav>
       </aside>
-      <div className="min-w-0 flex-1">{children}</div>
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
     </div>
   );
 }

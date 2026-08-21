@@ -276,7 +276,7 @@ export function EventForm({ event }: Props) {
         <Button type="submit" size="lg" disabled={busy}>
           {busy ? t.common.saving : event ? t.common.save : t.admin.createEvent}
         </Button>
-        <Button type="button" variant="ghost" size="lg" onClick={() => router.back()}>
+        <Button type="button" variant="lightGhost" size="lg" onClick={() => router.back()}>
           {t.common.cancel}
         </Button>
       </div>

@@ -8,12 +8,12 @@ export function Label({
 }: React.LabelHTMLAttributes<HTMLLabelElement> & { hint?: string }) {
   return (
     <label
-      className={cn("block text-sm font-semibold text-ink-soft mb-1.5", className)}
+      className={cn("dk-label mb-1.5 block text-sm font-semibold", className)}
       {...props}
     >
       {children}
       {hint ? (
-        <span className="ms-1.5 font-normal text-ink-faint">({hint})</span>
+        <span className="dk-muted ms-1.5 font-normal">({hint})</span>
       ) : null}
     </label>
   );

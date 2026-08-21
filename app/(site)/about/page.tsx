@@ -2,8 +2,9 @@ import { MapPin, Phone, Mail, Clock } from "lucide-react";
 import { InstagramIcon, FacebookIcon, TikTokIcon } from "@/components/BrandIcons";
 import { getI18n } from "@/lib/i18n";
 import { site } from "@/lib/site";
-import { Wordmark } from "@/components/Wordmark";
-import { Card, TatreezDivider } from "@/components/ui/Surface";
+import { LogoBadge } from "@/components/ui/LogoBadge";
+import { Card } from "@/components/ui/Surface";
+import { PatternAccent } from "@/components/ui/PatternAccent";
 
 export const dynamic = "force-dynamic";
 
@@ -21,40 +22,40 @@ export default async function AboutPage() {
   return (
     <div>
       {/* Same framed-collage header as the events hub. */}
-      <section className="border-b border-line bg-paper">
-        <TatreezDivider />
+      <section className="border-b border-border-dark bg-surface-dark">
+        <PatternAccent />
         <div className="mx-auto max-w-3xl px-4 py-12 text-center md:px-8">
-          <Wordmark size="lg" />
+          <LogoBadge size="lg" tagline />
           <h1 className="mt-6 text-2xl font-bold">{t.about.title}</h1>
-          <p className="mt-4 text-base leading-relaxed text-ink-soft">{t.about.story}</p>
+          <p className="mt-4 text-base leading-relaxed text-text-muted">{t.about.story}</p>
         </div>
-        <TatreezDivider />
+        <PatternAccent />
       </section>
 
       <div className="mx-auto grid max-w-[1180px] gap-6 px-4 py-10 md:grid-cols-2 md:px-8">
         <Card className="p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-ink-faint">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-text-muted">
             {t.about.visit}
           </h2>
           <p className="flex items-start gap-2 font-semibold">
-            <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-gold-deep" />
+            <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-gold-accent" />
             {address}
           </p>
-          <p className="mt-3 flex items-start gap-2 text-ink-soft">
-            <Clock className="mt-0.5 h-5 w-5 shrink-0 text-gold-deep" />
+          <p className="mt-3 flex items-start gap-2 text-text-muted">
+            <Clock className="mt-0.5 h-5 w-5 shrink-0 text-gold-accent" />
             {hours}
           </p>
           {site.phone ? (
-            <p className="mt-3 flex items-start gap-2 text-ink-soft">
-              <Phone className="mt-0.5 h-5 w-5 shrink-0 text-gold-deep" />
+            <p className="mt-3 flex items-start gap-2 text-text-muted">
+              <Phone className="mt-0.5 h-5 w-5 shrink-0 text-gold-accent" />
               <a href={`tel:${site.phone}`} dir="ltr" className="hover:underline">
                 {site.phone}
               </a>
             </p>
           ) : null}
           {site.email ? (
-            <p className="mt-3 flex items-start gap-2 text-ink-soft">
-              <Mail className="mt-0.5 h-5 w-5 shrink-0 text-gold-deep" />
+            <p className="mt-3 flex items-start gap-2 text-text-muted">
+              <Mail className="mt-0.5 h-5 w-5 shrink-0 text-gold-accent" />
               <a href={`mailto:${site.email}`} dir="ltr" className="hover:underline">
                 {site.email}
               </a>
@@ -64,14 +65,14 @@ export default async function AboutPage() {
             href={site.maps}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-5 inline-block font-semibold text-gold-deep hover:underline"
+            className="mt-5 inline-block font-semibold text-gold-accent hover:underline"
           >
             {t.event.directions}
           </a>
         </Card>
 
         <Card className="p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-ink-faint">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-text-muted">
             {t.about.follow}
           </h2>
           <ul className="space-y-3">
@@ -81,9 +82,9 @@ export default async function AboutPage() {
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-3 font-semibold hover:text-gold-deep"
+                  className="inline-flex items-center gap-3 font-semibold hover:text-gold-accent"
                 >
-                  <Icon className="h-5 w-5 text-gold-deep" />
+                  <Icon className="h-5 w-5 text-gold-accent" />
                   {label}
                 </a>
               </li>
@@ -96,7 +97,7 @@ export default async function AboutPage() {
             <iframe
               src={site.mapsEmbed}
               title="Dekka on Google Maps"
-              className="h-80 w-full rounded-[4px] border border-line"
+              className="h-80 w-full rounded-xl border border-border-dark"
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
             />

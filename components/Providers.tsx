@@ -9,16 +9,20 @@ export function Providers({
   locale,
   dir,
   t,
+  dicts,
   children,
 }: {
   locale: Locale;
   dir: "rtl" | "ltr";
   t: Dict;
+  dicts: { en: Dict; ar: Dict };
   children: React.ReactNode;
 }) {
   return (
     <SessionProvider>
-      <I18nProvider value={{ locale, dir, t }}>{children}</I18nProvider>
+      <I18nProvider locale={locale} dir={dir} t={t} dicts={dicts}>
+        {children}
+      </I18nProvider>
     </SessionProvider>
   );
 }

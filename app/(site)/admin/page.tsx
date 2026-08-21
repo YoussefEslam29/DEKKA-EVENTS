@@ -32,12 +32,12 @@ export default async function AdminOverviewPage() {
         title={t.admin.title}
         action={
           <div className="flex gap-2">
-            <Link href="/admin/events/new" className={buttonStyles({ variant: "primary" })}>
+            <Link href="/admin/events/new" className={buttonStyles({ variant: "lightPrimary" })}>
               {t.admin.newEvent}
             </Link>
             <Link
               href={`/admin/report?month=${monthKey(new Date())}`}
-              className={buttonStyles({ variant: "outline" })}
+              className={buttonStyles({ variant: "lightOutline" })}
             >
               {t.admin.report}
             </Link>

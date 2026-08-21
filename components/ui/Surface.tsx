@@ -1,16 +1,12 @@
 import { cn } from "@/lib/utils";
 
-/** A sheet of paper: the default container for content blocks. */
-export function Card({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn("rounded-[4px] border border-line bg-paper", className)}
-      {...props}
-    />
-  );
+/**
+ * Surfaces that work on both themes. Colours come from the `dk-*` classes in
+ * globals.css, which flip automatically inside a `.dk-workspace` ancestor, so
+ * the same Card renders dark on the public app and cream in the back-office.
+ */
+export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("dk-card", className)} {...props} />;
 }
 
 export function Badge({
@@ -21,16 +17,17 @@ export function Badge({
   tone?: "neutral" | "gold" | "good" | "warn" | "bad";
 }) {
   const tones = {
-    neutral: "bg-cream text-ink-soft border-line",
-    gold: "bg-gold-wash text-gold-deep border-gold/40",
-    good: "bg-good/10 text-good border-good/30",
-    warn: "bg-warn/10 text-warn border-warn/30",
-    bad: "bg-bad/10 text-bad border-bad/30",
+    neutral: "border-current/25 dk-muted",
+    gold: "border-gold-accent/40 bg-gold-accent/10 text-gold-accent",
+    good: "border-good/40 bg-good/10 text-good",
+    warn: "border-warn/40 bg-warn/10 text-warn",
+    bad: "border-bad/40 bg-bad/10 text-bad",
   } as const;
+
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-[4px] border px-2 py-0.5 text-xs font-semibold",
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
         tones[tone],
         className
       )}
@@ -39,34 +36,34 @@ export function Badge({
   );
 }
 
-/** The tatreez divider — the wordmark's texture used as a rule between sections. */
-export function TatreezDivider({ className }: { className?: string }) {
-  return <div className={cn("dk-tatreez h-4 w-full opacity-80", className)} aria-hidden />;
-}
-
 export function PageHeader({
   title,
   subtitle,
   action,
 }: {
-  title: string;
-  subtitle?: string;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
   action?: React.ReactNode;
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{title}</h1>
-        {subtitle ? <p className="mt-1 text-ink-soft">{subtitle}</p> : null}
+        <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">{title}</h1>
+        {subtitle ? <p className="dk-muted mt-1">{subtitle}</p> : null}
       </div>
       {action}
     </div>
   );
 }
 
-export function EmptyState({ children }: { children: React.ReactNode }) {
+export function EmptyState({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <div className="dk-tatreez-field rounded-[4px] border border-dashed border-line px-6 py-12 text-center text-ink-soft">
+    <div
+      className={cn(
+        "dk-muted dk-hairline rounded-2xl border border-dashed px-6 py-12 text-center",
+        className
+      )}
+    >
       {children}
     </div>
   );
