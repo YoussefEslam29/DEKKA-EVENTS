@@ -1,0 +1,270 @@
+# Dekka — Developer Guide
+
+Read this before writing any code on this project. It's the technical counterpart to
+[`PLAN/idea.md`](PLAN/idea.md) (what we're building) and [`design-system/`](design-system/)
+(how it looks) — this file is *how it's built*: architecture, patterns, rules, and the
+things that have already bitten us once and shouldn't again.
+
+If you're an AI agent picking up this codebase cold: read `PLAN/idea.md`,
+`design-system/README.md`, and this file, in that order, before touching a single line.
+
+---
+
+## 1. Architecture & Folder Layout
+
+Standard Next.js App Router project, MVP-style (not a modular-enterprise split — the
+domain is small enough that one flat `models/` and `lib/` works fine).
+
+```
+app/
+  (auth)/            route group — /login, /signup — no navbar/footer, full-bleed split screen
+  (site)/            route group — everything else, wrapped in Navbar + Footer
+    admin/           admin dashboard (role: admin)
+    staff/           door check-in tool (role: staff or admin)
+    events/[id]/     public event detail
+    my-events/       member's reservations
+    submit-show/     public band/artist application
+    about/           cafe info, socials, map
+  api/               REST-ish route handlers, one folder per resource
+components/
+  ui/                shared primitives: Button, TextField, Card, LogoBadge, etc.
+  layout/            Navbar, Footer
+  auth/              AuthScreen (the split-layout shell)
+lib/
+  auth.ts            NextAuth config + providers
+  rbac.ts             currentUser() / hasRole() / guard() — the authorization layer
+  db.ts              cached Mongoose connection
+  api.ts             parseBody() / handle() / jsonError() — the API route helpers
+  validation.ts      every Zod schema, one place
+  constants.ts       shared enums (role, status, payment method) — NO mongoose import
+  data.ts            read-side query helpers (e.g. getEventReservations)
+  i18n/              dictionaries.ts (ar + en), locale resolution
+  site.ts            cafe-level config (socials, address, hours) — env-overridable
+models/              one Mongoose model per collection: User, Event, Reservation, CheckIn, BandSubmission
+PLAN/                idea.md (product) + one spec doc per major feature (e.g. authorization-UI.md)
+design-system/       colors, typography, spacing, components, brand assets, tone of voice
+IMGS/                raw brand source files (before processing)
+public/brand/        processed, web-ready brand assets (regenerate via `npm run brand:assets`)
+```
+
+**Where a new feature's files go:** page(s) in `app/(site)/...`, API routes in
+`app/api/...`, a Mongoose model in `models/` if it's a new collection, a Zod schema in
+`lib/validation.ts`, shared UI in `components/ui/` only if more than one screen needs it
+— otherwise keep it local to the route.
+
+---
+
+## 2. Design Patterns This Codebase Uses
+
+### Auth & authorization — `lib/rbac.ts`
+
+Every protected surface goes through the same three functions:
+
+```ts
+currentUser()       // → SessionUser | null, reads the NextAuth session
+hasRole(user, min)  // → boolean, role-rank check (member=0, staff=1, admin=2)
+guard(min)          // → { user } | { response }  — for API routes specifically
+```
+
+**Server layouts** (`app/(site)/admin/layout.tsx`, `.../staff/layout.tsx`) call
+`currentUser()` + `hasRole()` directly and `redirect()` if the check fails — this is
+the *only* gate for page access. There is no middleware doing this; if you add a new
+protected route group, you must add the same check to its layout.
+
+**API routes** call `guard("staff")` (or `"admin"`) at the top of the handler and
+early-return its `response` if present:
+
+```ts
+const auth = await guard("staff");
+if ("response" in auth) return auth.response;
+```
+
+### Data mutation — every write path looks the same
+
+```ts
+export async function POST(request: Request, { params }: Params) {
+  return handle("POST /api/events/:id/reservations", async () => {
+    const auth = await guard("member"); // or currentUser() directly, see below
+    if ("response" in auth) return auth.response;
+
+    const parsed = await parseBody(request, someSchema);
+    if ("response" in parsed) return parsed.response;
+
+    await connectDB();
+    // ...do the write...
+    return NextResponse.json({ data: result }, { status: 201 });
+  });
+}
+```
+
+- `handle(label, fn)` (`lib/api.ts`) wraps the whole handler so an unexpected throw
+  becomes a logged `500` instead of a leaked stack trace.
+- `parseBody(request, schema)` (`lib/api.ts`) parses JSON **and** validates it against
+  a Zod schema in one step — handlers never read raw `body.field` directly. That's a
+  deliberate anti-injection/anti-mass-assignment measure (see §3).
+- Every response is `{ data: ... }` on success or `{ error, details? }` on failure —
+  never a bare value. Frontend code can rely on that shape everywhere.
+
+### Reads — `lib/data.ts`
+
+Query helpers that do more than a one-line `Model.find()` (joins, aggregation, shaping
+for a specific screen) live in `lib/data.ts`, not inline in the route handler or the
+page component. Simple lookups (`Event.findById(id)`) stay inline.
+
+### Database connection — `lib/db.ts`
+
+One cached connection via `globalThis`, guarding against Next.js dev-mode hot-reload
+opening a new pool every save. Always `await connectDB()` before a query — it's a
+no-op if already connected.
+
+### Client/server boundary — `lib/constants.ts`
+
+Enums and union types with **zero runtime dependencies** live in `lib/constants.ts`.
+Client components import roles/statuses/payment-methods from there, never from
+`@/models/*` — importing a model file pulls Mongoose (and the whole MongoDB driver)
+into the browser bundle. Models re-export the same constants for server-side
+convenience, but the client never imports the model directly.
+
+### i18n / bilingual
+
+- `lib/i18n/dictionaries.ts` holds both the Arabic and English dictionaries, in one
+  file, with the English object type-checked against the Arabic one — a missing key
+  is a **compile error**, not a silently blank string in production.
+- Locale lives in a cookie (`dekka_locale`); the root layout sets `lang`/`dir` from it.
+- Use Tailwind logical properties (`ps-`, `pe-`, `ms-`, `me-`, `text-start`) — never
+  `pl-`/`pr-`/`ml-`/`mr-`. RTL is not a retrofit here; physical properties break the
+  Arabic layout immediately.
+- Anywhere the UI shows a shared label (field label, button, heading), follow the
+  `English / العربية` bilingual pattern via the `BilingualLabel` component — see
+  `design-system/02-typography.md` and `04-components.md`.
+
+### Times
+
+Everything renders in `NEXT_PUBLIC_CAFE_TIMEZONE` (default `Africa/Cairo`) via helpers
+in `lib/format.ts`, not the server's local timezone or the browser's. Admin
+`datetime-local` inputs are converted both ways so typing `20:00` always means 20:00 in
+Cairo, regardless of where the admin physically is.
+
+---
+
+## 3. Security Rules — always do these
+
+1. **Every API route is guarded.** `guard(min)` for role-gated routes, `currentUser()`
+   + a manual null-check for "any signed-in user" routes. No exceptions — a route with
+   no auth check is a bug, not a shortcut.
+2. **Every write is Zod-validated**, via `parseBody()`, against a schema in
+   `lib/validation.ts`. Never read `request.json()` and touch fields directly — that's
+   how mass assignment and NoSQL-injection-shaped payloads get through.
+3. **Ownership checks, not just role checks.** A member can cancel *their own*
+   reservation, not any reservation — check `reservation.user === currentUser().id`
+   even after confirming the role is `member`. Role answers "what kind of user is
+   this", not "do they own this row".
+4. **Passwords:** bcrypt-hashed (`lib/auth.ts`), the hash field is `select: false` on
+   the `User` model and only pulled in explicitly (`.select("+passwordHash")`) inside
+   the credentials `authorize()` call — it never comes back on a normal `User` query.
+5. **OAuth providers degrade safely.** A provider with no credentials configured
+   (`enabledOAuthProviders` in `lib/auth.ts`) simply doesn't render its button, rather
+   than rendering a button that dead-ends at a broken callback.
+6. **Admin bootstrap is env-based, one-way.** `ADMIN_EMAILS`/`STAFF_EMAILS` promote a
+   user *on first sign-in only*; after that, roles live in the database and are managed
+   there. Don't re-introduce env-based role checks anywhere else in the app.
+
+---
+
+## 4. Performance Rules
+
+1. **Indexes match the actual query shape.** `Event` has a compound
+   `{ status: 1, startsAt: 1 }` index because the events hub always queries "published,
+   soonest first" — if you add a new common query pattern, add the matching index next
+   to the schema, not as an afterthought.
+2. **`.lean()` on read-only queries.** Anywhere a document is read and not saved back
+   (`User.findOne(...).lean()`, `Event.findById(id).lean()`), use `.lean()` — you get a
+   plain object instead of a full Mongoose document, which is both faster and prevents
+   accidentally calling `.save()` on something you only meant to read.
+3. **No N+1.** If a screen needs a list plus a per-item count or join (e.g. events plus
+   their reservation counts), do it as one aggregation/query in `lib/data.ts`, not a
+   loop of per-item queries.
+4. **Capacity is checked read-then-write, deliberately, not atomically** (see
+   `events/[id]/reservations/route.ts`). This is a known, accepted tradeoff at cafe
+   scale — don't "fix" it with a transaction unless the scale assumption changes;
+   simplicity here was a conscious choice, documented in the code.
+
+---
+
+## 5. Modularity — how to keep new code consistent with what's here
+
+- **One job per file.** Small, focused files (this is why `components/ui/` has eight
+  small files instead of one big `components.tsx`) — easier to read, easier for an AI
+  agent to edit without collateral damage elsewhere.
+- **Reuse the primitives before styling anything new.** Almost every screen in this app
+  is `PageHeader` + `Card` + `TextField`/`Field` primitives + `Button` + `Badge`. Check
+  `design-system/04-components.md` before writing new markup.
+- **Standardized response shape** (`{ data }` / `{ error, details? }`) and **standardized
+  guard pattern** (`{ user } | { response }`) mean any new API route reads like every
+  existing one. Don't invent a new shape for a new route.
+- **Feature loop:** for anything non-trivial, write a short `plan.md` in `PLAN/` before
+  building (see `PLAN/authorization-UI.md` for the template — brand assets, tokens,
+  layout spec, component list, open questions), and note what shipped + any decisions
+  locked in in this file's changelog-style sections or the root README, so the next
+  session (human or AI) isn't rediscovering context from scratch.
+
+---
+
+## 6. What to Avoid
+
+**Frontend**
+- Don't use physical Tailwind spacing (`pl-`, `mr-`, etc.) — logical properties only.
+- Don't put the raw logo on a dark background without `LogoBadge` — it's dark ink and
+  disappears on `ink-black` (see `design-system/05-brand-assets.md`).
+- Don't hand-pick colors for a new admin/staff screen — wrap it in `.dk-workspace` and
+  the shared primitives flip to the cream theme automatically.
+- Don't translate bilingual labels literally — see `design-system/06-tone-of-voice.md`;
+  match the feeling, not the words, when writing new Arabic/English copy pairs.
+
+**Backend**
+- Don't import `@/models/*` from a client component — it pulls Mongoose into the
+  browser bundle. Import shared enums from `lib/constants.ts` instead.
+- Don't skip `guard()`/`currentUser()` on a new API route "because it's simple" — every
+  route gets a check, even read-only ones that only need to hide drafts from the
+  public.
+- Don't read `request.json()` fields directly — always through `parseBody()` + a
+  Zod schema.
+- Don't add a new role check inline — extend `RANK`/`hasRole()` in `lib/rbac.ts` if the
+  role model itself needs to change.
+- Don't widen `next.config.ts`'s `remotePatterns` further than it already is (currently
+  any HTTPS host, because cover images are admin-typed URLs) without first considering
+  narrowing it to a specific image host — it's flagged as a known gap already, not a
+  green light to loosen it more.
+
+---
+
+## 7. Known Gaps (carried over from README — keep this list current)
+
+- Capacity is checked read-then-write, not atomically (§4.4 — accepted tradeoff).
+- `next.config.ts` allows images from any HTTPS host (§6 — flagged, not yet narrowed).
+- Out of scope for v1 per `PLAN/idea.md` §8: online payments, loyalty, non-event table
+  bookings, push reminders, waitlists, QR check-in.
+- No MCP servers (Context7/Tavily) wired up yet — would remove guesswork on Next.js/
+  Mongoose/Auth.js API calls for future feature work.
+- No per-feature `plan.md`/`feature-docs.md` pairs exist yet for anything after the
+  auth screens — only `PLAN/authorization-UI.md` follows that pattern today. Worth
+  backfilling short ones for Events Hub, Reservations, Submit-a-Show, Admin Dashboard,
+  Door Check-in, and Monthly Report so the next session has the same context this file
+  gives for auth.
+
+---
+
+## 8. Quick Reference — adding a typical CRUD feature
+
+1. Model: add/extend a schema in `models/`, exporting types + re-exported constants.
+2. Validation: add a Zod schema to `lib/validation.ts`.
+3. API route(s): `app/api/<resource>/route.ts` (+ `[id]/route.ts` if needed) — always
+   `handle()` wrapping `guard()`/`currentUser()` then `parseBody()`.
+4. Read helper: if the screen needs more than a single `findById`, add it to
+   `lib/data.ts`.
+5. Page: `app/(site)/<route>/page.tsx`, built from `PageHeader` + `Card` + shared
+   `ui/` primitives; wrap in `.dk-workspace` only if it's a staff/admin screen.
+6. i18n: add both `ar` and `en` keys to `lib/i18n/dictionaries.ts` — the type-check
+   will fail if you only add one.
+7. Update this file's Known Gaps section (or the root README) with anything notable
+   you decided along the way.
