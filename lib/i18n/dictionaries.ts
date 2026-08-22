@@ -510,8 +510,8 @@ export const en: DeepMutable<Dict> = {
     fields: {
       titleAr: "Event name (Arabic)",
       titleEn: "Event name (English)",
-      descriptionAr: "Description (Arabic)",
-      descriptionEn: "Description (English)",
+      descriptionAr: "About the event (in Arabic)",
+      descriptionEn: "About the event (in English)",
       locationAr: "Location (Arabic)",
       locationEn: "Location (English)",
       mapUrl: "Google Maps link",
