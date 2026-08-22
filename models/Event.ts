@@ -20,6 +20,8 @@ export interface IEvent {
   locationEn: string;
   mapUrl?: string;
   coverImage?: string;
+  /** Cover image already has its own title/date drawn on it — render it as pure artwork. */
+  isPoster: boolean;
   startsAt: Date;
   doorsOpenAt?: Date;
   price: number;
@@ -44,6 +46,7 @@ const EventSchema = new Schema<IEvent>(
     locationEn: { type: String, default: "", maxlength: 240 },
     mapUrl: { type: String, maxlength: 800 },
     coverImage: { type: String, maxlength: 800 },
+    isPoster: { type: Boolean, default: false },
     startsAt: { type: Date, required: true, index: true },
     doorsOpenAt: { type: Date },
     price: { type: Number, required: true, min: 0 },

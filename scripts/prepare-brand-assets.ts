@@ -1,5 +1,7 @@
 /**
- * Turns the supplied brand JPGs into web-ready assets.
+ * Turns the supplied brand JPGs into web-ready assets: the trimmed logo
+ * lockup, a square mark for favicons/avatars, `app/favicon.ico` itself, and
+ * the banner.
  *
  * The real logo ships as dark-brown-and-tan artwork on a solid white JPEG
  * background, which means it vanishes (or shows a white box) the moment it sits
@@ -10,13 +12,14 @@
  *   npm run brand:assets
  */
 import path from "node:path";
-import { mkdir, copyFile } from "node:fs/promises";
+import { mkdir, copyFile, writeFile } from "node:fs/promises";
 import sharp from "sharp";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const SRC_LOGO = path.join(ROOT, "IMGS", "DEKKA LOGO.jpg");
 const SRC_BANNER = path.join(ROOT, "IMGS", "DEKKA BANNER.jpg");
 const OUT_DIR = path.join(ROOT, "public", "brand");
+const APP_DIR = path.join(ROOT, "app");
 
 /**
  * Luminance window over which a pixel fades from opaque to fully transparent.
@@ -53,6 +56,35 @@ async function knockOutWhite(input: string) {
   });
 }
 
+/**
+ * Packs PNG-compressed frames into a valid multi-resolution ICO container
+ * (the PNG-in-ICO format every modern browser/OS accepts since Vista) — no
+ * external ico library needed for a handful of small, well-documented fields.
+ */
+function buildIco(frames: { size: number; png: Buffer }[]): Buffer {
+  const HEADER_SIZE = 6;
+  const ENTRY_SIZE = 16;
+  let offset = HEADER_SIZE + ENTRY_SIZE * frames.length;
+
+  const header = Buffer.alloc(HEADER_SIZE);
+  header.writeUInt16LE(1, 2); // type: icon
+  header.writeUInt16LE(frames.length, 4);
+
+  const entries = frames.map(({ size, png }) => {
+    const entry = Buffer.alloc(ENTRY_SIZE);
+    entry.writeUInt8(size >= 256 ? 0 : size, 0); // width, 0 means 256px
+    entry.writeUInt8(size >= 256 ? 0 : size, 1); // height
+    entry.writeUInt16LE(1, 4); // colour planes
+    entry.writeUInt16LE(32, 6); // bits per pixel
+    entry.writeUInt32LE(png.length, 8);
+    entry.writeUInt32LE(offset, 12);
+    offset += png.length;
+    return entry;
+  });
+
+  return Buffer.concat([header, ...entries, ...frames.map((f) => f.png)]);
+}
+
 async function main() {
   await mkdir(OUT_DIR, { recursive: true });
 
@@ -83,6 +115,26 @@ async function main() {
 
   await sharp(mark.data).toFile(path.join(OUT_DIR, "dekka-logo-square.png"));
   console.log(`dekka-logo-square.png  512x512  ${(mark.info.size / 1024).toFixed(0)}kb`);
+
+  // Browser tabs request /favicon.ico directly — Next's `app/favicon.ico`
+  // convention wins over metadata.icons regardless of what layout.tsx points
+  // at, so the real mark has to live there too, not just in public/brand/.
+  const icoSizes = [16, 32, 48];
+  const icoFrames = await Promise.all(
+    icoSizes.map(async (size) => ({
+      size,
+      png: await sharp(mark.data)
+        .resize(size, size, {
+          fit: "contain",
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        })
+        .png({ compressionLevel: 9 })
+        .toBuffer(),
+    }))
+  );
+  const favicon = buildIco(icoFrames);
+  await writeFile(path.join(APP_DIR, "favicon.ico"), favicon);
+  console.log(`favicon.ico          16/32/48px  ${(favicon.length / 1024).toFixed(0)}kb`);
 
   await copyFile(SRC_BANNER, path.join(OUT_DIR, "dekka-banner.jpg"));
   console.log("dekka-banner.jpg    copied");

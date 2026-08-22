@@ -242,6 +242,15 @@ Cairo, regardless of where the admin physically is.
 
 - Capacity is checked read-then-write, not atomically (§4.4 — accepted tradeoff).
 - `next.config.ts` allows images from any HTTPS host (§6 — flagged, not yet narrowed).
+- Admin-uploaded posters (`app/api/uploads/route.ts`) are written straight to
+  `public/uploads/events/` on local disk — fine for `next dev`/a single persistent
+  server, but a typical serverless host (e.g. Vercel) has a read-only/ephemeral
+  filesystem at runtime, so uploads would silently fail or vanish between
+  invocations there. Swap in real object storage (Vercel Blob, S3, etc.) before
+  deploying to one; `coverImage` already just stores a URL string, so the schema
+  needs no change, only the upload route's write target. There's also no cleanup of
+  orphaned files when a poster is replaced or an event is deleted — accepted for now,
+  same spirit as the capacity tradeoff above.
 - Out of scope for v1 per `PLAN/idea.md` §8: online payments, loyalty, non-event table
   bookings, push reminders, waitlists, QR check-in.
 - No MCP servers (Context7/Tavily) wired up yet — would remove guesswork on Next.js/
@@ -254,7 +263,64 @@ Cairo, regardless of where the admin physically is.
 
 ---
 
-## 8. Quick Reference — adding a typical CRUD feature
+## 8. Feature Log
+
+Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
+the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Events fix — `PLAN/fix_Events.md`
+
+Four changes to the events feature; every decision was already locked in the plan doc
+before this was built.
+
+- **Cafe location by default.** `EventForm.tsx`'s create path (`event` prop absent)
+  pre-fills `locationAr`/`locationEn`/`mapUrl` from `lib/site.ts` instead of blank —
+  still fully editable, this only changes the starting value. Editing an existing
+  event shows what's actually saved on it, unaffected.
+- **Embedded map for cafe-location events.** The event detail page
+  (`app/(site)/events/[id]/page.tsx`) embeds `site.mapsEmbed` (the same iframe already
+  proven on the About page) whenever `event.mapUrl` is blank or equals `site.maps`;
+  an event with a different (off-site) link keeps the plain "Get directions" link —
+  no coordinate-resolving for arbitrary share links.
+- **`isPoster` flag for poster-style cover images.** New boolean field
+  (`models/Event.ts`, `lib/validation.ts`, `EventDTO`/`toEventDTO` in `lib/data.ts`,
+  and the PATCH passthrough list in `app/api/events/[id]/route.ts`, default `false`).
+  When true, the event detail hero renders the cover image with no gradient/overlay
+  text — the status/spots badges and title move into the normal content flow below
+  the hero instead of being drawn over the artwork, so there's still a real `<h1>`
+  for a11y/SEO. Toggle lives in `EventForm.tsx` as a checkbox next to Cover Image.
+- **One-click Duplicate.** New `components/DuplicateEventButton.tsx`, placed next to
+  `EventAdminActions` on `/admin/events/[id]`: clones the loaded event's fields via
+  `POST /api/events` with `status: "draft"` and `startsAt` shifted +7 days (same
+  time-of-day), then redirects to the new draft. This is the recurrence workaround for
+  weekly events (e.g. a karaoke night) — no scheduler was built; the admin still swaps
+  in the new poster/date by hand.
+- **`doorsOpenAt` hidden, not removed.** Dropped from `EventForm.tsx`'s rendered
+  fields (and the payload it sends), the event-detail facts row, and both `ar`/`en`
+  dictionaries. The Mongoose/Zod schema field is untouched — existing data isn't
+  migrated, and since the form no longer sends the key at all, saving an event never
+  clobbers whatever is already stored there.
+- **12-hour time everywhere.** `formatTime()` in `lib/format.ts` now always passes
+  `hour12: true`, so English no longer falls back to 24-hour via `Intl`'s per-locale
+  default — event cards, event detail, My Events, the staff door table, and the admin
+  event manager all render "8:00 PM" / "٨:٠٠ م" consistently.
+
+### Poster upload
+
+Admins can now upload a poster image directly in `EventForm.tsx` instead of only
+pasting a URL into Cover Image — an "Upload image" button (hidden `<input
+type="file">` behind it, matching the pattern of triggering a file picker from a
+styled button) posts to the new `POST /api/uploads` (admin-guarded, JPEG/PNG/WEBP/GIF,
+5MB cap, both checked client-side for instant feedback and server-side as the real
+gate). The route writes to `public/uploads/events/<uuid>.<ext>` and returns that path,
+which fills the existing `coverImage` field — the manual URL input is still there
+underneath as a visible override/fallback, so nothing about the data model changed.
+See the Known Gaps entry above before deploying this anywhere other than a
+persistent Node server.
+
+---
+
+## 9. Quick Reference — adding a typical CRUD feature
 
 1. Model: add/extend a schema in `models/`, exporting types + re-exported constants.
 2. Validation: add a Zod schema to `lib/validation.ts`.

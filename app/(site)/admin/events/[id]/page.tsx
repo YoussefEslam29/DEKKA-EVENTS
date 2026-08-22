@@ -12,6 +12,7 @@ import { formatDate, formatTime, formatMoney } from "@/lib/format";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui/Surface";
 import { EventForm } from "@/components/EventForm";
 import { EventAdminActions } from "@/components/EventAdminActions";
+import { DuplicateEventButton } from "@/components/DuplicateEventButton";
 
 export const dynamic = "force-dynamic";
 
@@ -58,8 +59,9 @@ export default async function AdminEventDetailPage({
         action={<Badge tone="gold">{t.event.status[event.status]}</Badge>}
       />
 
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
         <EventAdminActions eventId={event.id} status={event.status} />
+        <DuplicateEventButton event={event} />
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">

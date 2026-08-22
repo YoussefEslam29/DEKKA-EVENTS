@@ -21,6 +21,7 @@ export type EventDTO = {
   locationEn: string;
   mapUrl: string;
   coverImage: string;
+  isPoster: boolean;
   startsAt: string;
   doorsOpenAt: string | null;
   price: number;
@@ -93,6 +94,7 @@ export function toEventDTO(e: LeanEvent): EventDTO {
     locationEn: e.locationEn ?? "",
     mapUrl: e.mapUrl ?? "",
     coverImage: e.coverImage ?? "",
+    isPoster: e.isPoster ?? false,
     startsAt: startsAt.toISOString(),
     doorsOpenAt: e.doorsOpenAt ? new Date(e.doorsOpenAt).toISOString() : null,
     price: Number(e.price ?? 0),

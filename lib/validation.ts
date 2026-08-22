@@ -24,6 +24,7 @@ const eventCore = {
   locationEn: optionalText(240),
   mapUrl: z.string().trim().max(800).optional().default(""),
   coverImage: z.string().trim().max(800).optional().default(""),
+  isPoster: z.boolean().optional().default(false),
   startsAt: z.string().datetime({ offset: true }),
   doorsOpenAt: z.string().datetime({ offset: true }).nullish(),
   price: z.number().min(0).max(1_000_000),

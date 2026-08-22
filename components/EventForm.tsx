@@ -1,16 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Upload } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Select, FormRow, Label } from "@/components/ui/Field";
 import { Card } from "@/components/ui/Surface";
 import { toLocalInputValue, fromLocalInputValue, CAFE_TIMEZONE } from "@/lib/format";
 import { EVENT_STATUSES, PAYMENT_METHODS, type PaymentMethod } from "@/lib/constants";
+import { site } from "@/lib/site";
 import type { EventDTO } from "@/lib/data";
 
 type Props = { event?: EventDTO };
+
+// Mirrors the server-side limit in app/api/uploads/route.ts — checked here
+// too so an oversized file fails instantly instead of after a round trip.
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 const blank = {
   titleAr: "",
@@ -22,7 +28,6 @@ const blank = {
   mapUrl: "",
   coverImage: "",
   startsAt: "",
-  doorsOpenAt: "",
   price: "0",
   capacity: "",
   instapayNumber: "",
@@ -45,6 +50,9 @@ export function EventForm({ event }: Props) {
   const [methods, setMethods] = useState<PaymentMethod[]>(
     event?.paymentMethods ?? ["cash"]
   );
+  const [isPoster, setIsPoster] = useState(event?.isPoster ?? false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     ...blank,
     ...(event
@@ -58,7 +66,6 @@ export function EventForm({ event }: Props) {
           mapUrl: event.mapUrl,
           coverImage: event.coverImage,
           startsAt: toLocalInputValue(event.startsAt),
-          doorsOpenAt: toLocalInputValue(event.doorsOpenAt),
           price: String(event.price),
           capacity: event.capacity == null ? "" : String(event.capacity),
           instapayNumber: event.instapayNumber,
@@ -66,7 +73,13 @@ export function EventForm({ event }: Props) {
           termsEn: event.termsEn,
           status: event.status,
         }
-      : {}),
+      : {
+          // Almost every night happens in the same room — start from the
+          // cafe's own address/map link, still fully editable for an off-site show.
+          locationAr: site.addressAr,
+          locationEn: site.addressEn,
+          mapUrl: site.maps,
+        }),
   });
 
   const set =
@@ -86,6 +99,35 @@ export function EventForm({ event }: Props) {
     );
   }
 
+  async function handlePosterFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the admin re-pick the same file after a failed upload
+    if (!file) return;
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(t.admin.uploadTooBig);
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/uploads", { method: "POST", body });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error === "Unsupported image type" ? t.admin.uploadBadType : t.common.somethingWrong);
+        return;
+      }
+      setForm((f) => ({ ...f, coverImage: json.data.url }));
+    } catch {
+      setError(t.common.somethingWrong);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -103,7 +145,6 @@ export function EventForm({ event }: Props) {
       return;
     }
 
-    const doorsOpenAt = fromLocalInputValue(form.doorsOpenAt);
     const payload = {
       titleAr: form.titleAr,
       titleEn: form.titleEn,
@@ -113,8 +154,8 @@ export function EventForm({ event }: Props) {
       locationEn: form.locationEn,
       mapUrl: form.mapUrl,
       coverImage: form.coverImage,
+      isPoster,
       startsAt: startsAt.toISOString(),
-      doorsOpenAt: doorsOpenAt ? doorsOpenAt.toISOString() : null,
       price: Number(form.price) || 0,
       capacity: form.capacity.trim() === "" ? null : Number(form.capacity),
       paymentMethods: methods,
@@ -173,6 +214,56 @@ export function EventForm({ event }: Props) {
             <Input id="coverImage" dir="ltr" value={form.coverImage} onChange={set("coverImage")} />
           </FormRow>
         </div>
+
+        <div className="mb-4">
+          {form.coverImage ? (
+            // eslint-disable-next-line @next/next/no-img-element -- small admin-only preview, not the site's rendered cover art
+            <img
+              src={form.coverImage}
+              alt=""
+              className="mb-3 h-32 w-auto max-w-xs rounded-lg border border-line object-cover"
+            />
+          ) : null}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handlePosterFile}
+            className="hidden"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="lightOutline"
+              size="sm"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" />
+              {uploading ? t.admin.uploading : t.admin.uploadImage}
+            </Button>
+            {form.coverImage ? (
+              <Button
+                type="button"
+                variant="lightGhost"
+                size="sm"
+                onClick={() => setForm((f) => ({ ...f, coverImage: "" }))}
+              >
+                {t.admin.removeImage}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <label className="inline-flex items-center gap-2 text-sm font-semibold">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[var(--color-gold-deep)]"
+            checked={isPoster}
+            onChange={(e) => setIsPoster(e.target.checked)}
+          />
+          {t.admin.fields.isPoster}
+        </label>
       </Card>
 
       <Card className="mb-4 p-5">
@@ -185,15 +276,6 @@ export function EventForm({ event }: Props) {
               value={form.startsAt}
               onChange={set("startsAt")}
               required
-            />
-          </FormRow>
-          <FormRow label={t.admin.fields.doorsOpenAt} htmlFor="doorsOpenAt" hint={t.common.optional}>
-            <Input
-              id="doorsOpenAt"
-              type="datetime-local"
-              dir="ltr"
-              value={form.doorsOpenAt}
-              onChange={set("doorsOpenAt")}
             />
           </FormRow>
           <FormRow label={t.admin.fields.price} htmlFor="price">

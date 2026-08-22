@@ -32,6 +32,7 @@ export function formatTime(date: Date | string, locale: Locale): string {
     timeZone: CAFE_TIMEZONE,
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   }).format(new Date(date));
 }
 

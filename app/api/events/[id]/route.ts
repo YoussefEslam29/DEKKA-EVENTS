@@ -47,7 +47,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const update: Record<string, unknown> = {};
     const passthrough = [
       "titleAr", "titleEn", "descriptionAr", "descriptionEn",
-      "locationAr", "locationEn", "mapUrl", "coverImage",
+      "locationAr", "locationEn", "mapUrl", "coverImage", "isPoster",
       "instapayNumber", "termsAr", "termsEn", "status", "paymentMethods",
     ] as const;
     for (const key of passthrough) {

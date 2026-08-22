@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { CalendarDays, Clock, MapPin, Wallet, DoorOpen, ExternalLink } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Wallet, ExternalLink } from "lucide-react";
 import { getI18n, fill } from "@/lib/i18n";
 import { currentUser, hasRole } from "@/lib/rbac";
 import {
@@ -46,13 +46,13 @@ export default async function EventDetailPage({
   const location = eventText(event, locale, "location");
   const terms = eventText(event, locale, "terms");
   const mapUrl = event.mapUrl || site.maps;
+  // Almost every event still uses the cafe's own default map link (see §1)
+  // — embed the known-good cafe coordinates instead of just linking out.
+  const isCafeLocation = !event.mapUrl || event.mapUrl === site.maps;
 
   const facts = [
     { Icon: CalendarDays, label: t.event.date, value: formatDate(event.startsAt, locale) },
     { Icon: Clock, label: t.event.time, value: formatTime(event.startsAt, locale) },
-    ...(event.doorsOpenAt
-      ? [{ Icon: DoorOpen, label: t.event.doors, value: formatTime(event.doorsOpenAt, locale) }]
-      : []),
     ...(location ? [{ Icon: MapPin, label: t.event.location, value: location }] : []),
     {
       Icon: Wallet,
@@ -64,12 +64,49 @@ export default async function EventDetailPage({
     },
   ];
 
+  // Poster mode still needs a real <h1> for a11y/SEO/tab title — it just
+  // isn't drawn over the artwork like a photo hero's overlay text is.
+  const heroHeading = (
+    <>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Badge tone={event.status === "published" ? "good" : "neutral"}>
+          {t.event.status[event.status]}
+        </Badge>
+        {spotsLeft != null && !closed ? (
+          <Badge tone={isFull ? "bad" : "gold"}>
+            {isFull ? t.event.full : fill(t.event.spotsLeft, { n: formatNumber(spotsLeft, locale) })}
+          </Badge>
+        ) : null}
+        {spotsLeft == null && !closed ? (
+          <Badge tone="neutral">{t.event.unlimited}</Badge>
+        ) : null}
+      </div>
+
+      <h1
+        lang="en"
+        dir="ltr"
+        className="max-w-3xl text-3xl font-extrabold leading-tight text-cream md:text-5xl"
+      >
+        {event.titleEn || event.titleAr}
+      </h1>
+      {event.titleAr && event.titleAr !== event.titleEn ? (
+        <p className="mt-2 max-w-3xl text-lg font-light text-cream/70 md:text-xl">
+          <span lang="ar" dir="rtl" className="font-arabic">
+            {event.titleAr}
+          </span>
+        </p>
+      ) : null}
+    </>
+  );
+
   return (
     <article>
       {/*
        * §8: the event hero gets the same treatment as the auth left panel —
        * dark image, gradient, bold English headline with the Arabic beneath —
        * only showing the event's own artwork instead of the cafe interior.
+       * A poster cover image is the exception: it already carries its own
+       * title/date, so it renders as pure artwork with no overlay (§2c).
        */}
       <section className="relative isolate flex min-h-[16rem] items-end overflow-hidden border-b border-border-dark md:min-h-[22rem]">
         {event.coverImage ? (
@@ -88,44 +125,23 @@ export default async function EventDetailPage({
           </div>
         )}
 
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(to_top,rgba(24,18,13,0.96)_0%,rgba(24,18,13,0.72)_45%,rgba(24,18,13,0.3)_100%)]"
-        />
-
-        <div className="relative mx-auto w-full max-w-[1180px] px-4 pb-8 pt-16 md:px-8">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Badge tone={event.status === "published" ? "good" : "neutral"}>
-              {t.event.status[event.status]}
-            </Badge>
-            {spotsLeft != null && !closed ? (
-              <Badge tone={isFull ? "bad" : "gold"}>
-                {isFull ? t.event.full : fill(t.event.spotsLeft, { n: formatNumber(spotsLeft, locale) })}
-              </Badge>
-            ) : null}
-            {spotsLeft == null && !closed ? (
-              <Badge tone="neutral">{t.event.unlimited}</Badge>
-            ) : null}
-          </div>
-
-          <h1
-            lang="en"
-            dir="ltr"
-            className="max-w-3xl text-3xl font-extrabold leading-tight text-cream md:text-5xl"
-          >
-            {event.titleEn || event.titleAr}
-          </h1>
-          {event.titleAr && event.titleAr !== event.titleEn ? (
-            <p className="mt-2 max-w-3xl text-lg font-light text-cream/70 md:text-xl">
-              <span lang="ar" dir="rtl" className="font-arabic">
-                {event.titleAr}
-              </span>
-            </p>
-          ) : null}
-        </div>
+        {event.coverImage && event.isPoster ? null : (
+          <>
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-[linear-gradient(to_top,rgba(24,18,13,0.96)_0%,rgba(24,18,13,0.72)_45%,rgba(24,18,13,0.3)_100%)]"
+            />
+            <div className="relative mx-auto w-full max-w-[1180px] px-4 pb-8 pt-16 md:px-8">
+              {heroHeading}
+            </div>
+          </>
+        )}
       </section>
 
       <div className="mx-auto max-w-[1180px] px-4 py-8 md:px-8">
+        {event.coverImage && event.isPoster ? (
+          <div className="mb-6">{heroHeading}</div>
+        ) : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_20rem]">
           <div>
@@ -194,15 +210,27 @@ export default async function EventDetailPage({
                 closed={closed}
               />
 
-              <a
-                href={mapUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-gold-accent hover:underline"
-              >
-                <ExternalLink className="h-4 w-4" />
-                {t.event.directions}
-              </a>
+              {isCafeLocation ? (
+                <div className="mt-4 overflow-hidden rounded-xl border border-border-dark">
+                  <iframe
+                    src={site.mapsEmbed}
+                    title="Dekka on Google Maps"
+                    className="h-48 w-full"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+              ) : (
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-gold-accent hover:underline"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {t.event.directions}
+                </a>
+              )}
 
               {hasRole(user, "admin") ? (
                 <p className="mt-4 border-t border-border-dark pt-3 text-sm text-text-muted">
