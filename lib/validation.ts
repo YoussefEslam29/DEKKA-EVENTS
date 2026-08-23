@@ -49,6 +49,26 @@ export const checkInSchema = z.object({
   note: optionalText(300),
 });
 
+/**
+ * Correcting a door entry after the fact (`PLAN/FIX_ADMIN_DASH.md` §2b). Every
+ * field optional, because the spreadsheet grid saves one cell at a time.
+ *
+ * `.strict()` matters here: this result feeds a `$set`, so an unlisted key
+ * (`event`, `recordedBy`, `reservation`) reaching it would be exactly the
+ * mass-assignment hole `parseBody` exists to close. Rejecting the request is
+ * safer than silently dropping the key.
+ */
+export const updateCheckInSchema = z
+  .object({
+    name: trimmed(120).min(1),
+    phone: trimmed(30).min(4),
+    paymentMethod: z.enum(PAYMENT_METHODS),
+    amount: z.number().min(0).max(1_000_000),
+    note: optionalText(300),
+  })
+  .partial()
+  .strict();
+
 export const submissionSchema = z.object({
   bandName: trimmed(160).min(1),
   genre: optionalText(120),
@@ -69,4 +89,5 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type CheckInInput = z.infer<typeof checkInSchema>;
+export type UpdateCheckInInput = z.infer<typeof updateCheckInSchema>;
 export type SubmissionInput = z.infer<typeof submissionSchema>;

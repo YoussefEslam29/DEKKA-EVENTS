@@ -39,7 +39,7 @@ export function SubmissionRow({ submission }: { submission: SubmissionDTO }) {
   }
 
   return (
-    <Card className="p-4">
+    <Card className="p-4 transition-colors hover:border-gold">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

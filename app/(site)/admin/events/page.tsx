@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { CalendarDays, Table2 } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { getAllEvents, countReservationsForEvents, eventTitle } from "@/lib/data";
-import { formatDate, formatTime, formatMoney } from "@/lib/format";
+import { formatDate, formatTime, formatMoney, monthKey } from "@/lib/format";
 import { Card, PageHeader, EmptyState, Badge } from "@/components/ui/Surface";
+import { FadeUp, StaggerRow, StaggerRows } from "@/components/ui/Motion";
+import { MonthCalendar } from "@/components/MonthCalendar";
 import { buttonStyles } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -15,23 +19,96 @@ const statusTone = {
   archived: "neutral",
 } as const;
 
-export default async function AdminEventsPage() {
+/**
+ * The events manager, in two views (`PLAN/FIX_ADMIN_DASH.md` §4).
+ *
+ * Which view is showing lives in `?view=`, and the calendar's month in
+ * `?month=`, rather than in client state. That costs nothing here — the page
+ * is `force-dynamic` and both views render from the same single query — and it
+ * buys a shareable link to a specific month plus a browser Back that actually
+ * returns to the month you were looking at.
+ */
+export default async function AdminEventsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; month?: string }>;
+}) {
   const { locale, t } = await getI18n();
+  const { view, month: requested } = await searchParams;
+
+  const calendar = view === "calendar";
+  const month = /^\d{4}-\d{2}$/.test(requested ?? "")
+    ? (requested as string)
+    : monthKey(new Date());
+
   const events = await getAllEvents();
   const counts = await countReservationsForEvents(events.map((e) => e.id));
 
+  const hrefFor = (nextView: "table" | "calendar", nextMonth = month) =>
+    nextView === "calendar"
+      ? `/admin/events?view=calendar&month=${nextMonth}`
+      : "/admin/events";
+
+  const toggle = (
+    <div className="dk-hairline inline-flex rounded-[4px] border p-0.5">
+      <Link
+        href={hrefFor("table")}
+        aria-current={calendar ? undefined : "page"}
+        className={cn(
+          "inline-flex min-h-11 items-center gap-1.5 rounded-[3px] px-3 text-sm font-semibold transition-colors",
+          calendar ? "text-ink-soft hover:bg-gold-wash" : "bg-ink text-cream"
+        )}
+      >
+        <Table2 className="h-4 w-4" />
+        {t.admin.tableView}
+      </Link>
+      <Link
+        href={hrefFor("calendar")}
+        aria-current={calendar ? "page" : undefined}
+        className={cn(
+          "inline-flex min-h-11 items-center gap-1.5 rounded-[3px] px-3 text-sm font-semibold transition-colors",
+          calendar ? "bg-ink text-cream" : "text-ink-soft hover:bg-gold-wash"
+        )}
+      >
+        <CalendarDays className="h-4 w-4" />
+        {t.admin.calendarView}
+      </Link>
+    </div>
+  );
+
   return (
     <div>
-      <PageHeader
-        title={t.admin.events}
-        action={
-          <Link href="/admin/events/new" className={buttonStyles({ variant: "lightPrimary" })}>
-            {t.admin.newEvent}
-          </Link>
-        }
-      />
+      <FadeUp>
+        <PageHeader
+          title={t.admin.events}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              {toggle}
+              <Link
+                href="/admin/events/new"
+                className={buttonStyles({ variant: "lightPrimary" })}
+              >
+                {t.admin.newEvent}
+              </Link>
+            </div>
+          }
+        />
+      </FadeUp>
 
-      {events.length === 0 ? (
+      {calendar ? (
+        <MonthCalendar
+          month={month}
+          events={events}
+          locale={locale}
+          hrefForMonth={(next) => hrefFor("calendar", next)}
+          labels={{
+            karaokeHint: t.admin.karaokeHint,
+            newEvent: t.admin.newEvent,
+            previousMonth: t.admin.previousMonth,
+            nextMonth: t.admin.nextMonth,
+          }}
+        />
+      ) : events.length === 0 ? (
         <EmptyState>{t.admin.noEvents}</EmptyState>
       ) : (
         <Card className="overflow-x-auto">
@@ -45,9 +122,9 @@ export default async function AdminEventsPage() {
                 <th className="px-4 py-2 text-end font-semibold">{t.event.price}</th>
               </tr>
             </thead>
-            <tbody>
+            <StaggerRows>
               {events.map((event) => (
-                <tr key={event.id} className="border-t border-line hover:bg-gold-wash/40">
+                <StaggerRow key={event.id} className="border-t border-line hover:bg-gold-wash/40">
                   <td className="px-4 py-2">
                     <Link href={`/admin/events/${event.id}`} className="font-bold hover:text-gold-deep">
                       {eventTitle(event, locale)}
@@ -68,9 +145,9 @@ export default async function AdminEventsPage() {
                   <td className="px-4 py-2 text-end">
                     {event.price > 0 ? formatMoney(event.price, locale) : t.common.free}
                   </td>
-                </tr>
+                </StaggerRow>
               ))}
-            </tbody>
+            </StaggerRows>
           </table>
         </Card>
       )}

@@ -445,3 +445,167 @@ export async function getAdminOverview() {
   ]);
   return { upcoming, drafts, pendingSubmissions, totalReservations };
 }
+
+/**
+ * A door row with the night it belongs to attached — the shape the cross-event
+ * Customers grid needs (`PLAN/FIX_ADMIN_DASH.md` §2c).
+ */
+export type CheckInRowDTO = CheckInDTO & {
+  eventTitleAr: string;
+  eventTitleEn: string;
+  eventStartsAt: string;
+};
+
+/**
+ * Every check-in across every event, newest first.
+ *
+ * One `$lookup` rather than a query per row: the whole point of this screen is
+ * to show who came *and* which night they came to, and doing that in a loop
+ * would be the N+1 the developer guide §4.3 rules out.
+ *
+ * `limit` is a deliberate cap, not pagination — at cafe scale a few hundred
+ * rows is the whole history, and the same "keep it simple until the scale
+ * assumption changes" tradeoff the capacity check already makes applies here.
+ */
+export async function getAllCheckIns({
+  eventId,
+  q,
+  limit = 500,
+}: { eventId?: string; q?: string; limit?: number } = {}): Promise<CheckInRowDTO[]> {
+  await connectDB();
+
+  const match: Record<string, unknown> = {};
+  if (eventId && mongoose.Types.ObjectId.isValid(eventId)) {
+    match.event = new mongoose.Types.ObjectId(eventId);
+  }
+  if (q?.trim()) {
+    // Escaped before it reaches the regex: an admin typing "(" into the search
+    // box should find nothing, not crash the query.
+    const safe = q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rx = new RegExp(safe, "i");
+    match.$or = [{ name: rx }, { phone: rx }];
+  }
+
+  const rows = await CheckIn.aggregate([
+    { $match: match },
+    { $sort: { createdAt: -1 } },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: Event.collection.name,
+        localField: "event",
+        foreignField: "_id",
+        as: "eventDoc",
+      },
+    },
+    { $unwind: { path: "$eventDoc", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        name: 1,
+        phone: 1,
+        paymentMethod: 1,
+        amount: 1,
+        note: 1,
+        createdAt: 1,
+        event: 1,
+        reservation: 1,
+        eventTitleAr: "$eventDoc.titleAr",
+        eventTitleEn: "$eventDoc.titleEn",
+        eventStartsAt: "$eventDoc.startsAt",
+      },
+    },
+  ]);
+
+  return rows.map((r) => ({
+    id: String(r._id),
+    eventId: String(r.event),
+    name: r.name ?? "",
+    phone: r.phone ?? "",
+    paymentMethod: r.paymentMethod,
+    amount: Number(r.amount ?? 0),
+    reservationId: r.reservation ? String(r.reservation) : null,
+    createdAt: new Date(r.createdAt).toISOString(),
+    note: r.note ?? "",
+    eventTitleAr: r.eventTitleAr ?? "",
+    eventTitleEn: r.eventTitleEn ?? "",
+    // An event deleted out from under its check-ins leaves the row orphaned
+    // rather than hiding it — the money it recorded still happened.
+    eventStartsAt: r.eventStartsAt ? new Date(r.eventStartsAt).toISOString() : "",
+  }));
+}
+
+/** A reservation with its event attached, for the combined Reservations tab. */
+export type ReservationRowDTO = ReservationDTO & {
+  eventTitleAr: string;
+  eventTitleEn: string;
+  eventStartsAt: string;
+  checkedIn: boolean;
+};
+
+/**
+ * Every confirmed reservation across every event, soonest event first
+ * (`PLAN/FIX_ADMIN_DASH.md` §3).
+ *
+ * Same shape of join as `getEventReservations`, widened from one event to all
+ * of them: one `$lookup` for the event, a second for the check-in that may
+ * have consumed the reservation, so "did they actually turn up" comes back in
+ * the same pass rather than a second query per row.
+ */
+export async function getAllReservations({
+  limit = 500,
+}: { limit?: number } = {}): Promise<ReservationRowDTO[]> {
+  await connectDB();
+
+  const rows = await Reservation.aggregate([
+    { $match: { status: "confirmed" } },
+    {
+      $lookup: {
+        from: Event.collection.name,
+        localField: "event",
+        foreignField: "_id",
+        as: "eventDoc",
+      },
+    },
+    { $unwind: { path: "$eventDoc", preserveNullAndEmptyArrays: true } },
+    { $sort: { "eventDoc.startsAt": -1, createdAt: -1 } },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: CheckIn.collection.name,
+        localField: "_id",
+        foreignField: "reservation",
+        as: "checkInDoc",
+      },
+    },
+    {
+      $project: {
+        name: 1,
+        phone: 1,
+        code: 1,
+        status: 1,
+        createdAt: 1,
+        event: 1,
+        user: 1,
+        eventTitleAr: "$eventDoc.titleAr",
+        eventTitleEn: "$eventDoc.titleEn",
+        eventStartsAt: "$eventDoc.startsAt",
+        checkedIn: { $gt: [{ $size: "$checkInDoc" }, 0] },
+      },
+    },
+  ]);
+
+  return rows.map((r) => ({
+    id: String(r._id),
+    eventId: String(r.event),
+    userId: String(r.user),
+    name: r.name ?? "",
+    phone: r.phone ?? "",
+    code: r.code ?? "",
+    status: r.status ?? "confirmed",
+    createdAt: new Date(r.createdAt).toISOString(),
+    checkedIn: Boolean(r.checkedIn),
+    eventTitleAr: r.eventTitleAr ?? "",
+    eventTitleEn: r.eventTitleEn ?? "",
+    eventStartsAt: r.eventStartsAt ? new Date(r.eventStartsAt).toISOString() : "",
+  }));
+}

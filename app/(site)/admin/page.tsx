@@ -1,89 +1,111 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { getI18n } from "@/lib/i18n";
-import { getAdminOverview, getPublicEvents, countReservationsForEvents, eventTitle } from "@/lib/data";
-import { formatDate, monthKey } from "@/lib/format";
-import { Card, PageHeader, EmptyState } from "@/components/ui/Surface";
+import {
+  getAdminOverview,
+  getAllEvents,
+  getAllReservations,
+  getSubmissions,
+  countReservationsForEvents,
+} from "@/lib/data";
+import { monthKey } from "@/lib/format";
+import { PageHeader } from "@/components/ui/Surface";
+import { FadeUp } from "@/components/ui/Motion";
 import { buttonStyles } from "@/components/ui/Button";
+import {
+  AdminOverviewTabs,
+  type OverviewTab,
+} from "@/components/AdminOverviewTabs";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminOverviewPage() {
-  const { locale, t } = await getI18n();
-  const [overview, upcoming] = await Promise.all([
-    getAdminOverview(),
-    getPublicEvents({ when: "upcoming", limit: 5 }),
-  ]);
-  const counts = await countReservationsForEvents(upcoming.map((e) => e.id));
+const TABS = ["upcoming", "drafts", "reservations", "submissions"] as const;
 
-  const tiles = [
-    { label: t.home.upcoming, value: overview.upcoming, href: "/admin/events" },
-    { label: t.event.status.draft, value: overview.drafts, href: "/admin/events" },
-    { label: t.admin.reservations, value: overview.totalReservations, href: "/admin/events" },
-    {
-      label: t.admin.submissions,
-      value: overview.pendingSubmissions,
-      href: "/admin/submissions",
-    },
-  ];
+/**
+ * The admin overview (`PLAN/FIX_ADMIN_DASH.md` §3).
+ *
+ * Every slice the four tabs can show is fetched here, in one parallel pass,
+ * and handed down — so switching tabs costs nothing and there is no per-tab
+ * spinner. That is affordable precisely because these are small, capped
+ * queries at cafe scale; if any of them ever stops being small, this is the
+ * place to split them back out into per-tab fetches.
+ */
+export default async function AdminOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { t } = await getI18n();
+  const { tab } = await searchParams;
+  const active: OverviewTab = TABS.includes(tab as OverviewTab)
+    ? (tab as OverviewTab)
+    : "upcoming";
+
+  const [overview, allEvents, reservations, submissions] = await Promise.all([
+    getAdminOverview(),
+    getAllEvents(),
+    getAllReservations({ limit: 200 }),
+    getSubmissions("pending"),
+  ]);
+
+  const now = Date.now();
+  const upcoming = allEvents
+    .filter(
+      (event) =>
+        event.status === "published" && new Date(event.startsAt).getTime() >= now
+    )
+    // `getAllEvents` sorts newest-first, which is right for a management table
+    // and wrong for "what's coming up" — soonest first is the useful order here.
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+
+  const drafts = allEvents.filter((event) => event.status === "draft");
+
+  // One aggregation for both lists rather than one per tab.
+  const counts = await countReservationsForEvents(
+    [...upcoming, ...drafts].map((event) => event.id)
+  );
 
   return (
     <div>
-      <PageHeader
-        title={t.admin.title}
-        action={
-          <div className="flex gap-2">
-            <Link href="/admin/events/new" className={buttonStyles({ variant: "lightPrimary" })}>
-              {t.admin.newEvent}
-            </Link>
-            <Link
-              href={`/admin/report?month=${monthKey(new Date())}`}
-              className={buttonStyles({ variant: "lightOutline" })}
-            >
-              {t.admin.report}
-            </Link>
-          </div>
-        }
-      />
+      <FadeUp>
+        <PageHeader
+          title={t.admin.title}
+          action={
+            <div className="flex gap-2">
+              <Link
+                href="/admin/events/new"
+                className={buttonStyles({ variant: "lightPrimary" })}
+              >
+                {t.admin.newEvent}
+              </Link>
+              <Link
+                href={`/admin/report?month=${monthKey(new Date())}`}
+                className={buttonStyles({ variant: "lightOutline" })}
+              >
+                {t.admin.report}
+              </Link>
+            </div>
+          }
+        />
+      </FadeUp>
 
-      <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((tile) => (
-          <Link key={tile.label} href={tile.href}>
-            <Card className="p-4 transition-colors hover:border-gold">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-                {tile.label}
-              </p>
-              <p className="mt-1 text-3xl font-black">{tile.value}</p>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      <h2 className="mb-3 text-lg font-bold">{t.home.upcoming}</h2>
-      {upcoming.length === 0 ? (
-        <EmptyState>{t.admin.noEvents}</EmptyState>
-      ) : (
-        <div className="grid gap-2">
-          {upcoming.map((event) => (
-            <Link key={event.id} href={`/admin/events/${event.id}`}>
-              <Card className="flex flex-wrap items-center justify-between gap-2 p-3 transition-colors hover:border-gold">
-                <div>
-                  <p className="font-bold">{eventTitle(event, locale)}</p>
-                  <p className="text-sm text-ink-soft">
-                    {formatDate(event.startsAt, locale)}
-                  </p>
-                </div>
-                <p className="text-sm">
-                  <span className="text-ink-faint">{t.admin.reservations}: </span>
-                  <strong>{counts[event.id] ?? 0}</strong>
-                  {event.capacity != null ? (
-                    <span className="text-ink-faint"> / {event.capacity}</span>
-                  ) : null}
-                </p>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      {/* `useSearchParams` inside the tabs needs a boundary to suspend at. */}
+      <Suspense fallback={null}>
+        <AdminOverviewTabs
+          active={active}
+          counts={{
+            upcoming: overview.upcoming,
+            drafts: overview.drafts,
+            reservations: overview.totalReservations,
+            submissions: overview.pendingSubmissions,
+          }}
+          upcoming={upcoming}
+          drafts={drafts}
+          reservations={reservations}
+          submissions={submissions}
+          reservationCounts={counts}
+        />
+      </Suspense>
     </div>
   );
 }

@@ -1,14 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Trash2, UserPlus, Search } from "lucide-react";
+import { UserPlus, Search } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, FormRow } from "@/components/ui/Field";
 import { Card, Badge, EmptyState } from "@/components/ui/Surface";
+import { Stagger, StaggerItem } from "@/components/ui/Motion";
+import { DataGrid, type GridColumn } from "@/components/ui/DataGrid";
 import { formatMoney, formatTime } from "@/lib/format";
 import type { CheckInDTO, ReservationDTO } from "@/lib/data";
-import type { PaymentMethod } from "@/lib/constants";
+import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/constants";
 
 type Props = {
   eventId: string;
@@ -22,6 +24,12 @@ type Props = {
  * The door, on event night. Optimised for one thing: typing a name and a phone
  * number fast while someone waits. State is held locally and appended on
  * success so the table never blanks out between entries.
+ *
+ * The quick-entry form on the side is deliberately kept as-is
+ * (`PLAN/FIX_ADMIN_DASH.md` §2b) — muscle memory at a busy door beats a
+ * spreadsheet-first flow. What changed is the table beside it: it is now the
+ * shared `DataGrid`, so a mistyped digit is a click and a retype instead of a
+ * delete and a re-add.
  */
 export function DoorTable({
   eventId,
@@ -135,6 +143,84 @@ export function DoorTable({
       setBusy(false);
     }
   }
+
+  /**
+   * One committed cell → one PATCH. Local state is updated from the server's
+   * response rather than from the typed string, so trimming and coercion done
+   * by the schema are what end up on screen.
+   */
+  async function updateCheckIn(id: string, key: string, value: string): Promise<boolean> {
+    // Kept as an index signature rather than a union of literal shapes so the
+    // one branch that coerces (amount) doesn't have to be typed three ways.
+    const patch: Record<string, string | number> =
+      key === "amount" ? { amount: Number(value) } : { [key]: value };
+
+    if (key === "amount" && !Number.isFinite(patch.amount)) return false;
+
+    const res = await fetch(`/api/checkins/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) return false;
+
+    const body = await res.json();
+    const updated = body.data as CheckInDTO;
+    setCheckIns((rows) => rows.map((r) => (r.id === id ? updated : r)));
+    return true;
+  }
+
+  const methodOptions = useMemo(
+    () =>
+      // Fall back to the full enum if the event somehow lists none, so an old
+      // row's method is still selectable rather than silently unset.
+      (paymentMethods.length ? paymentMethods : [...PAYMENT_METHODS]).map((method) => ({
+        value: method,
+        label: method === "cash" ? t.event.cash : t.event.instapay,
+      })),
+    [paymentMethods, t]
+  );
+
+  const columns: GridColumn<CheckInDTO>[] = [
+    {
+      key: "name",
+      header: t.staff.name,
+      editor: { kind: "text", value: (r) => r.name, validate: (v) => v.trim().length > 0 },
+      render: (r) => (
+        <span className="font-semibold">
+          {r.name}
+          <span className="dk-muted ms-2 text-xs font-normal">
+            {formatTime(r.createdAt, locale)}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "phone",
+      header: t.staff.phone,
+      editor: { kind: "tel", value: (r) => r.phone, validate: (v) => v.trim().length >= 4 },
+      render: (r) => <span dir="ltr">{r.phone}</span>,
+    },
+    {
+      key: "paymentMethod",
+      header: t.staff.method,
+      editor: { kind: "select", value: (r) => r.paymentMethod, options: methodOptions },
+      render: (r) => (r.paymentMethod === "cash" ? t.event.cash : t.event.instapay),
+    },
+    {
+      key: "amount",
+      header: t.staff.amount,
+      align: "end",
+      editor: {
+        kind: "number",
+        min: 0,
+        step: "1",
+        value: (r) => String(r.amount),
+        validate: (v) => Number.isFinite(Number(v)) && Number(v) >= 0,
+      },
+      render: (r) => <span className="font-semibold">{formatMoney(r.amount, locale)}</span>,
+    },
+  ];
 
   return (
     <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
@@ -255,84 +341,60 @@ export function DoorTable({
       </div>
 
       <div>
-        <div className="mb-4 grid grid-cols-3 gap-3">
-          <Card className="p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-              {t.staff.count}
-            </p>
-            <p className="text-2xl font-black">{totals.count}</p>
-          </Card>
-          <Card className="p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-              {t.staff.total}
-            </p>
-            <p className="text-2xl font-black text-gold-deep">
-              {formatMoney(totals.sum, locale)}
-            </p>
-          </Card>
-          <Card className="p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-              {t.event.cash} / {t.event.instapay}
-            </p>
-            <p className="text-sm font-bold" dir="ltr">
-              {formatMoney(totals.cash, locale)} / {formatMoney(totals.instapay, locale)}
-            </p>
-          </Card>
-        </div>
+        <Stagger className="mb-4 grid grid-cols-3 gap-3">
+          <StaggerItem>
+            <Card className="p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+                {t.staff.count}
+              </p>
+              <p className="text-2xl font-black">{totals.count}</p>
+            </Card>
+          </StaggerItem>
+          <StaggerItem>
+            <Card className="p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+                {t.staff.total}
+              </p>
+              <p className="text-2xl font-black text-gold-deep">
+                {formatMoney(totals.sum, locale)}
+              </p>
+            </Card>
+          </StaggerItem>
+          <StaggerItem>
+            <Card className="p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+                {t.event.cash} / {t.event.instapay}
+              </p>
+              <p className="text-sm font-bold" dir="ltr">
+                {formatMoney(totals.cash, locale)} / {formatMoney(totals.instapay, locale)}
+              </p>
+            </Card>
+          </StaggerItem>
+        </Stagger>
 
         <Card className="overflow-hidden">
-          <h2 className="border-b border-line px-4 py-3 font-bold">{t.staff.attendees}</h2>
-          {checkIns.length === 0 ? (
-            <div className="p-6">
-              <EmptyState>{t.staff.noAttendees}</EmptyState>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-cream text-xs uppercase tracking-wider text-ink-faint">
-                  <tr>
-                    <th className="px-4 py-2 text-start font-semibold">{t.staff.name}</th>
-                    <th className="px-4 py-2 text-start font-semibold">{t.staff.phone}</th>
-                    <th className="px-4 py-2 text-start font-semibold">{t.staff.method}</th>
-                    <th className="px-4 py-2 text-end font-semibold">{t.staff.amount}</th>
-                    <th className="px-4 py-2 text-end font-semibold" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {checkIns.map((row) => (
-                    <tr key={row.id} className="border-t border-line">
-                      <td className="px-4 py-2 font-semibold">
-                        {row.name}
-                        <span className="ms-2 text-xs font-normal text-ink-faint">
-                          {formatTime(row.createdAt, locale)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2" dir="ltr">
-                        {row.phone}
-                      </td>
-                      <td className="px-4 py-2">
-                        {row.paymentMethod === "cash" ? t.event.cash : t.event.instapay}
-                      </td>
-                      <td className="px-4 py-2 text-end font-semibold">
-                        {formatMoney(row.amount, locale)}
-                      </td>
-                      <td className="px-4 py-2 text-end">
-                        <button
-                          type="button"
-                          onClick={() => removeCheckIn(row)}
-                          disabled={busy}
-                          aria-label={t.staff.remove}
-                          className="rounded-[4px] p-1 text-ink-faint hover:bg-bad/10 hover:text-bad"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="dk-hairline flex items-center justify-between border-b px-4 py-3">
+            <h2 className="font-bold">{t.staff.attendees}</h2>
+            <p className="dk-muted text-xs">{t.grid.editHint}</p>
+          </div>
+          <DataGrid
+            rows={checkIns}
+            columns={columns}
+            rowId={(r) => r.id}
+            onCommit={updateCheckIn}
+            onDelete={removeCheckIn}
+            empty={
+              <div className="p-6">
+                <EmptyState>{t.staff.noAttendees}</EmptyState>
+              </div>
+            }
+            labels={{
+              delete: t.staff.remove,
+              saving: t.common.saving,
+              error: t.grid.saveFailed,
+              editHint: t.grid.editHint,
+            }}
+          />
         </Card>
       </div>
     </div>

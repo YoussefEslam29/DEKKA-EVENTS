@@ -255,6 +255,25 @@ Cairo, regardless of where the admin physically is.
   bookings, push reminders, waitlists, QR check-in.
 - No MCP servers (Context7/Tavily) wired up yet — would remove guesswork on Next.js/
   Mongoose/Auth.js API calls for future feature work.
+- **Don't build in a `.claude/worktrees/` git worktree on this repo.** §1/§6/§7 of the
+  admin-dash work were built that way in an earlier session, committed to a branch
+  called `worktree-fix-admin-dash`, and then the worktree directory was cleaned up —
+  leaving `main` looking as if nothing had ever been built while the commits sat on a
+  branch (and on `origin`) nobody was looking at. They have since been brought onto
+  `main` by writing the files out directly. If a worktree is used again, merge the
+  branch back the same day.
+- **`git` writes can fail from a mounted/bridged filesystem.** On that same session
+  every `git` command that takes the index lock failed to *remove* it afterwards
+  ("unable to unlink `.git/index.lock`: Operation not permitted"), which jams every
+  subsequent git command with "Another git process seems to be running". If that
+  happens, delete `.git/index.lock` from a normal terminal on the machine itself.
+- Chart colours in `components/ReportCharts.tsx` are hardcoded hex copied from the
+  `@theme` block in `app/globals.css` — recharts needs values, not classes. They are
+  the one place a token change has to be mirrored by hand.
+- `getAllCheckIns` / `getAllReservations` cap at a few hundred rows rather than
+  paginating — same "simple until the scale assumption changes" tradeoff as the
+  capacity check. If Dekka ever outgrows one screen of history, that is where to add
+  paging.
 - No per-feature `plan.md`/`feature-docs.md` pairs exist yet for anything after the
   auth screens — only `PLAN/authorization-UI.md` follows that pattern today. Worth
   backfilling short ones for Events Hub, Reservations, Submit-a-Show, Admin Dashboard,
@@ -267,6 +286,93 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Admin dashboard fix — `PLAN/FIX_ADMIN_DASH.md`
+
+Seven sections, built in the order the plan set out. Two of them (§1 motion, §6 nav,
+§7 back button) were built in an earlier session inside a git worktree at
+`.claude/worktrees/fix-admin-dash` and never merged — see the note at the end.
+
+- **§1 Motion system.** `framer-motion` added. `lib/motion.ts` is the whole motion
+  vocabulary — `fadeUp`, `staggerContainer`/`staggerItem`, `pressable`, `tabIndicator`
+  — and every preset is a *function of* `useReducedMotion()`, with that argument
+  required rather than optional so a call site cannot skip the accessibility branch.
+  Under reduced motion entrances land instantly and `pressable` registers no gestures
+  at all. `components/ui/Motion.tsx` wraps them as thin `"use client"` shells
+  (`FadeUp`, `Stagger`, `StaggerItem`, `StaggerRows`, `StaggerRow`) so a *server*
+  page can animate its shell without becoming a client component. `Card` moved out of
+  `Surface.tsx` into its own `components/ui/Card.tsx` for the same reason — it is the
+  one surface primitive that needs to be a client component — and is re-exported from
+  `Surface` so no import site changed. Everything is transform/opacity only.
+- **§2a `components/ui/DataGrid.tsx`.** The spreadsheet: a real `<table>` whose cells
+  become inputs in place. Tab walks the row (and wraps onto the next), Enter commits
+  and drops one row down, Esc reverts, blur commits. It knows nothing about check-ins
+  or fetch — callers pass `columns` plus an `onCommit(rowId, columnKey, value)` that
+  resolves `true`/`false`. Unchanged values never reach the network. Cells are 44px
+  tall even in edit mode so the door still works one-handed on a phone.
+- **§2b Editable door table.** New `PATCH /api/checkins/[id]` beside the existing
+  `DELETE`, `guard("staff")`, validated by `updateCheckInSchema` in `lib/validation.ts`
+  — **`.partial().strict()`**, because the parsed result feeds a `$set` and an
+  unlisted key (`event`, `recordedBy`, `reservation`) reaching it would be the exact
+  mass-assignment hole `parseBody` exists to close. `DoorTable.tsx` keeps its
+  quick-entry side form untouched (muscle memory at a busy door beats a
+  spreadsheet-first flow) and swaps only the results table for `DataGrid`.
+- **§2c `/admin/customers`.** Every check-in across every night in one grid, with the
+  event attached. `getAllCheckIns({ eventId, q, limit })` in `lib/data.ts` does it as
+  a single `$lookup` aggregation, and the free-text search escapes its input before it
+  reaches the regex. Filtering is a **round trip, not a client-side `.filter()`** —
+  the row set is capped server-side, so narrowing locally would silently only ever
+  search the slice already on screen. Admin-only via the existing `admin/layout.tsx`
+  gate; staff still reach check-ins only through their own event's door table.
+- **§3 Overview tabs.** `app/(site)/admin/page.tsx` was four tiles that all linked to
+  the same unfiltered events list, so "Drafts" and "Upcoming" showed identical
+  screens. Now the tiles *are* the tab strip: all four slices are fetched server-side
+  in one parallel pass and handed to `components/AdminOverviewTabs.tsx`, so switching
+  is instant with no per-tab spinner. New `getAllReservations()` in `lib/data.ts`
+  backs the Reservations tab (one `$lookup` for the event, a second for the check-in
+  that consumed the reservation, so "did they turn up" comes back in the same pass).
+  Active tab lives in `?tab=`, which makes it shareable and — the real point — puts it
+  in browser history, so §7's `router.back()` returns to the tab you drilled in from.
+- **§4 Events calendar.** `components/MonthCalendar.tsx`, hand-rolled (no calendar
+  dependency), reachable via a Table/Calendar toggle on `/admin/events`. Days holding
+  a real event are tinted and dotted in that event's own status colour, reusing the
+  same `statusTone` mapping as the table. Grid arithmetic is pure UTC — a calendar
+  square is a calendar date — while *bucketing* events onto squares goes through the
+  new `dayKey()` in `lib/format.ts`, so a 1am show lands on the night it belongs to in
+  Cairo. Weeks run Saturday→Friday. **The Wednesday karaoke marker is a hint, not a
+  rule**: it is pure `getUTCDay() === 3` date math with no schema, no generated event,
+  and nothing blocked — an empty Wednesday books like any other day. That was the
+  decision locked in the plan and it is worth not quietly "improving" later.
+- **§5 Report charts.** `recharts` added. `components/ReportCharts.tsx` sits *above*
+  the existing per-event table, never replacing it — a chart is not screen-reader
+  readable. Revenue per night as bars (discrete event-nights, not a continuous
+  series), cash-vs-InstaPay as a 2-slice donut, attendees as horizontal bars (long
+  event names stay readable on a phone that way). Colours are the workspace tokens
+  from `design-system/01-colors.md`, hardcoded as hex in one `COLORS` map at the top
+  of the file because recharts needs real values, not CSS classes — **if the theme
+  tokens in `globals.css` change, that map has to change with them.** Axes flip for
+  RTL via `reversed`/`orientation`. A month with no events shows a message, not an
+  empty axis frame. Every chart takes `isAnimationActive={!reduced}`.
+- **§6 Centered nav.** `components/layout/Navbar.tsx` re-laid as logo / centred link
+  pill / controls, with the links extracted into `components/layout/NavLinks.tsx` so
+  the active-link indicator can be a client-side `layoutId` slide. Centring is done
+  with a grid, not absolute positioning. This is the *one* nav for the whole site —
+  `app/(site)/layout.tsx` wraps public pages and `/admin`/`/staff` alike — so it
+  changed everywhere at once.
+- **§7 `components/ui/BackButton.tsx`.** `router.back()` with a `fallbackHref`. It
+  renders as an anchor pointing at the fallback rather than a `<button>`, which means
+  the no-history case needs no code path at all (don't intercept the click, the
+  browser follows the href), ctrl/middle-click still opens the parent in a new tab,
+  and `whileTap` lands on something already in the tab order. Replaced the two
+  hardcoded `ChevronLeft` links and added to the sub-pages that had none.
+
+**Deviations from the plan doc, and why:**
+
+- §4 said the Table/Calendar choice would be "plain client state". It is `?view=` and
+  `?month=` in the URL instead: the page is already `force-dynamic` and both views
+  render off the same single query, so it costs nothing, and it buys a shareable link
+  to a month plus a Back that returns to the month you were looking at.
+- §2c's Customers filters are server round trips for the reason given above.
 
 ### Events fix — `PLAN/fix_Events.md`
 

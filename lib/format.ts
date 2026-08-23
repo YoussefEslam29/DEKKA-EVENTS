@@ -124,3 +124,24 @@ export function monthKey(date: Date | string): string {
   const shifted = new Date(d.getTime() + timeZoneOffsetMs(d, CAFE_TIMEZONE));
   return shifted.toISOString().slice(0, 7);
 }
+
+/**
+ * "YYYY-MM-DD" key for the calendar day an instant falls on, in cafe time.
+ *
+ * This is what the events calendar buckets by: a show at 1am must land on the
+ * grid square for the night it belongs to in Cairo, not the UTC date the
+ * instant happens to carry.
+ */
+export function dayKey(date: Date | string): string {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const shifted = new Date(d.getTime() + timeZoneOffsetMs(d, CAFE_TIMEZONE));
+  return shifted.toISOString().slice(0, 10);
+}
+
+/** Shifts a "YYYY-MM" key by whole months, staying a valid key at year edges. */
+export function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const zeroBased = (y * 12 + (m - 1)) + delta;
+  return `${Math.floor(zeroBased / 12)}-${String((zeroBased % 12) + 1).padStart(2, "0")}`;
+}
