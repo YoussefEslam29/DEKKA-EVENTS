@@ -3,11 +3,13 @@ import { cn } from "@/lib/utils";
 /**
  * Surfaces that work on both themes. Colours come from the `dk-*` classes in
  * globals.css, which flip automatically inside a `.dk-workspace` ancestor, so
- * the same Card renders dark on the public app and cream in the back-office.
+ * the same surface renders dark on the public app and cream in the back-office.
+ *
+ * `Card` itself lives in `./Card` — it needs to be a client component for its
+ * press feedback — and is re-exported here so `@/components/ui/Surface` stays
+ * the one import for all of them.
  */
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("dk-card", className)} {...props} />;
-}
+export { Card } from "./Card";
 
 export function Badge({
   className,

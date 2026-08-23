@@ -5,6 +5,7 @@ import { getI18n } from "@/lib/i18n";
 import { getEvent, getEventReservations, getCheckIns, eventTitle } from "@/lib/data";
 import { formatDate, formatTime } from "@/lib/format";
 import { PageHeader } from "@/components/ui/Surface";
+import { FadeUp } from "@/components/ui/Motion";
 import { DoorTable } from "@/components/DoorTable";
 
 export const dynamic = "force-dynamic";
@@ -27,18 +28,20 @@ export default async function DoorCheckInPage({
 
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-8 md:px-8">
-      <Link
-        href="/staff"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink"
-      >
-        <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
-        {t.common.back}
-      </Link>
+      <FadeUp>
+        <Link
+          href="/staff"
+          className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink"
+        >
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
+          {t.common.back}
+        </Link>
 
-      <PageHeader
-        title={eventTitle(event, locale)}
-        subtitle={`${formatDate(event.startsAt, locale)} · ${formatTime(event.startsAt, locale)}`}
-      />
+        <PageHeader
+          title={eventTitle(event, locale)}
+          subtitle={`${formatDate(event.startsAt, locale)} · ${formatTime(event.startsAt, locale)}`}
+        />
+      </FadeUp>
 
       <DoorTable
         eventId={event.id}

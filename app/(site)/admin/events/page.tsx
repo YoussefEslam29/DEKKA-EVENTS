@@ -3,6 +3,7 @@ import { getI18n } from "@/lib/i18n";
 import { getAllEvents, countReservationsForEvents, eventTitle } from "@/lib/data";
 import { formatDate, formatTime, formatMoney } from "@/lib/format";
 import { Card, PageHeader, EmptyState, Badge } from "@/components/ui/Surface";
+import { FadeUp, StaggerRow, StaggerRows } from "@/components/ui/Motion";
 import { buttonStyles } from "@/components/ui/Button";
 
 export const dynamic = "force-dynamic";
@@ -22,14 +23,16 @@ export default async function AdminEventsPage() {
 
   return (
     <div>
-      <PageHeader
-        title={t.admin.events}
-        action={
-          <Link href="/admin/events/new" className={buttonStyles({ variant: "lightPrimary" })}>
-            {t.admin.newEvent}
-          </Link>
-        }
-      />
+      <FadeUp>
+        <PageHeader
+          title={t.admin.events}
+          action={
+            <Link href="/admin/events/new" className={buttonStyles({ variant: "lightPrimary" })}>
+              {t.admin.newEvent}
+            </Link>
+          }
+        />
+      </FadeUp>
 
       {events.length === 0 ? (
         <EmptyState>{t.admin.noEvents}</EmptyState>
@@ -45,9 +48,9 @@ export default async function AdminEventsPage() {
                 <th className="px-4 py-2 text-end font-semibold">{t.event.price}</th>
               </tr>
             </thead>
-            <tbody>
+            <StaggerRows>
               {events.map((event) => (
-                <tr key={event.id} className="border-t border-line hover:bg-gold-wash/40">
+                <StaggerRow key={event.id} className="border-t border-line hover:bg-gold-wash/40">
                   <td className="px-4 py-2">
                     <Link href={`/admin/events/${event.id}`} className="font-bold hover:text-gold-deep">
                       {eventTitle(event, locale)}
@@ -68,9 +71,9 @@ export default async function AdminEventsPage() {
                   <td className="px-4 py-2 text-end">
                     {event.price > 0 ? formatMoney(event.price, locale) : t.common.free}
                   </td>
-                </tr>
+                </StaggerRow>
               ))}
-            </tbody>
+            </StaggerRows>
           </table>
         </Card>
       )}

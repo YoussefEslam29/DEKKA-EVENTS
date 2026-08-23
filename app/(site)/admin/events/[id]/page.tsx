@@ -10,6 +10,7 @@ import {
 } from "@/lib/data";
 import { formatDate, formatTime, formatMoney } from "@/lib/format";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui/Surface";
+import { FadeUp } from "@/components/ui/Motion";
 import { EventForm } from "@/components/EventForm";
 import { EventAdminActions } from "@/components/EventAdminActions";
 import { DuplicateEventButton } from "@/components/DuplicateEventButton";
@@ -45,35 +46,37 @@ export default async function AdminEventDetailPage({
 
   return (
     <div>
-      <Link
-        href="/admin/events"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink"
-      >
-        <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
-        {t.common.back}
-      </Link>
+      <FadeUp>
+        <Link
+          href="/admin/events"
+          className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink"
+        >
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
+          {t.common.back}
+        </Link>
 
-      <PageHeader
-        title={eventTitle(event, locale)}
-        subtitle={`${formatDate(event.startsAt, locale)} · ${formatTime(event.startsAt, locale)}`}
-        action={<Badge tone="gold">{t.event.status[event.status]}</Badge>}
-      />
+        <PageHeader
+          title={eventTitle(event, locale)}
+          subtitle={`${formatDate(event.startsAt, locale)} · ${formatTime(event.startsAt, locale)}`}
+          action={<Badge tone="gold">{t.event.status[event.status]}</Badge>}
+        />
 
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        <EventAdminActions eventId={event.id} status={event.status} />
-        <DuplicateEventButton event={event} />
-      </div>
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <EventAdminActions eventId={event.id} status={event.status} />
+          <DuplicateEventButton event={event} />
+        </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        {stats.map((stat) => (
-          <Card key={stat.label} className="p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-              {stat.label}
-            </p>
-            <p className="mt-1 text-2xl font-black">{stat.value}</p>
-          </Card>
-        ))}
-      </div>
+        <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          {stats.map((stat) => (
+            <Card key={stat.label} className="p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+                {stat.label}
+              </p>
+              <p className="mt-1 text-2xl font-black">{stat.value}</p>
+            </Card>
+          ))}
+        </div>
+      </FadeUp>
 
       <section className="mb-6">
         <h2 className="mb-3 text-lg font-bold">{t.admin.reservations}</h2>

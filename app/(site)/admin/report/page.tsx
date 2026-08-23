@@ -3,6 +3,7 @@ import { getI18n } from "@/lib/i18n";
 import { getMonthlyReport } from "@/lib/data";
 import { formatMoney, formatShortDate, monthKey, formatMonth } from "@/lib/format";
 import { Card, PageHeader, EmptyState } from "@/components/ui/Surface";
+import { FadeUp } from "@/components/ui/Motion";
 import { MonthPicker } from "@/components/MonthPicker";
 
 export const dynamic = "force-dynamic";
@@ -31,21 +32,23 @@ export default async function MonthlyReportPage({
 
   return (
     <div>
-      <PageHeader
-        title={`${t.admin.report} — ${formatMonth(month, locale)}`}
-        action={<MonthPicker month={month} />}
-      />
+      <FadeUp>
+        <PageHeader
+          title={`${t.admin.report} — ${formatMonth(month, locale)}`}
+          action={<MonthPicker month={month} />}
+        />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        {tiles.map((tile) => (
-          <Card key={tile.label} className="p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-              {tile.label}
-            </p>
-            <p className="mt-1 text-2xl font-black">{tile.value}</p>
-          </Card>
-        ))}
-      </div>
+        <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          {tiles.map((tile) => (
+            <Card key={tile.label} className="p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+                {tile.label}
+              </p>
+              <p className="mt-1 text-2xl font-black">{tile.value}</p>
+            </Card>
+          ))}
+        </div>
+      </FadeUp>
 
       <Card className="mb-6 p-4">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ink-faint">

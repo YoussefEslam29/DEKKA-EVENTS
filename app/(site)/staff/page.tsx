@@ -3,6 +3,7 @@ import { getI18n } from "@/lib/i18n";
 import { getStaffEvents, eventTitle } from "@/lib/data";
 import { formatDate, formatTime } from "@/lib/format";
 import { Card, EmptyState, PageHeader, Badge } from "@/components/ui/Surface";
+import { FadeUp } from "@/components/ui/Motion";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,9 @@ export default async function StaffEventPickerPage() {
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-10 md:px-8">
-      <PageHeader title={t.staff.title} subtitle={t.staff.subtitle} />
+      <FadeUp>
+        <PageHeader title={t.staff.title} subtitle={t.staff.subtitle} />
+      </FadeUp>
 
       {events.length === 0 ? (
         <EmptyState>{t.staff.noEvents}</EmptyState>

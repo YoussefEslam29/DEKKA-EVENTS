@@ -3,6 +3,7 @@ import { getI18n } from "@/lib/i18n";
 import { getSubmissions } from "@/lib/data";
 import { SUBMISSION_STATUSES, type SubmissionStatus } from "@/lib/constants";
 import { PageHeader, EmptyState } from "@/components/ui/Surface";
+import { FadeUp, Stagger, StaggerItem } from "@/components/ui/Motion";
 import { SubmissionRow } from "@/components/SubmissionRow";
 import { cn } from "@/lib/utils";
 
@@ -28,33 +29,37 @@ export default async function AdminSubmissionsPage({
 
   return (
     <div>
-      <PageHeader title={t.admin.submissions} />
+      <FadeUp>
+        <PageHeader title={t.admin.submissions} />
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {filters.map((filter) => (
-          <Link
-            key={filter.label}
-            href={filter.value ? `/admin/submissions?status=${filter.value}` : "/admin/submissions"}
-            className={cn(
-              "rounded-[4px] border px-3 py-1.5 text-sm font-semibold transition-colors",
-              active === filter.value
-                ? "border-ink bg-ink text-cream"
-                : "border-line bg-paper text-ink-soft hover:bg-gold-wash"
-            )}
-          >
-            {filter.label}
-          </Link>
-        ))}
-      </div>
+        <div className="mb-5 flex flex-wrap gap-2">
+          {filters.map((filter) => (
+            <Link
+              key={filter.label}
+              href={filter.value ? `/admin/submissions?status=${filter.value}` : "/admin/submissions"}
+              className={cn(
+                "rounded-[4px] border px-3 py-1.5 text-sm font-semibold transition-colors",
+                active === filter.value
+                  ? "border-ink bg-ink text-cream"
+                  : "border-line bg-paper text-ink-soft hover:bg-gold-wash"
+              )}
+            >
+              {filter.label}
+            </Link>
+          ))}
+        </div>
+      </FadeUp>
 
       {submissions.length === 0 ? (
         <EmptyState>{t.admin.noSubmissions}</EmptyState>
       ) : (
-        <div className="grid gap-3">
+        <Stagger className="grid gap-3">
           {submissions.map((submission) => (
-            <SubmissionRow key={submission.id} submission={submission} />
+            <StaggerItem key={submission.id}>
+              <SubmissionRow submission={submission} />
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { getI18n } from "@/lib/i18n";
 import { getAdminOverview, getPublicEvents, countReservationsForEvents, eventTitle } from "@/lib/data";
 import { formatDate, monthKey } from "@/lib/format";
 import { Card, PageHeader, EmptyState } from "@/components/ui/Surface";
+import { FadeUp } from "@/components/ui/Motion";
 import { buttonStyles } from "@/components/ui/Button";
 
 export const dynamic = "force-dynamic";
@@ -28,35 +29,37 @@ export default async function AdminOverviewPage() {
 
   return (
     <div>
-      <PageHeader
-        title={t.admin.title}
-        action={
-          <div className="flex gap-2">
-            <Link href="/admin/events/new" className={buttonStyles({ variant: "lightPrimary" })}>
-              {t.admin.newEvent}
-            </Link>
-            <Link
-              href={`/admin/report?month=${monthKey(new Date())}`}
-              className={buttonStyles({ variant: "lightOutline" })}
-            >
-              {t.admin.report}
-            </Link>
-          </div>
-        }
-      />
+      <FadeUp>
+        <PageHeader
+          title={t.admin.title}
+          action={
+            <div className="flex gap-2">
+              <Link href="/admin/events/new" className={buttonStyles({ variant: "lightPrimary" })}>
+                {t.admin.newEvent}
+              </Link>
+              <Link
+                href={`/admin/report?month=${monthKey(new Date())}`}
+                className={buttonStyles({ variant: "lightOutline" })}
+              >
+                {t.admin.report}
+              </Link>
+            </div>
+          }
+        />
 
-      <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((tile) => (
-          <Link key={tile.label} href={tile.href}>
-            <Card className="p-4 transition-colors hover:border-gold">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-                {tile.label}
-              </p>
-              <p className="mt-1 text-3xl font-black">{tile.value}</p>
-            </Card>
-          </Link>
-        ))}
-      </div>
+        <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {tiles.map((tile) => (
+            <Link key={tile.label} href={tile.href}>
+              <Card className="p-4 transition-colors hover:border-gold">
+                <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
+                  {tile.label}
+                </p>
+                <p className="mt-1 text-3xl font-black">{tile.value}</p>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </FadeUp>
 
       <h2 className="mb-3 text-lg font-bold">{t.home.upcoming}</h2>
       {upcoming.length === 0 ? (
