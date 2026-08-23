@@ -257,6 +257,43 @@ export async function getEventReservations(
   }));
 }
 
+/**
+ * Every reservation across every event, newest first, for the admin overview's
+ * Reservations tab.
+ *
+ * Capped rather than paginated: at cafe scale the whole list is a few hundred
+ * rows, and a cap keeps this one query instead of a cursor protocol the screen
+ * doesn't need yet — the same tradeoff `getSubmissions` already takes.
+ *
+ * The check-in cross-reference is one extra query for the whole page rather than
+ * one per row: `getEventReservations` does the same join per-event, and doing it
+ * per-row here would be the N+1 the guide rules out.
+ */
+export async function getAllReservations({
+  limit = 300,
+}: { limit?: number } = {}): Promise<
+  { reservation: ReservationDTO; event: EventDTO }[]
+> {
+  await connectDB();
+  const [docs, checkIns] = await Promise.all([
+    Reservation.find({ status: "confirmed" })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate<{ event: IEvent | null }>("event")
+      .lean(),
+    CheckIn.find({ reservation: { $ne: null } }).select("reservation").lean(),
+  ]);
+
+  const checkedIn = new Set(checkIns.map((c) => String(c.reservation)));
+
+  return docs
+    .filter((d): d is typeof d & { event: IEvent } => Boolean(d.event))
+    .map((d) => ({
+      reservation: { ...toReservationDTO(d), checkedIn: checkedIn.has(String(d._id)) },
+      event: toEventDTO(d.event),
+    }));
+}
+
 export async function getCheckIns(eventId: string): Promise<CheckInDTO[]> {
   if (!mongoose.Types.ObjectId.isValid(eventId)) return [];
   await connectDB();

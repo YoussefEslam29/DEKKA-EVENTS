@@ -1,31 +1,42 @@
 import Link from "next/link";
 import { getI18n } from "@/lib/i18n";
-import { getAdminOverview, getPublicEvents, countReservationsForEvents, eventTitle } from "@/lib/data";
-import { formatDate, monthKey } from "@/lib/format";
-import { Card, PageHeader, EmptyState } from "@/components/ui/Surface";
+import {
+  getAdminOverview,
+  getPublicEvents,
+  getAllEvents,
+  getAllReservations,
+  getSubmissions,
+  countReservationsForEvents,
+} from "@/lib/data";
+import { monthKey } from "@/lib/format";
+import { PageHeader } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { buttonStyles } from "@/components/ui/Button";
+import { AdminOverviewTabs, isOverviewTab } from "@/components/AdminOverviewTabs";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminOverviewPage() {
-  const { locale, t } = await getI18n();
-  const [overview, upcoming] = await Promise.all([
+export default async function AdminOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { t } = await getI18n();
+  const { tab } = await searchParams;
+
+  // All four slices up front, in parallel: the tabs are a client-side toggle, so
+  // a per-tab fetch would only add a waterfall the reader would feel on every
+  // switch. At cafe scale each of these is a small, capped query.
+  const [overview, upcoming, allEvents, reservations, submissions] = await Promise.all([
     getAdminOverview(),
     getPublicEvents({ when: "upcoming", limit: 5 }),
+    getAllEvents(),
+    getAllReservations(),
+    getSubmissions("pending"),
   ]);
-  const counts = await countReservationsForEvents(upcoming.map((e) => e.id));
 
-  const tiles = [
-    { label: t.home.upcoming, value: overview.upcoming, href: "/admin/events" },
-    { label: t.event.status.draft, value: overview.drafts, href: "/admin/events" },
-    { label: t.admin.reservations, value: overview.totalReservations, href: "/admin/events" },
-    {
-      label: t.admin.submissions,
-      value: overview.pendingSubmissions,
-      href: "/admin/submissions",
-    },
-  ];
+  const drafts = allEvents.filter((event) => event.status === "draft");
+  const reservationCounts = await countReservationsForEvents(upcoming.map((e) => e.id));
 
   return (
     <div>
@@ -46,47 +57,22 @@ export default async function AdminOverviewPage() {
             </div>
           }
         />
-
-        <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {tiles.map((tile) => (
-            <Link key={tile.label} href={tile.href}>
-              <Card className="p-4 transition-colors hover:border-gold">
-                <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-                  {tile.label}
-                </p>
-                <p className="mt-1 text-3xl font-black">{tile.value}</p>
-              </Card>
-            </Link>
-          ))}
-        </div>
       </FadeUp>
 
-      <h2 className="mb-3 text-lg font-bold">{t.home.upcoming}</h2>
-      {upcoming.length === 0 ? (
-        <EmptyState>{t.admin.noEvents}</EmptyState>
-      ) : (
-        <div className="grid gap-2">
-          {upcoming.map((event) => (
-            <Link key={event.id} href={`/admin/events/${event.id}`}>
-              <Card className="flex flex-wrap items-center justify-between gap-2 p-3 transition-colors hover:border-gold">
-                <div>
-                  <p className="font-bold">{eventTitle(event, locale)}</p>
-                  <p className="text-sm text-ink-soft">
-                    {formatDate(event.startsAt, locale)}
-                  </p>
-                </div>
-                <p className="text-sm">
-                  <span className="text-ink-faint">{t.admin.reservations}: </span>
-                  <strong>{counts[event.id] ?? 0}</strong>
-                  {event.capacity != null ? (
-                    <span className="text-ink-faint"> / {event.capacity}</span>
-                  ) : null}
-                </p>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      <AdminOverviewTabs
+        initialTab={isOverviewTab(tab) ? tab : "upcoming"}
+        counts={{
+          upcoming: overview.upcoming,
+          drafts: overview.drafts,
+          reservations: overview.totalReservations,
+          submissions: overview.pendingSubmissions,
+        }}
+        upcoming={upcoming}
+        reservationCounts={reservationCounts}
+        drafts={drafts}
+        reservations={reservations}
+        submissions={submissions}
+      />
     </div>
   );
 }
