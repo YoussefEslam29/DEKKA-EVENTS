@@ -1,5 +1,6 @@
 import { getI18n } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/Surface";
+import { BackButton } from "@/components/ui/BackButton";
 import { FadeUp } from "@/components/ui/Motion";
 import { EventForm } from "@/components/EventForm";
 
@@ -10,6 +11,8 @@ export default async function NewEventPage() {
   return (
     <div>
       <FadeUp>
+        <BackButton fallbackHref="/admin/events" />
+
         <PageHeader title={t.admin.newEvent} />
         <EventForm />
       </FadeUp>

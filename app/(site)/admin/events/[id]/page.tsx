@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import {
   getEvent,
@@ -10,6 +9,7 @@ import {
 } from "@/lib/data";
 import { formatDate, formatTime, formatMoney } from "@/lib/format";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui/Surface";
+import { BackButton } from "@/components/ui/BackButton";
 import { FadeUp } from "@/components/ui/Motion";
 import { EventForm } from "@/components/EventForm";
 import { EventAdminActions } from "@/components/EventAdminActions";
@@ -47,13 +47,7 @@ export default async function AdminEventDetailPage({
   return (
     <div>
       <FadeUp>
-        <Link
-          href="/admin/events"
-          className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink"
-        >
-          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
-          {t.common.back}
-        </Link>
+        <BackButton fallbackHref="/admin/events" />
 
         <PageHeader
           title={eventTitle(event, locale)}
