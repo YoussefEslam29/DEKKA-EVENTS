@@ -50,23 +50,33 @@ function isActive(pathname: string, href: string) {
 /**
  * Desktop: the centered link pill.
  *
- * Positioned out of the header's flex flow (`absolute start-1/2`) so it sits on
- * the row's true midpoint rather than wherever the logo and the right-hand
- * controls happen to leave it — the logo is one width for everyone, but the
- * controls are not (a signed-in admin's row differs from a guest's), and a
- * flex-centered group would drift with them.
+ * It sits in the middle track of the header's `1fr auto 1fr` grid, which is what
+ * centers it: the two `1fr` tracks always divide the leftover space equally, so
+ * the middle one lands on the row's true midpoint no matter how wide the logo or
+ * the right-hand controls are (and they do vary — a signed-in admin's row is not
+ * a guest's). A plain flex-centered group would drift with them.
  *
- * The half-width shift back is written as an `ltr:`/`rtl:` pair rather than a
- * bare `-translate-x-1/2`: `start-1/2` resolves to `right: 50%` under Arabic,
- * where the correction has to run the other way. Two mutually exclusive
- * variants also means neither has to out-specify the other.
+ * Grid rather than the `absolute start-1/2` + half-width-translate this started
+ * as: an out-of-flow pill reserves no space, so it could overlap the logo and the
+ * controls, and dodging that overlap is what pushed the desktop switch out to
+ * `lg` for everyone. A grid track reserves its own column, so a collision can't
+ * happen and the breakpoint is free to follow the content again (see `Navbar`).
+ * It also drops the RTL translate correction entirely — grid centering has no
+ * direction to get wrong.
  */
-export function NavLinks({ links }: { links: NavLinkItem[] }) {
+export function NavLinks({ links, wide }: { links: NavLinkItem[]; wide: boolean }) {
   const pathname = usePathname();
   const { pressable, tabIndicator } = useMotionPresets();
 
   return (
-    <nav className="absolute start-1/2 hidden items-center gap-1 rounded-full border border-border-dark bg-surface-dark/80 p-1 ltr:-translate-x-1/2 rtl:translate-x-1/2 lg:flex">
+    <nav
+      className={cn(
+        "hidden items-center gap-1 rounded-full border border-border-dark bg-surface-dark/80 p-1",
+        // Both literals spelled out — Tailwind scans for whole class names, so a
+        // computed `${bp}:flex` would never make it into the stylesheet.
+        wide ? "lg:flex" : "md:flex"
+      )}
+    >
       {links.map((link) => {
         const active = isActive(pathname, link.href);
 
