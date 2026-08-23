@@ -15,8 +15,9 @@ import {
  * timings. Every preset here is a *function of* `reduced` — the value of
  * framer-motion's `useReducedMotion()` — and that argument is deliberately
  * required, so a call site cannot silently skip the accessibility branch. When
- * `reduced` is true every preset collapses to a no-op: the element renders in
- * its final state and nothing moves.
+ * `reduced` is true every preset collapses to a no-op: entrances land in their
+ * final state with a zero-length transition, and `pressable` registers no
+ * gestures at all. Nothing moves.
  *
  * Usual way to consume these is `useMotionPresets()`, which binds all of them
  * to the current preference in one go. Call a preset directly only when you
