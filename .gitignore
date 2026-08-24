@@ -46,3 +46,21 @@ next-env.d.ts
 
 # agent worktrees
 .claude/worktrees/
+
+# credentials / keys -- belt and braces so a stray key can never be committed
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa
+id_ed25519
+id_ecdsa
+.npmrc
+.netrc
+.htpasswd
+secrets.json
+service-account*.json
+
+# scratch/debris
+_to_delete/
