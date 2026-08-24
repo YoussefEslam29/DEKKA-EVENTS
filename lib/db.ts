@@ -1,4 +1,12 @@
+import dns from "node:dns";
 import mongoose from "mongoose";
+
+// Some Windows/router setups hand Node an IPv6 link-local DNS server (fe80::1)
+// that its resolver can't reach, breaking the SRV lookup mongodb+srv:// needs.
+// Force a routable resolver in dev only; production hosts don't hit this.
+if (process.env.NODE_ENV !== "production") {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+}
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
