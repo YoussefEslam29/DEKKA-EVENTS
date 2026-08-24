@@ -15,6 +15,36 @@ import { BandSubmission } from "../models/BandSubmission";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
+/**
+ * `main()` drops every collection it owns before reseeding — exactly what you
+ * want against a scratch database, and a catastrophe against a real one. So
+ * anything that isn't plain loopback is refused unless the caller says so out
+ * loud: a stray production `MONGODB_URI` left in the environment shouldn't be
+ * able to cost the cafe its events.
+ */
+function assertSafeTarget(uri: string): void {
+  const host = uri
+    .replace(/^mongodb(\+srv)?:\/\//, "")
+    .replace(/^[^@]*@/, "")
+    .split(/[/?,]/)[0]
+    .replace(/:\d+$/, "");
+  const isLoopback = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(host);
+  // `mongodb+srv://` only ever resolves to a hosted cluster, never to loopback.
+  const isRemote = uri.startsWith("mongodb+srv://") || !isLoopback;
+
+  if (!isRemote) return;
+
+  if (process.env.SEED_ALLOW_REMOTE !== "yes") {
+    throw new Error(
+      `Refusing to seed "${host}": seeding drops every collection first. ` +
+        `Local development should point MONGODB_URI at 127.0.0.1 (see docker-compose.yml). ` +
+        `If you really do mean to wipe and reseed this database, ` +
+        `re-run with SEED_ALLOW_REMOTE=yes.`
+    );
+  }
+  console.warn(`WARNING: seeding remote host "${host}" — every collection will be dropped.`);
+}
+
 function at(dayOffset: number, hour: number): Date {
   const d = new Date();
   d.setDate(d.getDate() + dayOffset);
@@ -26,6 +56,8 @@ async function main() {
   if (!MONGODB_URI) {
     throw new Error("MONGODB_URI is not set — copy .env.example to .env.local first.");
   }
+
+  assertSafeTarget(MONGODB_URI);
 
   await mongoose.connect(MONGODB_URI);
   console.log("connected");
