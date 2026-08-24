@@ -48,6 +48,9 @@ export default async function AdminOverviewPage({
     getSubmissions("pending"),
   ]);
 
+  // Rendered once per request (async server component, `force-dynamic`), so there is no
+  // re-render for this to destabilise -- "now" is request time by design.
+  // eslint-disable-next-line react-hooks/purity -- see above
   const now = Date.now();
   const upcoming = allEvents
     .filter(

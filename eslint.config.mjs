@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Agent tooling scratch space (worktrees and their own `.next` build output).
+    // Never project source, and the nested `.next` dirs are not covered by the
+    // root-relative `.next/**` above.
+    ".claude/**",
   ]),
 ]);
 
