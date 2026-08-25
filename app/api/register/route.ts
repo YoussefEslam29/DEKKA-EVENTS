@@ -13,8 +13,18 @@ export async function POST(request: Request) {
     const { name, email, phone, password } = parsed.data;
 
     await connectDB();
-    const existing = await User.findOne({ email }).select("_id").lean();
-    if (existing) return jsonError("EMAIL_TAKEN", 409);
+    // `passwordHash` is `select: false` on the model — pull it in explicitly so
+    // we can tell an OAuth-only account (no hash) from one that already has a
+    // password, per PLAN/LOG_SIGN_AUTH_IN.md §4a.
+    const existing = await User.findOne({ email }).select("+passwordHash").lean();
+    if (existing) {
+      if (!existing.passwordHash) {
+        // OAuth-only account: point the signup form at the provider(s) already
+        // on file instead of a dead-end "email taken" message.
+        return jsonError("EMAIL_TAKEN_OAUTH", 409, { providers: existing.providers });
+      }
+      return jsonError("EMAIL_TAKEN", 409);
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({

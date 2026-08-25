@@ -14,7 +14,7 @@ import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { LogoBadge } from "@/components/ui/LogoBadge";
 import { GoogleIcon, FacebookIcon, AppleIcon } from "@/components/BrandIcons";
-import { DURATION, useMotionPresets } from "@/lib/motion";
+import { DURATION, useMotionPresets, type PressableProps } from "@/lib/motion";
 
 export type OAuthAvailability = {
   google: boolean;
@@ -27,6 +27,50 @@ type Props = {
   next: string;
   providers: OAuthAvailability;
 };
+
+type SocialOption = {
+  id: string;
+  short: string;
+  full: { en: string; ar: string };
+  Icon: (p: { className?: string }) => React.ReactElement;
+};
+
+/**
+ * One social sign-in button. Shared by the "or continue with" row below the
+ * form and by the actionable `EMAIL_TAKEN_OAUTH` error block (§4a) — both
+ * render through this exact component/logic path rather than each inventing
+ * their own markup.
+ */
+function SocialButton({
+  id,
+  short,
+  full,
+  Icon,
+  next,
+  pressable,
+}: SocialOption & { next: string; pressable: PressableProps }) {
+  return (
+    // `motion.button` directly, styled via the same `buttonStyles` CVA
+    // function `Button` uses internally — wrapping `Button` itself in
+    // `motion.create()` loses its `variant`/`size` props to a framer-motion
+    // typing quirk (a literal DOM tag name like `"button"` as the type arg
+    // makes it fall back to the plain intrinsic `motion.button` prop shape,
+    // discarding the custom component's own props).
+    <motion.button
+      type="button"
+      className={buttonStyles({ variant: "outline", size: "lg" })}
+      onClick={() => signIn(id, { callbackUrl: next })}
+      aria-label={`${full.en} / ${full.ar}`}
+      {...pressable}
+    >
+      <Icon className="h-4.5 w-4.5 shrink-0" />
+      <span className="lg:hidden">{short}</span>
+      <span className="hidden lg:inline">
+        <BilingualLabel {...full} />
+      </span>
+    </motion.button>
+  );
+}
 
 /**
  * The right-hand panel of the split auth screen (§4), which is also the whole
@@ -42,6 +86,13 @@ export function AuthForm({ mode, next, providers }: Props) {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set only alongside an `EMAIL_TAKEN_OAUTH` error: the provider(s) already on
+  // file for that email, per PLAN/LOG_SIGN_AUTH_IN.md §4a. Drives which social
+  // button(s) render inline with the error — never hardcoded to Google, so a
+  // future second provider on the same account renders both.
+  const [emailTakenProviders, setEmailTakenProviders] = useState<string[] | null>(
+    null
+  );
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -66,6 +117,7 @@ export function AuthForm({ mode, next, providers }: Props) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setEmailTakenProviders(null);
 
     try {
       if (isSignup) {
@@ -91,9 +143,16 @@ export function AuthForm({ mode, next, providers }: Props) {
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          setError(
-            body.error === "EMAIL_TAKEN" ? t.auth.emailTaken : t.common.somethingWrong
-          );
+          if (body.error === "EMAIL_TAKEN_OAUTH") {
+            setError(t.auth.emailTakenOAuth);
+            setEmailTakenProviders(
+              Array.isArray(body.details?.providers) ? body.details.providers : []
+            );
+          } else {
+            setError(
+              body.error === "EMAIL_TAKEN" ? t.auth.emailTaken : t.common.somethingWrong
+            );
+          }
           return;
         }
       }
@@ -135,12 +194,15 @@ export function AuthForm({ mode, next, providers }: Props) {
       full: bi((d) => d.authUi.withApple),
       Icon: AppleIcon,
     },
-  ].filter(Boolean) as {
-    id: string;
-    short: string;
-    full: { en: string; ar: string };
-    Icon: (p: { className?: string }) => React.ReactElement;
-  }[];
+  ].filter(Boolean) as SocialOption[];
+
+  // Which of the *enabled* social options actually match the account already
+  // on file for this email (server-returned `providers`, §4a) — the
+  // intersection is what's actionable: a provider the account has linked but
+  // that isn't configured on this deploy has no working button to show.
+  const emailTakenSocials = emailTakenProviders
+    ? socials.filter((s) => emailTakenProviders.includes(s.id))
+    : [];
 
   return (
     <div className="w-full max-w-[420px]">
@@ -264,12 +326,23 @@ export function AuthForm({ mode, next, providers }: Props) {
         ) : null}
 
         {error ? (
-          <p
+          <div
             role="alert"
             className="mb-4 rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm font-semibold text-bad"
           >
-            {error}
-          </p>
+            <p>{error}</p>
+            {/* §4a: EMAIL_TAKEN_OAUTH makes the error actionable — the same
+                social button the "or continue with" row renders below, not a
+                new one, driven by the server's `providers` payload rather
+                than hardcoded to Google. */}
+            {emailTakenSocials.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                {emailTakenSocials.map((s) => (
+                  <SocialButton key={s.id} {...s} next={next} pressable={pressable} />
+                ))}
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         {/* 5. Primary action — gold gradient, full width, bilingual + arrow. */}
@@ -300,28 +373,8 @@ export function AuthForm({ mode, next, providers }: Props) {
                 : "grid gap-3"
             }
           >
-            {socials.map(({ id, short, full, Icon }) => (
-              // `motion.button` directly, styled via the same `buttonStyles`
-              // CVA function `Button` uses internally — wrapping `Button`
-              // itself in `motion.create()` loses its `variant`/`size` props
-              // to a framer-motion typing quirk (a literal DOM tag name like
-              // `"button"` as the type arg makes it fall back to the plain
-              // intrinsic `motion.button` prop shape, discarding the custom
-              // component's own props).
-              <motion.button
-                key={id}
-                type="button"
-                className={buttonStyles({ variant: "outline", size: "lg" })}
-                onClick={() => signIn(id, { callbackUrl: next })}
-                aria-label={`${full.en} / ${full.ar}`}
-                {...pressable}
-              >
-                <Icon className="h-4.5 w-4.5 shrink-0" />
-                <span className="lg:hidden">{short}</span>
-                <span className="hidden lg:inline">
-                  <BilingualLabel {...full} />
-                </span>
-              </motion.button>
+            {socials.map((s) => (
+              <SocialButton key={s.id} {...s} next={next} pressable={pressable} />
             ))}
           </div>
         </>

@@ -136,6 +136,7 @@ export const ar = {
     haveAccount: "عندك حساب؟",
     invalid: "البريد أو كلمة السر غير صحيحة.",
     emailTaken: "البريد ده مسجّل بالفعل.",
+    emailTakenOAuth: "البريد ده عنده حساب بالفعل — سجّل دخولك بالزرار تحت.",
     passwordShort: "كلمة السر لازم تكون 8 حروف على الأقل.",
     passwordMismatch: "كلمة السر والتأكيد مش متطابقين.",
     guestNote: "تقدر تتفرج على الحفلات من غير حساب — الحساب مطلوب وقت الحجز بس.",
@@ -436,6 +437,7 @@ export const en: DeepMutable<Dict> = {
     haveAccount: "Already have an account?",
     invalid: "Wrong email or password.",
     emailTaken: "That email is already registered.",
+    emailTakenOAuth: "You already have an account with this email — sign in with the button below instead.",
     passwordShort: "Password must be at least 8 characters.",
     passwordMismatch: "Passwords do not match.",
     guestNote:
