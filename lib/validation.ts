@@ -28,7 +28,11 @@ export const updateAccountSchema = z
   .object({
     name: trimmed(120).min(2),
     phone: trimmed(30).min(6),
-    image: z.string().trim().max(800),
+    // Matches User.image's own `maxlength: 500` (models/User.ts) — a value
+    // over 500 that still passed here would fail Mongoose's validator
+    // instead, and `handle()` turns that into an opaque 500 rather than a
+    // clean 400.
+    image: z.string().trim().max(500),
   })
   .partial()
   .strict();
