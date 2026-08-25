@@ -123,6 +123,7 @@ export const ar = {
     signupSubtitle: "اسمك ورقمك بس — عشان نعرفك على الباب.",
     email: "البريد الإلكتروني",
     password: "كلمة السر",
+    confirmPassword: "تأكيد كلمة السر",
     name: "الاسم",
     phone: "رقم الموبايل",
     login: "تسجيل الدخول",
@@ -136,6 +137,7 @@ export const ar = {
     invalid: "البريد أو كلمة السر غير صحيحة.",
     emailTaken: "البريد ده مسجّل بالفعل.",
     passwordShort: "كلمة السر لازم تكون 8 حروف على الأقل.",
+    passwordMismatch: "كلمة السر والتأكيد مش متطابقين.",
     guestNote: "تقدر تتفرج على الحفلات من غير حساب — الحساب مطلوب وقت الحجز بس.",
   },
   authUi: {
@@ -421,6 +423,7 @@ export const en: DeepMutable<Dict> = {
     signupSubtitle: "Just your name and number — so we know you at the door.",
     email: "Email",
     password: "Password",
+    confirmPassword: "Confirm password",
     name: "Name",
     phone: "Phone number",
     login: "Log in",
@@ -434,6 +437,7 @@ export const en: DeepMutable<Dict> = {
     invalid: "Wrong email or password.",
     emailTaken: "That email is already registered.",
     passwordShort: "Password must be at least 8 characters.",
+    passwordMismatch: "Passwords do not match.",
     guestNote:
       "You can browse events without an account — we only ask when you reserve.",
   },

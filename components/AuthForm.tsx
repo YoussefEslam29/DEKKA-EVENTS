@@ -4,15 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { ArrowRight, Mail, Lock, User, Phone } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, Mail, Lock, User, Phone, Check } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonStyles } from "@/components/ui/Button";
 import { TextField, PasswordField } from "@/components/ui/TextField";
 import { SectionDivider } from "@/components/ui/SectionDivider";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { LogoBadge } from "@/components/ui/LogoBadge";
 import { GoogleIcon, FacebookIcon, AppleIcon } from "@/components/BrandIcons";
+import { DURATION, useMotionPresets } from "@/lib/motion";
 
 export type OAuthAvailability = {
   google: boolean;
@@ -36,13 +38,29 @@ export function AuthForm({ mode, next, providers }: Props) {
   const { t, bi } = useI18n();
   const router = useRouter();
   const isSignup = mode === "signup";
+  const { pressable, reduced } = useMotionPresets();
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
+  });
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  // Drives the match indicator below — non-empty and equal, nothing more. No
+  // debounce, so it flips (and the indicator disappears) on the very keystroke
+  // that breaks the match.
+  const passwordsMatch =
+    form.confirmPassword.length > 0 && form.confirmPassword === form.password;
+  const matchTransition = reduced
+    ? { duration: 0 }
+    : { duration: DURATION.press, ease: "easeOut" as const };
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,10 +73,21 @@ export function AuthForm({ mode, next, providers }: Props) {
           setError(t.auth.passwordShort);
           return;
         }
+        if (form.password !== form.confirmPassword) {
+          setError(t.auth.passwordMismatch);
+          return;
+        }
+        // `confirmPassword` is a client-only UX guard — build the payload by
+        // hand rather than sending `form` as-is, so it never reaches the wire.
         const res = await fetch("/api/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            name: form.name,
+            email: form.email,
+            phone: form.phone,
+            password: form.password,
+          }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -197,6 +226,43 @@ export function AuthForm({ mode, next, providers }: Props) {
           }
         />
 
+        {isSignup ? (
+          <div className="mb-4">
+            <PasswordField
+              name="confirmPassword"
+              labelEn={bi((d) => d.auth.confirmPassword).en}
+              labelAr={bi((d) => d.auth.confirmPassword).ar}
+              icon={Lock}
+              dir="ltr"
+              value={form.confirmPassword}
+              onChange={set("confirmPassword")}
+              placeholder={t.authUi.passwordPlaceholder}
+              autoComplete="new-password"
+              required
+              containerClassName="mb-0"
+            />
+            {/* Cool-UI touch, not a validation mechanism: the mismatch check
+                above (and its `role="alert"` banner) is what actually blocks
+                submit. No `exit` variant here on purpose — it fades/scales in
+                over `DURATION.press`, but vanishes the instant the fields
+                diverge (AnimatePresence only delays removal for children that
+                declare an `exit`). */}
+            <AnimatePresence>
+              {passwordsMatch ? (
+                <motion.span
+                  key="match"
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={matchTransition}
+                  className="mt-1.5 inline-flex items-center gap-1 text-good"
+                >
+                  <Check aria-hidden className="h-4 w-4" />
+                </motion.span>
+              ) : null}
+            </AnimatePresence>
+          </div>
+        ) : null}
+
         {error ? (
           <p
             role="alert"
@@ -235,20 +301,27 @@ export function AuthForm({ mode, next, providers }: Props) {
             }
           >
             {socials.map(({ id, short, full, Icon }) => (
-              <Button
+              // `motion.button` directly, styled via the same `buttonStyles`
+              // CVA function `Button` uses internally — wrapping `Button`
+              // itself in `motion.create()` loses its `variant`/`size` props
+              // to a framer-motion typing quirk (a literal DOM tag name like
+              // `"button"` as the type arg makes it fall back to the plain
+              // intrinsic `motion.button` prop shape, discarding the custom
+              // component's own props).
+              <motion.button
                 key={id}
                 type="button"
-                variant="outline"
-                size="lg"
+                className={buttonStyles({ variant: "outline", size: "lg" })}
                 onClick={() => signIn(id, { callbackUrl: next })}
                 aria-label={`${full.en} / ${full.ar}`}
+                {...pressable}
               >
                 <Icon className="h-4.5 w-4.5 shrink-0" />
                 <span className="lg:hidden">{short}</span>
                 <span className="hidden lg:inline">
                   <BilingualLabel {...full} />
                 </span>
-              </Button>
+              </motion.button>
             ))}
           </div>
         </>
