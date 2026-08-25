@@ -6,6 +6,7 @@ import { LogoBadge } from "@/components/ui/LogoBadge";
 import { NavLinks, NavMenuLinks } from "@/components/layout/NavLinks";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { SignOutButton } from "@/components/SignOutButton";
+import { AccountMenu } from "@/components/AccountMenu";
 import { buttonStyles } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -55,11 +56,9 @@ export async function Navbar() {
         <div className="flex items-center gap-2 justify-self-end">
           <LocaleToggle />
           {user ? (
-            <SignOutButton
-              className={cn(
-                "hidden rounded-lg border border-border-dark px-3 py-1.5 text-xs font-semibold text-text-muted transition-colors hover:border-gold-accent/60 hover:text-on-dark",
-                wide ? "lg:block" : "md:block"
-              )}
+            <AccountMenu
+              name={user.name ?? ""}
+              className={cn("hidden", wide ? "lg:block" : "md:block")}
             />
           ) : (
             <Link
@@ -86,7 +85,15 @@ export async function Navbar() {
               <NavMenuLinks links={links} />
               <div className="my-1 h-px bg-border-dark" />
               {user ? (
-                <SignOutButton className="block w-full rounded-lg px-3 py-2 text-start text-sm font-semibold text-text-muted hover:bg-coffee" />
+                <>
+                  <Link
+                    href="/account"
+                    className="block rounded-lg px-3 py-2 text-start text-sm font-semibold text-text-muted hover:bg-coffee"
+                  >
+                    {t.nav.account}
+                  </Link>
+                  <SignOutButton className="block w-full rounded-lg px-3 py-2 text-start text-sm font-semibold text-text-muted hover:bg-coffee" />
+                </>
               ) : (
                 <Link
                   href="/login"

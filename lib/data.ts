@@ -4,6 +4,7 @@ import { Event, type IEvent, type EventStatus, type PaymentMethod } from "@/mode
 import { Reservation, type IReservation } from "@/models/Reservation";
 import { CheckIn } from "@/models/CheckIn";
 import { BandSubmission, type SubmissionStatus } from "@/models/BandSubmission";
+import { User } from "@/models/User";
 import { fromLocalInputValue } from "@/lib/format";
 
 /**
@@ -608,4 +609,39 @@ export async function getAllReservations({
     eventTitleEn: r.eventTitleEn ?? "",
     eventStartsAt: r.eventStartsAt ? new Date(r.eventStartsAt).toISOString() : "",
   }));
+}
+
+export type AccountDTO = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  image: string;
+  providers: string[];
+  /** Whether the account already has a password — drives §4b/§5b item 4's
+   * set-vs-change branch on `/account`. The hash itself never leaves this
+   * function. */
+  hasPassword: boolean;
+};
+
+/**
+ * The signed-in member's own account, shaped for `/account`
+ * (`PLAN/LOG_SIGN_AUTH_IN.md` §5b). `passwordHash` is `select: false` on the
+ * model, so it is pulled in explicitly here only to derive `hasPassword` —
+ * it is never included in the returned DTO.
+ */
+export async function getAccountUser(userId: string): Promise<AccountDTO | null> {
+  if (!mongoose.Types.ObjectId.isValid(userId)) return null;
+  await connectDB();
+  const doc = await User.findById(userId).select("+passwordHash").lean();
+  if (!doc) return null;
+  return {
+    id: String(doc._id),
+    name: doc.name,
+    email: doc.email,
+    phone: doc.phone ?? "",
+    image: doc.image ?? "",
+    providers: doc.providers ?? [],
+    hasPassword: Boolean(doc.passwordHash),
+  };
 }

@@ -15,6 +15,43 @@ export const registerSchema = z.object({
   password: z.string().min(8).max(200),
 });
 
+/**
+ * `PATCH /api/account` (`PLAN/LOG_SIGN_AUTH_IN.md` §5b) — name/phone/photo,
+ * one section of the form saved at a time, so every field is optional.
+ *
+ * `.strict()` matters here: the parsed result feeds a `$set` directly, so an
+ * unlisted key (`email`, `role`, `providers`, `passwordHash`) reaching it
+ * would be exactly the mass-assignment hole `parseBody` exists to close.
+ * Email is deliberately absent — it is shown but not editable (§5b item 5).
+ */
+export const updateAccountSchema = z
+  .object({
+    name: trimmed(120).min(2),
+    phone: trimmed(30).min(6),
+    image: z.string().trim().max(800),
+  })
+  .partial()
+  .strict();
+
+/**
+ * `PATCH /api/account/password` — set (Google-only account) or change
+ * (account already has a hash) password, per §4b/§5b item 4.
+ *
+ * `currentPassword` is optional at the schema level; the route decides
+ * whether it is actually required, based on whether the account has a
+ * `passwordHash` yet. `newPassword`/`confirmPassword` are re-checked here
+ * even though the client already compared them — same rule as §2's
+ * confirm-password field: the client check is a UX guard, never the security
+ * boundary.
+ */
+export const setPasswordSchema = z
+  .object({
+    currentPassword: z.string().max(200).optional(),
+    newPassword: z.string().min(8).max(200),
+    confirmPassword: z.string().min(8).max(200),
+  })
+  .strict();
+
 const eventCore = {
   titleAr: trimmed(160).min(1),
   titleEn: trimmed(160).min(1),
@@ -86,6 +123,8 @@ export const submissionUpdateSchema = z.object({
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
+export type SetPasswordInput = z.infer<typeof setPasswordSchema>;
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type CheckInInput = z.infer<typeof checkInSchema>;
