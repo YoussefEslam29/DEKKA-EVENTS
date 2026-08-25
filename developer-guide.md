@@ -212,6 +212,16 @@ Cairo, regardless of where the admin physically is.
 
 ## 6. What to Avoid
 
+**Workflow**
+- **Don't create feature branches or git worktrees for implementation work —
+  commit directly to `main`.** This is a solo project; the owner finds
+  multiple branches confusing to track and wants everything in one place.
+  This overrides any default instinct (including a process/skill that would
+  normally isolate work on a branch before merging) to branch before a large
+  change — skip that step here and build on `main` directly. See §7's
+  worktree note below for the specific incident that first taught this the
+  hard way.
+
 **Frontend**
 - Don't use physical Tailwind spacing (`pl-`, `mr-`, etc.) — logical properties only.
 - Don't put the raw logo on a dark background without `LogoBadge` — it's dark ink and
