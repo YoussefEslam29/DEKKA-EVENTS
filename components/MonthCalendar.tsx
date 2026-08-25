@@ -166,14 +166,37 @@ export function MonthCalendar({
                 className={cn(
                   // min-h-20 keeps every square a comfortable tap target and
                   // leaves room for one event chip without the grid reflowing.
-                  "flex min-h-20 flex-col rounded-[4px] border p-1.5 text-start transition-colors sm:min-h-24",
+                  // relative anchors the karaoke-day watermark below.
+                  "relative flex min-h-20 flex-col overflow-hidden rounded-[4px] border p-1.5 text-start transition-colors sm:min-h-24",
                   booked
                     ? "border-gold/50 bg-gold-wash/70 hover:border-gold"
                     : "dk-hairline border-dashed hover:bg-gold-wash/40",
                   isToday && "ring-2 ring-gold/60"
                 )}
               >
-                <span className="flex items-center justify-between gap-1">
+                {isKaraokeDay && !booked ? (
+                  // A watermark, not an event — same "hint, not a rule" the
+                  // pure-date check above already establishes. Purely
+                  // decorative (the Link's title carries the real label), so
+                  // it's aria-hidden rather than duplicating karaokeHint here.
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="pointer-events-none absolute -bottom-1.5 -end-1.5 h-10 w-10 text-gold-deep/20 sm:h-12 sm:w-12"
+                  >
+                    <circle cx="12" cy="12" r="10.5" strokeWidth="1.1" />
+                    <rect x="9.5" y="6" width="5" height="8" rx="2.5" />
+                    <path d="M7.5 12.5a4.5 4.5 0 0 0 9 0" />
+                    <line x1="12" y1="17" x2="12" y2="19" />
+                  </svg>
+                ) : null}
+
+                <span className="relative flex items-center justify-between gap-1">
                   <span
                     className={cn(
                       "text-xs font-bold",
@@ -182,12 +205,6 @@ export function MonthCalendar({
                   >
                     {day}
                   </span>
-                  {isKaraokeDay ? (
-                    <Mic2
-                      className="h-3 w-3 shrink-0 text-gold-deep/70"
-                      aria-label={labels.karaokeHint}
-                    />
-                  ) : null}
                 </span>
 
                 <span className="mt-1 flex-1 space-y-0.5 overflow-hidden">
