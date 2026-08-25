@@ -102,29 +102,55 @@ const eventCore = {
   status: z.enum(EVENT_STATUSES).default("draft"),
 };
 
-export const createEventSchema = z.object(eventCore);
 /**
- * Every field optional — admins save one section of the form at a time.
+ * Strips every `.default(...)` off a Zod object shape, keeping each field's
+ * own type/constraints (enum values, `min`/`max`, etc.) via `.removeDefault()`.
  *
- * `status` is re-declared here *without* `.default("draft")`: in Zod v4,
- * `.partial()` still lets a field's own `.default()` fire when the key is
- * completely absent from the input, so building this straight from
- * `eventCore` meant an update payload that never mentions `status` (e.g. a
- * hypothetical single-field PATCH) would silently resolve to
- * `status: "draft"` and — because `PATCH /api/events/:id` writes every key
- * `parseBody` hands back that isn't `undefined` — quietly unpublish the
- * event as a side effect of an unrelated edit. Found while building the
- * publish-transition detector in `app/api/events/[id]/route.ts`
- * (`PLAN/LOG_SIGN_AUTH_IN.md` §6): every *current* caller (`EventForm.tsx`,
- * `EventAdminActions.tsx`) always sends `status` explicitly, so this never
- * fired in practice, but the transition detector's "only notify on a real
- * draft/closed → published change" guarantee depends on `status` genuinely
- * meaning "omitted" when it's omitted — so this is fixed at the schema, not
- * worked around at the call site.
+ * Why this exists (Task 5 fix round 1 — Critical): in Zod v4, `.partial()`
+ * does **not** stop a field's `.default(...)` from firing when that key is
+ * completely absent from the input — confirmed against the installed `zod`
+ * package (see the Task 5 report). `eventCore` above has *ten* defaulted
+ * fields (`descriptionAr`/`descriptionEn`/`locationAr`/`locationEn`/
+ * `instapayNumber`/`termsAr`/`termsEn` via `optionalText()`, `mapUrl`/
+ * `coverImage` via `.default("")`, `isPoster` via `.default(false)`, plus
+ * `status`). Building `updateEventSchema` straight from `eventCore.partial()`
+ * meant a status-only `PATCH` — exactly what `EventAdminActions.tsx` sends on
+ * every Publish/Close/Reopen click (`{status: next}`, nothing else) — parsed
+ * to all nine other fields resolving to their create-time defaults (`""`,
+ * `false`), and `PATCH /api/events/:id`'s passthrough loop writes every key
+ * `parseBody` hands back that isn't `undefined`. In production that would
+ * silently blank an event's description, location, map URL, cover image,
+ * poster flag, Instapay number, and terms — in both languages — on an
+ * ordinary status toggle, then fire this task's push notification announcing
+ * the now-gutted event.
+ *
+ * A first attempt at this fix re-declared just `status` without its default
+ * before `.partial()` — correct for `status` alone, but left the other nine
+ * fields exposed, since each carried its own separate `.default(...)`. This
+ * version fixes the *class* of bug instead of one field: `updateEventSchema`
+ * is built by stripping defaults off `eventCore`'s current shape
+ * automatically, so a field added to `eventCore` later — defaulted or not —
+ * can never reintroduce this without anyone having to remember to special-case
+ * it here. `createEventSchema` is untouched and still applies every default,
+ * exactly as before.
  */
-export const updateEventSchema = z
-  .object({ ...eventCore, status: z.enum(EVENT_STATUSES) })
-  .partial();
+function stripDefaults<Shape extends z.ZodRawShape>(shape: Shape): Shape {
+  const stripped = {} as Shape;
+  for (const key of Object.keys(shape) as (keyof Shape)[]) {
+    const field = shape[key];
+    stripped[key] = (
+      field instanceof z.ZodDefault ? field.removeDefault() : field
+    ) as Shape[typeof key];
+  }
+  return stripped;
+}
+
+export const createEventSchema = z.object(eventCore);
+/** Every field optional — admins save one section of the form at a time.
+ * Built from `eventCore` with every default stripped (see `stripDefaults`
+ * above) so an omitted key means "leave this field alone," never "reset it
+ * to its create-time default." */
+export const updateEventSchema = z.object(stripDefaults(eventCore)).partial();
 
 export const checkInSchema = z.object({
   name: trimmed(120).min(1),

@@ -35,6 +35,12 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/";
+  // `showNotification` stored a relative path (`/events/<id>`, see above),
+  // but every open `WindowClient.url` is absolute — comparing them directly
+  // never matched, so the "focus an existing tab" branch was dead code and
+  // every click opened a new tab. Resolve against this worker's own origin
+  // before comparing.
+  const absoluteUrl = new URL(url, self.location.origin).href;
 
   event.waitUntil(
     self.clients
@@ -43,7 +49,7 @@ self.addEventListener("notificationclick", (event) => {
         // Focus an already-open tab on that event instead of stacking a new
         // one, so tapping the notification twice doesn't open two tabs.
         for (const client of windowClients) {
-          if (client.url === url && "focus" in client) return client.focus();
+          if (client.url === absoluteUrl && "focus" in client) return client.focus();
         }
         if (self.clients.openWindow) return self.clients.openWindow(url);
       })
