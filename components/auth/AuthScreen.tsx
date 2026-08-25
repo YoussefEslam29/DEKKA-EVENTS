@@ -7,18 +7,43 @@ import { AuthForm } from "@/components/AuthForm";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 
 /**
- * Drop a real Dekka interior/event photo at this path and the hero picks it up
- * automatically — no code change. §9.5 flagged that the mockup's cafe photo was
- * stock/generated, so until real photography exists the panel falls back to a
- * brand-derived treatment rather than shipping someone else's café.
+ * Drop a real Dekka interior/event photo at one of these paths and the hero
+ * picks it up automatically — no code change. §9.5 flagged that the mockup's
+ * cafe photo was stock/generated, so until real photography exists the panel
+ * falls back to a brand-derived treatment rather than shipping someone else's
+ * café. §3 of LOG_SIGN_AUTH_IN.md adds one photo per mode on top of the
+ * original shared file, so a single photo still improves both screens while
+ * two photos lets login/signup diverge (calm counter shot vs. packed event
+ * night, per the plan's suggested pairing).
  */
 const HERO_FILE = "auth-hero.jpg";
+const MODE_HERO_FILE: Record<"login" | "signup", string> = {
+  login: "auth-hero-login.jpg",
+  signup: "auth-hero-signup.jpg",
+};
+const MODE_HERO_ENV: Record<"login" | "signup", string | undefined> = {
+  login: process.env.NEXT_PUBLIC_AUTH_HERO_LOGIN_IMAGE,
+  signup: process.env.NEXT_PUBLIC_AUTH_HERO_SIGNUP_IMAGE,
+};
 
-function heroImage(): string | null {
-  const fromEnv = process.env.NEXT_PUBLIC_AUTH_HERO_IMAGE;
-  if (fromEnv) return fromEnv;
-  const local = path.join(process.cwd(), "public", "brand", HERO_FILE);
-  return fs.existsSync(local) ? `/brand/${HERO_FILE}` : null;
+/** One resolution tier: an env override, else a file check under `public/brand/`. */
+function resolveHero(envValue: string | undefined, file: string): string | null {
+  if (envValue) return envValue;
+  const local = path.join(process.cwd(), "public", "brand", file);
+  return fs.existsSync(local) ? `/brand/${file}` : null;
+}
+
+/**
+ * Resolution order: mode-specific file/env → shared `auth-hero.jpg`/
+ * `NEXT_PUBLIC_AUTH_HERO_IMAGE` → `null` (caller renders `BrandHeroFallback`).
+ * With zero source images present (today's state) every tier misses and this
+ * returns `null`, exactly as the single-file version did.
+ */
+function heroImage(mode: "login" | "signup"): string | null {
+  return (
+    resolveHero(MODE_HERO_ENV[mode], MODE_HERO_FILE[mode]) ??
+    resolveHero(process.env.NEXT_PUBLIC_AUTH_HERO_IMAGE, HERO_FILE)
+  );
 }
 
 /**
@@ -32,7 +57,7 @@ export async function AuthScreen({
   mode: "login" | "signup";
   next: string;
 }) {
-  const photo = heroImage();
+  const photo = heroImage(mode);
 
   // §4: this panel is always bilingual — bold English line, lighter Arabic
   // beneath — regardless of the active locale, so both dictionaries are read

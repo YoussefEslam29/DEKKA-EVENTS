@@ -12,6 +12,7 @@
  *   npm run brand:assets
  */
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { mkdir, copyFile, writeFile } from "node:fs/promises";
 import sharp from "sharp";
 
@@ -20,6 +21,16 @@ const SRC_LOGO = path.join(ROOT, "IMGS", "DEKKA LOGO.jpg");
 const SRC_BANNER = path.join(ROOT, "IMGS", "DEKKA BANNER.jpg");
 const OUT_DIR = path.join(ROOT, "public", "brand");
 const APP_DIR = path.join(ROOT, "app");
+
+/**
+ * Auth hero photos (LOG_SIGN_AUTH_IN.md §3): one per mode, optional. No real
+ * photography exists yet, so these two source files are absent today — that's
+ * expected, not an error. Unlike the logo/banner they're only *copied* through
+ * (a plain JPEG, same as the banner), not knocked-out/resized, since they're
+ * full-bleed photos rather than mark artwork on a white background.
+ */
+const SRC_AUTH_HERO_LOGIN = path.join(ROOT, "IMGS", "auth-hero-login.jpg");
+const SRC_AUTH_HERO_SIGNUP = path.join(ROOT, "IMGS", "auth-hero-signup.jpg");
 
 /**
  * Luminance window over which a pixel fades from opaque to fully transparent.
@@ -138,6 +149,23 @@ async function main() {
 
   await copyFile(SRC_BANNER, path.join(OUT_DIR, "dekka-banner.jpg"));
   console.log("dekka-banner.jpg    copied");
+
+  // Auth hero photos: optional, processed only if the source file exists —
+  // both /login and /signup fall back to the gradient + tatreez treatment
+  // (BrandHeroFallback in components/auth/AuthScreen.tsx) when absent, so a
+  // missing source here is the normal case today, not a failure.
+  const authHeroSources: [string, string][] = [
+    [SRC_AUTH_HERO_LOGIN, "auth-hero-login.jpg"],
+    [SRC_AUTH_HERO_SIGNUP, "auth-hero-signup.jpg"],
+  ];
+  for (const [src, outName] of authHeroSources) {
+    if (existsSync(src)) {
+      await copyFile(src, path.join(OUT_DIR, outName));
+      console.log(`${outName}  copied`);
+    } else {
+      console.log(`${outName}  skipped (no source file at IMGS/${outName})`);
+    }
+  }
 }
 
 main().catch((error) => {

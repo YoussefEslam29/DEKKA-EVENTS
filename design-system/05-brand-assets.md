@@ -47,9 +47,28 @@ No real Dekka interior/event photography exists yet. Anywhere a photo is called 
 (the auth screen's hero panel, event cover images), the app falls back to a
 brand-derived treatment — warm pendant-light gradients over deep coffee, with the
 tatreez texture — rather than shipping stock photography that isn't actually Dekka.
-The moment real photos exist, drop them in (`public/brand/auth-hero.jpg` for the auth
-hero; event cover images are admin-entered URLs) and the fallback disappears
-automatically, no code change required.
+
+The auth hero panel (`components/auth/AuthScreen.tsx`) resolves one photo per screen,
+falling further back to a single shared photo, before giving up and rendering the
+gradient treatment:
+
+1. **Per-mode file** — `public/brand/auth-hero-login.jpg` for `/login`,
+   `public/brand/auth-hero-signup.jpg` for `/signup` (env overrides
+   `NEXT_PUBLIC_AUTH_HERO_LOGIN_IMAGE` / `NEXT_PUBLIC_AUTH_HERO_SIGNUP_IMAGE`).
+2. **Shared file** — `public/brand/auth-hero.jpg`, used for whichever mode has no
+   per-mode photo (env override `NEXT_PUBLIC_AUTH_HERO_IMAGE`). Dropping in just one
+   photo this way improves both screens at once.
+3. **Gradient fallback** — today's state, with none of the above present.
+
+Get the per-mode files in through the same pipeline as the logo/banner: drop
+originals at `IMGS/auth-hero-login.jpg` / `IMGS/auth-hero-signup.jpg` and run
+`npm run brand:assets`, which copies whichever of the two is present into
+`public/brand/` (both are optional — the script skips cleanly when neither exists,
+which is the case today). The shared `auth-hero.jpg` isn't part of that script; drop
+it straight into `public/brand/` if you want a single photo for both screens. Event
+cover images are admin-entered URLs, unrelated to this pipeline. The moment any of
+these files exist, the corresponding fallback disappears automatically — no code
+change required.
 
 ## Social presence
 
