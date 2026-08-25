@@ -150,9 +150,19 @@ To keep this shippable, these are **not** included yet — flag if any of these 
 - Online payment processing (confirmed: cash/InstaPay at the cafe only, for now)
 - Loyalty points / punch cards
 - Table reservations for normal (non-event) cafe visits
-- Push notifications / reminders before an event
+- ~~Push notifications~~ — **partially shipped, see below**
+- **Reminders before an event you've already reserved** ("your event is
+  tomorrow") — still out of scope
 - Waitlists once an event is full
 - QR-code check-in (staff type name/phone manually for v1)
+
+**Scope change, recorded:** browser push notifications *were* built, per
+`PLAN/LOG_SIGN_AUTH_IN.md` §6 — but only the "a new event just went live"
+announcement, sent once at publish time to every member who opted in. That is a
+different thing from the reminders this section originally excluded, which stay
+out of scope. Members opt in from `/account` or a one-time prompt after signing
+in; nothing is sent to anyone who hasn't explicitly granted browser permission,
+because no server can push to a browser that hasn't.
 
 ---
 

@@ -289,7 +289,29 @@ Cairo, regardless of where the admin physically is.
   backfilling short ones for Events Hub, Reservations, Submit-a-Show, Admin Dashboard,
   Door Check-in, and Monthly Report so the next session has the same context this file
   gives for auth.
-- **Auth/account gaps, planned but not yet built.** Today: sign-up has no confirm-password field, there's no `/account` page anywhere in the app (only a bare sign-out control in the navbar), a Google-only member who tries email/password sign-up just gets a generic "email taken" error with no path forward, and there's no notification of any kind when the admin publishes a new event (Google sign-in itself is already fully wired, see `lib/auth.ts` — the only thing usually missing is `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` in `.env.local`). All four are scoped, decided, and ready to build in `PLAN/LOG_SIGN_AUTH_IN.md` — including a browser push-notification pipeline for event publishes, which is new scope beyond `PLAN/idea.md` §8's original "push notifications out of v1" line (update that line once this ships).
+- ~~Auth/account gaps~~ — **built**, see §8's "Login/Sign-up/Account fix" entry.
+  What remains operational, not code: `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` still
+  have to be created in Google Cloud Console and set in `.env.local` (and Vercel)
+  before the Google button renders at all — `enabledOAuthProviders` hides it
+  deliberately when they're blank.
+- **Google accounts have no phone number.** Google never supplies one, so a
+  Google signup lands with `phone` empty while
+  `app/api/events/[id]/reservations/route.ts` requires one for the door list.
+  `ReserveButton.tsx` now catches that (`PHONE_REQUIRED` → a message plus a link
+  to `/account`), so it's a detour rather than a dead end — but the member still
+  can't reserve until they fill it in. If that friction ever matters, the fix is
+  to ask for a phone once, right after the first OAuth sign-in, rather than at
+  the moment they try to reserve.
+- **Push delivery to a real device was never verified end-to-end.** The pipeline
+  was exercised over HTTP (subscribe → publish transition → fan-out → 404/410
+  cleanup → unsubscribe), but nothing drove an actual browser permission dialog
+  or confirmed a notification arriving on a phone. The Push API also requires
+  HTTPS outside `localhost`. Confirm on the first real deploy.
+- **`stripDefaults()` in `lib/validation.ts` touches Zod internals**
+  (`instanceof z.ZodDefault`, `.removeDefault()`). It's the structural guard that
+  stops `updateEventSchema` re-introducing the default-leak bug described in §8,
+  and it's deliberately mechanical so a newly added `eventCore` field can't
+  reintroduce it. Worth re-checking on a Zod major/minor upgrade.
 
 ---
 
@@ -297,6 +319,94 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Login/Sign-up/Account fix — `PLAN/LOG_SIGN_AUTH_IN.md`
+
+All six sections built, each reviewed independently before the next started.
+Two bugs found along the way were *not* in the plan — see the end.
+
+- **§1/§2 Confirm-password.** `AuthForm.tsx` gains `confirmPassword` (sign-up
+  only, reusing `PasswordField` so the eye-toggle comes free) with a client-side
+  mismatch guard before the fetch. `confirmPassword` is **deliberately never
+  sent** — the payload is rebuilt as an explicit object literal rather than
+  `JSON.stringify(form)`, which is what keeps it structurally out of the request
+  rather than merely stripped. A `Check` fades in via `AnimatePresence` +
+  `DURATION.press` the moment the two match. Social buttons became
+  `motion.button` + `buttonStyles(...)` rather than a `motion.create(Button)`
+  wrapper — framer-motion's typing collapses custom CVA props when the tag is a
+  literal DOM tag, and `Button` has no `forwardRef`, so the class output is
+  identical.
+- **§4a Duplicate-account error.** `POST /api/register` now distinguishes an
+  OAuth-only account (no `passwordHash`) from a password account, returning
+  `EMAIL_TAKEN_OAUTH` with the `providers` on file. `AuthForm.tsx` renders the
+  matching social button *inline with the error* — the error block itself is the
+  fix, not prose pointing at a button elsewhere. The reverse direction (Google
+  sign-in onto an existing password account) already linked correctly in
+  `lib/auth.ts` and was left alone.
+- **§5/§4b `/account`.** New page gated exactly like `my-events/page.tsx`
+  (`currentUser()` + `redirect`, no middleware). `AccountForm.tsx` covers photo,
+  name/phone, a read-only "signed in with" line, and password — **set** (no
+  current-password step) when `passwordHash` is absent, **change** (bcrypt-compare
+  required) when it exists. That branch is decided **server-side from the database**,
+  never from a client flag, so a client omitting `currentPassword` can't downgrade
+  itself into the set path. `getAccountUser`/`AccountDTO` in `lib/data.ts` reads
+  the hash only to compute `hasPassword: boolean` and builds the DTO field-by-field
+  — the hash never reaches the browser. Both new schemas are `.strict()` because
+  their output feeds a `$set`. `/api/uploads` widened admin→member for avatars;
+  event-poster callers stay admin-gated a layer up.
+- **§3 Auth hero photos.** `heroImage(mode)` resolves mode-specific →
+  shared → `BrandHeroFallback`, with env overrides at each tier. No photos exist
+  yet, so both screens still render the gradient — that path was explicitly
+  verified, since it is currently the *only* path. `prepare-brand-assets.ts`
+  processes the two new sources only if present.
+- **§6 Push notifications.** `web-push` + `models/PushSubscription.ts` (one row
+  per device, `endpoint` unique-indexed), `public/sw.js`, `PushOptIn.tsx`, and
+  `POST`/`DELETE /api/push/subscribe`. **The permission prompt can only fire from
+  an explicit tap** — `Notification.requestPermission()` exists at exactly one
+  call site, behind an `onClick`, never in an effect; `useSyncExternalStore` reads
+  `Notification.permission` without an SSR hydration mismatch. This matters
+  because a prompt fired unprompted is denied once and then silenced by the
+  browser permanently, unrecoverable from the app. The publish fan-out reads the
+  prior status first so a re-save of an already-published event never re-notifies,
+  and the whole block is wrapped so a `web-push` failure cannot turn a successful
+  publish into a 500. Dead endpoints are deleted on 404/410. The post-auth toast
+  is scoped to credentials sign-in only; the `/account` banner covers OAuth-only
+  members.
+
+**Two bugs found that the plan didn't know about:**
+
+- **`ADMIN_EMAILS`/`STAFF_EMAILS` silently did nothing on email/password signup.**
+  `app/api/register/route.ts` hardcoded `role: "member"`; only the OAuth path
+  applied the env bootstrap. So inviting a staff member by email and having them
+  sign up normally produced a plain member with no indication why. `bootstrapRole()`
+  now lives in `lib/roles.ts` and is shared by both paths, so they cannot drift
+  again. **Note the asymmetry that remains, deliberately:** the OAuth path
+  re-applies the bootstrap on *every* sign-in (so adding an email to `ADMIN_EMAILS`
+  promotes them next time they use Google), while the credentials path applies it
+  only at account creation. `lib/auth.ts`'s old comment claimed "first sign-in
+  only" for both, which was never true. Changing a role on an existing account is
+  `scripts/set-role.ts <email> <role>` — and the person must sign out and back in,
+  because sessions are JWTs carrying the role.
+- **`updateEventSchema` silently blanked event content on every Publish click.**
+  In Zod v4 — unlike v3 — `.partial()` does *not* suppress `.default(...)` on an
+  absent key. `eventCore` has ten defaulted fields, so parsing
+  `{ status: "published" }` (exactly what `EventAdminActions.tsx` sends) returned
+  nine more fields defaulted to `""`/`false`, and the route's passthrough loop
+  wrote them all — wiping description, location, map URL, cover image, poster
+  flag, Instapay number and terms, in both languages, on an ordinary status
+  toggle. Nothing was `required` in the model, so `runValidators` never caught it.
+  Fixed with `stripDefaults()` (see §7): it strips defaults from `eventCore`'s
+  shape structurally, so a future defaulted field cannot reintroduce the bug —
+  a per-field fix was rejected precisely because it would depend on the next
+  person remembering. `createEventSchema` still applies its defaults normally.
+  **This bug pre-dated this work**; the owner's `events` collection was empty at
+  the time, so no real content was lost.
+
+**Verification note, stated plainly:** this repo has no automated test suite, so
+every claim above rests on typecheck, lint, and manual exercise of the real code
+paths (HTTP calls against the live dev server, DB-free Zod reproductions,
+throwaway documents cleaned up afterwards). The one thing *not* proven is a push
+notification arriving on a real device — see §7.
 
 ### Admin dashboard fix — `PLAN/FIX_ADMIN_DASH.md`
 
