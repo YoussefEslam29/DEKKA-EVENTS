@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { handle, jsonError, parseBody } from "@/lib/api";
 import { registerSchema } from "@/lib/validation";
+import { bootstrapRole } from "@/lib/roles";
 
 export async function POST(request: Request) {
   return handle("POST /api/register", async () => {
@@ -33,7 +34,10 @@ export async function POST(request: Request) {
       phone,
       passwordHash,
       providers: ["credentials"],
-      role: "member",
+      // Same env bootstrap the OAuth path applies, so a staff/admin invited by
+      // email gets their role by signing up normally — previously this was
+      // hardcoded to "member" and `ADMIN_EMAILS` silently did nothing here.
+      role: bootstrapRole(email) ?? "member",
     });
 
     // Never echo the hash back, even to the account's own owner.

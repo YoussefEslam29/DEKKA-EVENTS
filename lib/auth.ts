@@ -6,26 +6,11 @@ import Apple from "next-auth/providers/apple";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import { User, type UserRole } from "@/models/User";
+import { bootstrapRole } from "@/lib/roles";
 
-/**
- * Emails listed here are promoted to `admin` the first time they sign in. This
- * is the only bootstrap path — after that, roles are managed in the database.
- */
-const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-
-const staffEmails = (process.env.STAFF_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-
-function bootstrapRole(email: string): UserRole | null {
-  if (adminEmails.includes(email)) return "admin";
-  if (staffEmails.includes(email)) return "staff";
-  return null;
-}
+// `ADMIN_EMAILS`/`STAFF_EMAILS` bootstrap lives in `lib/roles.ts` so the
+// register route shares exactly this logic — see the note there on which path
+// re-applies it to an existing account.
 
 /**
  * Which social buttons to render — a provider with no credentials is hidden, so
