@@ -133,8 +133,10 @@ export const ar = {
     signedInWith: "بتدخل بـ:",
     emailPassword: "البريد وكلمة السر",
     setPasswordTitle: "تحديد كلمة سر",
+    // `{providers}` — الاسم الفعلي للمزوّد (زي "Google")، مش هاردكودد؛ شايف
+    // lib/providers.ts. مبني بنفس منطق "بتدخل بـ:" تحت.
     setPasswordHint:
-      "حسابك متصل بجوجل بس. ضيف كلمة سر عشان تقدر تدخل بالبريد الإلكتروني كمان.",
+      "حسابك بيدخل بـ{providers} بس دلوقتي. ضيف كلمة سر عشان تقدر تدخل بالبريد الإلكتروني كمان.",
     changePasswordTitle: "تغيير كلمة السر",
     currentPassword: "كلمة السر الحالية",
     newPassword: "كلمة السر الجديدة",
@@ -142,6 +144,9 @@ export const ar = {
     changePasswordButton: "تحديث كلمة السر",
     currentPasswordInvalid: "كلمة السر الحالية غلط.",
     passwordUpdated: "اتحدثت كلمة السر.",
+    nameInvalid: "الاسم لازم يكون حرفين على الأقل.",
+    phoneInvalid: "رقم الموبايل لازم يكون 6 أرقام على الأقل.",
+    photoInvalid: "الصورة دي مش قادرين نحفظها. جرّب ترفعها تاني.",
   },
   auth: {
     loginTitle: "أهلاً بيك في دكة",
@@ -163,7 +168,9 @@ export const ar = {
     haveAccount: "عندك حساب؟",
     invalid: "البريد أو كلمة السر غير صحيحة.",
     emailTaken: "البريد ده مسجّل بالفعل.",
-    emailTakenOAuth: "البريد ده عنده حساب بالفعل — سجّل دخولك بالزرار تحت.",
+    // `{providers}` يتحدد من رد السيرفر (`details.providers`) مش هاردكودد
+    // لجوجل — شايف lib/providers.ts.
+    emailTakenOAuth: "البريد ده عنده حساب بـ{providers} بالفعل — سجّل دخولك بالزرار تحت.",
     passwordShort: "كلمة السر لازم تكون 8 حروف على الأقل.",
     passwordMismatch: "كلمة السر والتأكيد مش متطابقين.",
     guestNote: "تقدر تتفرج على الحفلات من غير حساب — الحساب مطلوب وقت الحجز بس.",
@@ -474,7 +481,7 @@ export const en: DeepMutable<Dict> = {
     emailPassword: "Email & password",
     setPasswordTitle: "Set a password",
     setPasswordHint:
-      "Your account only signs in with Google right now — add a password so you always have a backup way in.",
+      "Your account only signs in with {providers} right now — add a password so you always have a backup way in.",
     changePasswordTitle: "Change password",
     currentPassword: "Current password",
     newPassword: "New password",
@@ -482,6 +489,9 @@ export const en: DeepMutable<Dict> = {
     changePasswordButton: "Update password",
     currentPasswordInvalid: "That current password is incorrect.",
     passwordUpdated: "Password updated.",
+    nameInvalid: "Name must be at least 2 characters.",
+    phoneInvalid: "Phone number must be at least 6 characters.",
+    photoInvalid: "That photo couldn't be saved. Try uploading it again.",
   },
   auth: {
     loginTitle: "Welcome to Dekka",
@@ -503,7 +513,8 @@ export const en: DeepMutable<Dict> = {
     haveAccount: "Already have an account?",
     invalid: "Wrong email or password.",
     emailTaken: "That email is already registered.",
-    emailTakenOAuth: "You already have an account with this email — sign in with the button below instead.",
+    emailTakenOAuth:
+      "You already have an account with this email, signed in with {providers} — use the button below instead.",
     passwordShort: "Password must be at least 8 characters.",
     passwordMismatch: "Passwords do not match.",
     guestNote:

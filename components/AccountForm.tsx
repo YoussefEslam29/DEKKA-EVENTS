@@ -12,7 +12,9 @@ import { TextField, PasswordField } from "@/components/ui/TextField";
 import { Card } from "@/components/ui/Surface";
 import { PushOptIn } from "@/components/PushOptIn";
 import { DURATION, useMotionPresets } from "@/lib/motion";
+import { PROVIDER_LABEL, providerNames } from "@/lib/providers";
 import type { AccountDTO } from "@/lib/data";
+import type { Dict } from "@/lib/i18n/dictionaries";
 
 type Props = { account: AccountDTO };
 
@@ -20,14 +22,26 @@ type Props = { account: AccountDTO };
 // too so an oversized file fails instantly instead of after a round trip.
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
-/** Provider ids are brand names, identical in both languages (§3 typography
- * rule: a proper noun renders once, not bilingual-paired). "credentials"
- * is the one id that isn't a brand — it gets the translated label instead. */
-const PROVIDER_LABEL: Record<string, string> = {
-  google: "Google",
-  facebook: "Facebook",
-  apple: "Apple",
-};
+/** Maps a failed PATCH /api/account response to a message the member can act
+ * on. `updateAccountSchema`'s own failures don't carry a distinct error code
+ * the way CURRENT_PASSWORD_INVALID/PASSWORD_MISMATCH do below — they're all
+ * `parseBody`'s generic "Validation failed" plus a `details` array — so the
+ * first invalid field's path is what tells name/phone/image apart. Shared by
+ * onProfileSubmit and saveImage (Fix 1's image regex funnels through here
+ * too, so a rejected photo reads as "that photo couldn't be saved", not the
+ * opaque generic fallback). */
+function describeAccountError(
+  body: { error?: string; details?: { path?: string }[] },
+  t: Dict
+): string {
+  if (body.error === "Validation failed") {
+    const path = body.details?.[0]?.path;
+    if (path === "name") return t.account.nameInvalid;
+    if (path === "phone") return t.account.phoneInvalid;
+    if (path === "image") return t.account.photoInvalid;
+  }
+  return t.common.somethingWrong;
+}
 
 function initials(name: string): string {
   const letters = name
@@ -67,7 +81,10 @@ export function AccountForm({ account }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: url }),
     });
-    if (!res.ok) throw new Error("save failed");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(describeAccountError(body, t));
+    }
     setImage(url);
     await updateSession();
     router.refresh();
@@ -99,8 +116,8 @@ export function AccountForm({ account }: Props) {
         return;
       }
       await saveImage(json.data.url as string);
-    } catch {
-      setPhotoError(t.common.somethingWrong);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : t.common.somethingWrong);
     } finally {
       setUploading(false);
     }
@@ -111,8 +128,8 @@ export function AccountForm({ account }: Props) {
     setPhotoError(null);
     try {
       await saveImage("");
-    } catch {
-      setPhotoError(t.common.somethingWrong);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : t.common.somethingWrong);
     } finally {
       setUploading(false);
     }
@@ -142,7 +159,8 @@ export function AccountForm({ account }: Props) {
         body: JSON.stringify({ name: profile.name, phone: profile.phone }),
       });
       if (!res.ok) {
-        setProfileError(t.common.somethingWrong);
+        const body = await res.json().catch(() => ({}));
+        setProfileError(describeAccountError(body, t));
         return;
       }
       setProfileSaved(true);
@@ -357,7 +375,15 @@ export function AccountForm({ account }: Props) {
           {hasPassword ? t.account.changePasswordTitle : t.account.setPasswordTitle}
         </h2>
         {!hasPassword ? (
-          <p className="mb-4 text-sm text-text-muted">{t.account.setPasswordHint}</p>
+          <p className="mb-4 text-sm text-text-muted">
+            {/* Provider-agnostic per the naming policy in lib/providers.ts —
+                names whatever the account actually signed in with, not a
+                hardcoded "Google". */}
+            {t.account.setPasswordHint.replace(
+              "{providers}",
+              providerNames(account.providers)
+            )}
+          </p>
         ) : (
           <div className="mb-4" />
         )}

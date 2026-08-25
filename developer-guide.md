@@ -165,9 +165,16 @@ Cairo, regardless of where the admin physically is.
 5. **OAuth providers degrade safely.** A provider with no credentials configured
    (`enabledOAuthProviders` in `lib/auth.ts`) simply doesn't render its button, rather
    than rendering a button that dead-ends at a broken callback.
-6. **Admin bootstrap is env-based, one-way.** `ADMIN_EMAILS`/`STAFF_EMAILS` promote a
-   user *on first sign-in only*; after that, roles live in the database and are managed
-   there. Don't re-introduce env-based role checks anywhere else in the app.
+6. **Admin bootstrap is env-based, applied per path.** `ADMIN_EMAILS`/`STAFF_EMAILS`
+   (`lib/roles.ts`) set a role at account creation on both paths — credentials
+   (`app/api/register/route.ts`) and OAuth (`lib/auth.ts`'s `signIn` callback) — but
+   the OAuth path also *re-applies* the bootstrap on every subsequent sign-in, so
+   adding an email to a list promotes an existing account next time it signs in with
+   a provider; the credentials path checks only once, at signup. Either way, roles
+   live in the database from then on — to change an existing account's role, run
+   `scripts/set-role.ts <email> <role>` (the person must sign out and back in;
+   sessions are JWTs). Don't re-introduce env-based role checks anywhere else in the
+   app.
 
 ---
 

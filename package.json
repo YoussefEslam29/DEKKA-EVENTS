@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "set-role": "tsx --env-file=.env.local scripts/set-role.ts",
     "typecheck": "tsc --noEmit",
     "brand:assets": "tsx scripts/prepare-brand-assets.ts"
   },

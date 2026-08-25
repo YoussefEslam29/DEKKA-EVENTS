@@ -8,6 +8,20 @@ import {
 const trimmed = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) => trimmed(max).optional().default("");
 
+/**
+ * The exact shape `POST /api/uploads` hands back (see that route): empty
+ * string (no photo), or `/uploads/events/<uuid>.<ext>` for one of the four
+ * types it accepts. Anchored to that shape — not just "same-origin" — because
+ * `updateAccountSchema.image` is member-reachable (`/api/uploads` was widened
+ * admin→member this session) while `next.config.ts` allows image proxying
+ * from *any* HTTPS host; without this, a member could PATCH an arbitrary
+ * attacker-controlled URL into `image` and have `next/image` proxy-fetch it
+ * server-side on every render of `/account`. Keep this pattern in sync with
+ * `app/api/uploads/route.ts`'s `EXT_BY_TYPE`/`UPLOAD_DIR` if either changes.
+ */
+const UPLOAD_IMAGE_PATTERN =
+  /^(|\/uploads\/events\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp|gif))$/;
+
 export const registerSchema = z.object({
   name: trimmed(120).min(2),
   email: z.string().trim().toLowerCase().email().max(200),
@@ -28,11 +42,16 @@ export const updateAccountSchema = z
   .object({
     name: trimmed(120).min(2),
     phone: trimmed(30).min(6),
-    // Matches User.image's own `maxlength: 500` (models/User.ts) — a value
-    // over 500 that still passed here would fail Mongoose's validator
-    // instead, and `handle()` turns that into an opaque 500 rather than a
-    // clean 400.
-    image: z.string().trim().max(500),
+    // Restricted to what /api/uploads actually returns (see
+    // UPLOAD_IMAGE_PATTERN above) — deliberately *not* "any string up to
+    // 500 chars" the way this field used to be. `coverImage` on events stays
+    // a free-typed URL (admins paste external poster links, a deliberate
+    // feature); this field doesn't get that latitude because it's
+    // member-reachable. Also still under User.image's own `maxlength: 500`
+    // (models/User.ts), though the regex is the binding constraint now.
+    image: z.string().trim().max(500).regex(UPLOAD_IMAGE_PATTERN, {
+      message: "Image must be a photo uploaded through this site, not an external URL.",
+    }),
   })
   .partial()
   .strict();

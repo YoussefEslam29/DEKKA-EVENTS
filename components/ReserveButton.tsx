@@ -145,7 +145,7 @@ export function ReserveButton({
         {busy ? t.event.reserving : t.event.reserve}
       </Button>
       {error ? (
-        <div className="mt-2 text-sm text-bad">
+        <div role="alert" className="mt-2 text-sm text-bad">
           <p>{error}</p>
           {/* PHONE_REQUIRED: same pattern as AuthForm's EMAIL_TAKEN_OAUTH —
               the error message plus an actionable control inline, not just

@@ -16,6 +16,7 @@ import { LogoBadge } from "@/components/ui/LogoBadge";
 import { GoogleIcon, FacebookIcon, AppleIcon } from "@/components/BrandIcons";
 import { PUSH_TOAST_FLAG_KEY } from "@/components/PushOptIn";
 import { DURATION, useMotionPresets, type PressableProps } from "@/lib/motion";
+import { providerNames } from "@/lib/providers";
 
 export type OAuthAvailability = {
   google: boolean;
@@ -145,10 +146,14 @@ export function AuthForm({ mode, next, providers }: Props) {
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           if (body.error === "EMAIL_TAKEN_OAUTH") {
-            setError(t.auth.emailTakenOAuth);
-            setEmailTakenProviders(
-              Array.isArray(body.details?.providers) ? body.details.providers : []
-            );
+            const onFile: string[] = Array.isArray(body.details?.providers)
+              ? body.details.providers
+              : [];
+            // Provider-agnostic per the naming policy in lib/providers.ts —
+            // names whatever the account is actually on file with, never
+            // hardcoded to one provider.
+            setError(t.auth.emailTakenOAuth.replace("{providers}", providerNames(onFile)));
+            setEmailTakenProviders(onFile);
           } else {
             setError(
               body.error === "EMAIL_TAKEN" ? t.auth.emailTaken : t.common.somethingWrong
