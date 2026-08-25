@@ -14,6 +14,7 @@ import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { LogoBadge } from "@/components/ui/LogoBadge";
 import { GoogleIcon, FacebookIcon, AppleIcon } from "@/components/BrandIcons";
+import { PUSH_TOAST_FLAG_KEY } from "@/components/PushOptIn";
 import { DURATION, useMotionPresets, type PressableProps } from "@/lib/motion";
 
 export type OAuthAvailability = {
@@ -166,6 +167,13 @@ export function AuthForm({ mode, next, providers }: Props) {
         setError(t.auth.invalid);
         return;
       }
+      // §6: arms the one-shot post-auth push toast, rendered globally in
+      // app/(site)/layout.tsx once the redirect below lands there. Best
+      // effort — a browser that blocks sessionStorage just never shows the
+      // toast; the /account banner is still there as a fallback ask.
+      try {
+        sessionStorage.setItem(PUSH_TOAST_FLAG_KEY, "1");
+      } catch {}
       router.push(next);
       router.refresh();
     } catch {

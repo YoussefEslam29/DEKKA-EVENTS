@@ -56,6 +56,31 @@ export const setPasswordSchema = z
   })
   .strict();
 
+/**
+ * `POST /api/push/subscribe` (`PLAN/LOG_SIGN_AUTH_IN.md` §6) — the browser's
+ * own `PushSubscription.toJSON()` shape, unchanged. `.strict()` for the same
+ * mass-assignment reason as every other schema here: this feeds a Mongoose
+ * write, so an unlisted key has no business reaching it.
+ */
+export const pushSubscribeSchema = z
+  .object({
+    endpoint: z.string().trim().url().max(1000),
+    keys: z
+      .object({
+        p256dh: z.string().trim().min(1).max(500),
+        auth: z.string().trim().min(1).max(500),
+      })
+      .strict(),
+  })
+  .strict();
+
+/** `DELETE /api/push/subscribe` — just the one device being unsubscribed. */
+export const pushUnsubscribeSchema = z
+  .object({
+    endpoint: z.string().trim().url().max(1000),
+  })
+  .strict();
+
 const eventCore = {
   titleAr: trimmed(160).min(1),
   titleEn: trimmed(160).min(1),
@@ -78,8 +103,28 @@ const eventCore = {
 };
 
 export const createEventSchema = z.object(eventCore);
-/** Every field optional — admins save one section of the form at a time. */
-export const updateEventSchema = z.object(eventCore).partial();
+/**
+ * Every field optional — admins save one section of the form at a time.
+ *
+ * `status` is re-declared here *without* `.default("draft")`: in Zod v4,
+ * `.partial()` still lets a field's own `.default()` fire when the key is
+ * completely absent from the input, so building this straight from
+ * `eventCore` meant an update payload that never mentions `status` (e.g. a
+ * hypothetical single-field PATCH) would silently resolve to
+ * `status: "draft"` and — because `PATCH /api/events/:id` writes every key
+ * `parseBody` hands back that isn't `undefined` — quietly unpublish the
+ * event as a side effect of an unrelated edit. Found while building the
+ * publish-transition detector in `app/api/events/[id]/route.ts`
+ * (`PLAN/LOG_SIGN_AUTH_IN.md` §6): every *current* caller (`EventForm.tsx`,
+ * `EventAdminActions.tsx`) always sends `status` explicitly, so this never
+ * fired in practice, but the transition detector's "only notify on a real
+ * draft/closed → published change" guarantee depends on `status` genuinely
+ * meaning "omitted" when it's omitted — so this is fixed at the schema, not
+ * worked around at the call site.
+ */
+export const updateEventSchema = z
+  .object({ ...eventCore, status: z.enum(EVENT_STATUSES) })
+  .partial();
 
 export const checkInSchema = z.object({
   name: trimmed(120).min(1),
@@ -129,6 +174,8 @@ export const submissionUpdateSchema = z.object({
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type SetPasswordInput = z.infer<typeof setPasswordSchema>;
+export type PushSubscribeInput = z.infer<typeof pushSubscribeSchema>;
+export type PushUnsubscribeInput = z.infer<typeof pushUnsubscribeSchema>;
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type CheckInInput = z.infer<typeof checkInSchema>;

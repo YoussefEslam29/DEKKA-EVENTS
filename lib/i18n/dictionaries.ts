@@ -321,6 +321,18 @@ export const ar = {
     forbidden: "مش مسموحلك تدخل هنا.",
     goHome: "الرجوع للرئيسية",
   },
+  /** Opt-in copy for browser push (`PLAN/LOG_SIGN_AUTH_IN.md` §6) — the
+   * `/account` banner and the one-shot post-auth toast share this block. */
+  push: {
+    bannerTitle: "هنقولك أول ما نعلن عن ليلة جديدة",
+    toastTitle: "عايز تعرف أول ما نعلن عن ليلة جديدة؟",
+    enable: "فعّل الإشعارات",
+    enabling: "جارٍ التفعيل…",
+    enabled: "الإشعارات شغالة. هنقولك أول ما نعلن عن ليلة جديدة.",
+    blocked: "الإشعارات متبلوكة من إعدادات المتصفح. لازم تفعّلها يدوي.",
+    error: "مقدرناش نفعّل الإشعارات. جرّب تاني.",
+    dismiss: "إغلاق",
+  },
 } as const;
 
 export type Dict = typeof ar;
@@ -649,6 +661,17 @@ export const en: DeepMutable<Dict> = {
     notFound: "This page does not exist.",
     forbidden: "You do not have access to this.",
     goHome: "Back to home",
+  },
+  push: {
+    bannerTitle: "Get notified the moment we announce a new night.",
+    toastTitle: "Want to know the moment we go live with a new night?",
+    enable: "Enable notifications",
+    enabling: "Enabling…",
+    enabled: "Notifications are on — we'll ping you the moment we announce a new night.",
+    blocked:
+      "Notifications are blocked in your browser settings — you'll need to turn them on manually.",
+    error: "Couldn't turn on notifications. Try again.",
+    dismiss: "Dismiss",
   },
 };
 

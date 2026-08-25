@@ -10,6 +10,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
 import { TextField, PasswordField } from "@/components/ui/TextField";
 import { Card } from "@/components/ui/Surface";
+import { PushOptIn } from "@/components/PushOptIn";
 import { DURATION, useMotionPresets } from "@/lib/motion";
 import type { AccountDTO } from "@/lib/data";
 
@@ -234,6 +235,10 @@ export function AccountForm({ account }: Props) {
 
   return (
     <div className="grid gap-6">
+      {/* §6's opt-in banner — dismissible, never fires the permission prompt
+          on its own; see components/PushOptIn.tsx for why. */}
+      <PushOptIn variant="banner" />
+
       {/* §5b items 1, 2, 5: photo, name/phone, and the read-only email. */}
       <Card variants={fadeUp} initial="hidden" animate="show" className="p-6">
         <h2 className="mb-4 text-lg font-bold">{t.account.profileTitle}</h2>
