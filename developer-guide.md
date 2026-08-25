@@ -279,6 +279,7 @@ Cairo, regardless of where the admin physically is.
   backfilling short ones for Events Hub, Reservations, Submit-a-Show, Admin Dashboard,
   Door Check-in, and Monthly Report so the next session has the same context this file
   gives for auth.
+- **Auth/account gaps, planned but not yet built.** Today: sign-up has no confirm-password field, there's no `/account` page anywhere in the app (only a bare sign-out control in the navbar), a Google-only member who tries email/password sign-up just gets a generic "email taken" error with no path forward, and there's no notification of any kind when the admin publishes a new event (Google sign-in itself is already fully wired, see `lib/auth.ts` — the only thing usually missing is `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` in `.env.local`). All four are scoped, decided, and ready to build in `PLAN/LOG_SIGN_AUTH_IN.md` — including a browser push-notification pipeline for event publishes, which is new scope beyond `PLAN/idea.md` §8's original "push notifications out of v1" line (update that line once this ships).
 
 ---
 
