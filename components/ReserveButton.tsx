@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Check, Ticket } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import { Button, buttonStyles } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
 
 type Props = {
   eventId: string;
@@ -38,6 +39,11 @@ export function ReserveButton({
   const [id, setId] = useState<string | null>(reservationId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set only alongside a `PHONE_REQUIRED` error — a Google sign-in never
+  // collects a phone, but the door list needs one. Drives the inline "add
+  // your phone" link so the fix is one tap away, same pattern as
+  // AuthForm's EMAIL_TAKEN_OAUTH handling.
+  const [phoneRequired, setPhoneRequired] = useState(false);
 
   if (!signedIn) {
     return (
@@ -54,13 +60,17 @@ export function ReserveButton({
   async function reserve() {
     setBusy(true);
     setError(null);
+    setPhoneRequired(false);
     try {
       const res = await fetch(`/api/events/${eventId}/reservations`, { method: "POST" });
       const body = await res.json();
       if (!res.ok) {
         if (body.error === "EVENT_FULL") setError(t.event.full);
         else if (body.error === "RESERVATIONS_CLOSED") setError(t.event.closed);
-        else setError(t.common.somethingWrong);
+        else if (body.error === "PHONE_REQUIRED") {
+          setError(t.event.phoneRequired);
+          setPhoneRequired(true);
+        } else setError(t.common.somethingWrong);
         return;
       }
       setCode(body.data.code);
@@ -134,7 +144,23 @@ export function ReserveButton({
         <Ticket className="h-4 w-4" />
         {busy ? t.event.reserving : t.event.reserve}
       </Button>
-      {error ? <p className="mt-2 text-sm text-bad">{error}</p> : null}
+      {error ? (
+        <div className="mt-2 text-sm text-bad">
+          <p>{error}</p>
+          {/* PHONE_REQUIRED: same pattern as AuthForm's EMAIL_TAKEN_OAUTH —
+              the error message plus an actionable control inline, not just
+              prose pointing elsewhere. Google sign-in never collects a
+              phone, but the door list needs one. */}
+          {phoneRequired ? (
+            <Link
+              href="/account"
+              className={cn(buttonStyles({ variant: "outline", size: "sm" }), "mt-2")}
+            >
+              {t.event.addPhone}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -101,6 +101,8 @@ export const ar = {
     codeHint: "اعرض الكود ده على الباب، أو قول اسمك ورقمك.",
     reservedCount: "عدد الحجوزات",
     notFound: "الحفلة دي مش موجودة.",
+    phoneRequired: "محتاجين رقم موبايلك عشان نحجزلك مكان في قائمة الباب.",
+    addPhone: "ضيف رقم موبايلك",
     status: {
       draft: "مسودة",
       published: "معلنة",
@@ -439,6 +441,8 @@ export const en: DeepMutable<Dict> = {
     codeHint: "Show this code at the door, or just give your name and number.",
     reservedCount: "Reservations",
     notFound: "That event does not exist.",
+    phoneRequired: "We need your phone number to hold your spot on the door list.",
+    addPhone: "Add your phone number",
     status: {
       draft: "Draft",
       published: "Published",
