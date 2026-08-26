@@ -67,7 +67,7 @@ function SocialButton({
     >
       <Icon className="h-4.5 w-4.5 shrink-0" />
       <span className="lg:hidden">{short}</span>
-      <span className="hidden lg:inline">
+      <span className="hidden whitespace-nowrap text-sm lg:inline">
         <BilingualLabel {...full} />
       </span>
     </motion.button>
@@ -225,7 +225,7 @@ export function AuthForm({ mode, next, providers }: Props) {
       </div>
 
       {/* 2. Heading — gold on the desktop panel, plain white on mobile per §5. */}
-      <h1 className="mt-6 text-center text-3xl font-extrabold tracking-tight text-on-dark lg:text-start lg:text-gold-accent">
+      <h1 className="mt-6 text-center text-2xl font-semibold tracking-tight text-on-dark/90 lg:text-start lg:text-gold-accent">
         {isSignup ? t.authUi.createAccount : t.authUi.welcomeBack}
       </h1>
       <p className="mt-2 text-center text-sm text-text-muted lg:text-start">

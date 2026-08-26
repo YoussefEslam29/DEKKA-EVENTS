@@ -219,5 +219,68 @@ html[dir="rtl"] body {
   .dk-workspace ::selection {
     background-color: var(--color-gold-wash);
   }
+
+  /*
+   * Calendar day-cell tinting, shared by the admin events calendar and the
+   * public events hub (`MonthCalendar`). Same flip pattern as the rest of
+   * this file: one class, two colours, picked by `.dk-workspace`.
+   */
+  .dk-strong {
+    color: var(--color-on-dark);
+  }
+
+  .dk-workspace .dk-strong {
+    color: var(--color-ink);
+  }
+
+  .dk-icon-btn {
+    color: var(--color-text-muted);
+  }
+
+  .dk-icon-btn:hover {
+    background-color: var(--color-coffee);
+  }
+
+  .dk-workspace .dk-icon-btn {
+    color: var(--color-ink-soft);
+  }
+
+  .dk-workspace .dk-icon-btn:hover {
+    background-color: var(--color-gold-wash);
+  }
+
+  .dk-cell-hover:hover {
+    background-color: color-mix(in srgb, var(--color-gold-accent) 10%, transparent);
+  }
+
+  .dk-workspace .dk-cell-hover:hover {
+    background-color: color-mix(in srgb, var(--color-gold-wash) 40%, transparent);
+  }
+
+  .dk-daycell-booked {
+    border-color: color-mix(in srgb, var(--color-gold-accent) 45%, transparent);
+    background-color: color-mix(in srgb, var(--color-gold-accent) 14%, transparent);
+  }
+
+  .dk-daycell-booked:hover {
+    border-color: var(--color-gold-accent);
+  }
+
+  .dk-workspace .dk-daycell-booked {
+    border-color: color-mix(in srgb, var(--color-gold) 50%, transparent);
+    background-color: color-mix(in srgb, var(--color-gold-wash) 70%, transparent);
+  }
+
+  .dk-workspace .dk-daycell-booked:hover {
+    border-color: var(--color-gold);
+  }
+
+  .dk-ring-today {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-gold-accent) 60%, transparent);
+  }
+
+  .dk-workspace .dk-ring-today {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-gold) 60%, transparent);
+  }
 }
 

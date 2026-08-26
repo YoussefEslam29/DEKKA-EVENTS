@@ -54,6 +54,7 @@ export function MonthCalendar({
   locale,
   labels,
   hrefForMonth,
+  dayHref,
 }: {
   /** "YYYY-MM". */
   month: string;
@@ -68,6 +69,13 @@ export function MonthCalendar({
   };
   /** Lets the caller keep its other query params (`view=calendar`) intact. */
   hrefForMonth: (month: string) => string;
+  /**
+   * Where a day cell links. Defaults to the admin behaviour: one event opens
+   * it, anything else opens the create form pre-dated to that day. The public
+   * hub passes its own, since guests can neither edit nor create events —
+   * returning `null` renders the cell as a plain, unlinked square.
+   */
+  dayHref?: (dayEvents: EventDTO[], dateKey: string) => string | null;
 }) {
   const [year, monthNumber] = month.split("-").map(Number);
 
@@ -103,13 +111,20 @@ export function MonthCalendar({
   const titleOf = (event: EventDTO) =>
     locale === "ar" ? event.titleAr || event.titleEn : event.titleEn || event.titleAr;
 
+  const linkFor =
+    dayHref ??
+    ((dayEvents: EventDTO[], dateKey: string) =>
+      dayEvents.length === 1
+        ? `/admin/events/${dayEvents[0].id}`
+        : `/admin/events/new?date=${dateKey}`);
+
   return (
     <Card className="p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <Link
           href={hrefForMonth(shiftMonth(month, -1))}
           aria-label={labels.previousMonth}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-[4px] text-ink-soft transition-colors hover:bg-gold-wash"
+          className="dk-icon-btn inline-flex h-11 w-11 items-center justify-center rounded-[4px] transition-colors"
         >
           <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
         </Link>
@@ -117,13 +132,13 @@ export function MonthCalendar({
         <Link
           href={hrefForMonth(shiftMonth(month, 1))}
           aria-label={labels.nextMonth}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-[4px] text-ink-soft transition-colors hover:bg-gold-wash"
+          className="dk-icon-btn inline-flex h-11 w-11 items-center justify-center rounded-[4px] transition-colors"
         >
           <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </Link>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-center text-[0.7rem] font-semibold uppercase tracking-wider text-ink-faint">
+      <div className="grid grid-cols-7 gap-1 text-center text-[0.7rem] font-semibold uppercase tracking-wider dk-muted">
         {names.map((name) => (
           <div key={name} className="py-1">
             {name}
@@ -144,96 +159,102 @@ export function MonthCalendar({
             new Date(`${key}T00:00:00Z`).getUTCDay() === KARAOKE_WEEKDAY;
           const isToday = key === todayKey;
 
-          // One event → straight to it. Several (or none) → the day's own
-          // starting point: the create form, pre-dated to this day at 20:00
-          // cafe time, which is when a Dekka night usually starts.
-          const href =
-            dayEvents.length === 1
-              ? `/admin/events/${dayEvents[0].id}`
-              : `/admin/events/new?date=${key}`;
+          const href = linkFor(dayEvents, key);
+          const title = booked
+            ? dayEvents.map(titleOf).join(" · ")
+            : isKaraokeDay
+              ? labels.karaokeHint
+              : href
+                ? labels.newEvent
+                : undefined;
+
+          const cellClassName = cn(
+            // min-h-20 keeps every square a comfortable tap target and
+            // leaves room for one event chip without the grid reflowing.
+            // relative anchors the karaoke-day watermark below.
+            "relative flex min-h-20 flex-col overflow-hidden rounded-[4px] border p-1.5 text-start transition-colors sm:min-h-24",
+            booked
+              ? "dk-daycell-booked"
+              : "dk-hairline border-dashed dk-cell-hover",
+            isToday && "dk-ring-today",
+            !href && "cursor-default"
+          );
+
+          const content = (
+            <>
+              {isKaraokeDay && !booked ? (
+                // A watermark, not an event — same "hint, not a rule" the
+                // pure-date check above already establishes. Purely
+                // decorative (the title attribute carries the real label), so
+                // it's aria-hidden rather than duplicating karaokeHint here.
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="pointer-events-none absolute -bottom-1.5 -end-1.5 h-10 w-10 text-gold-deep/20 sm:h-12 sm:w-12"
+                >
+                  <circle cx="12" cy="12" r="10.5" strokeWidth="1.1" />
+                  <rect x="9.5" y="6" width="5" height="8" rx="2.5" />
+                  <path d="M7.5 12.5a4.5 4.5 0 0 0 9 0" />
+                  <line x1="12" y1="17" x2="12" y2="19" />
+                </svg>
+              ) : null}
+
+              <span className="relative flex items-center justify-between gap-1">
+                <span
+                  className={cn(
+                    "text-xs font-bold",
+                    booked ? "dk-strong" : "dk-muted"
+                  )}
+                >
+                  {day}
+                </span>
+              </span>
+
+              <span className="mt-1 flex-1 space-y-0.5 overflow-hidden">
+                {dayEvents.slice(0, 2).map((event) => (
+                  <span key={event.id} className="flex items-start gap-1">
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
+                        STATUS_DOT[event.status]
+                      )}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="dk-strong block truncate text-[0.7rem] font-semibold leading-tight">
+                        {titleOf(event)}
+                      </span>
+                      <span className="dk-muted block truncate text-[0.65rem] leading-tight">
+                        {formatTime(event.startsAt, locale)}
+                      </span>
+                    </span>
+                  </span>
+                ))}
+                {dayEvents.length > 2 ? (
+                  <span className="dk-muted block text-[0.65rem] font-semibold">
+                    +{dayEvents.length - 2}
+                  </span>
+                ) : null}
+              </span>
+            </>
+          );
 
           return (
             <StaggerItem key={key}>
-              <Link
-                href={href}
-                title={
-                  booked
-                    ? dayEvents.map(titleOf).join(" · ")
-                    : isKaraokeDay
-                      ? labels.karaokeHint
-                      : labels.newEvent
-                }
-                className={cn(
-                  // min-h-20 keeps every square a comfortable tap target and
-                  // leaves room for one event chip without the grid reflowing.
-                  // relative anchors the karaoke-day watermark below.
-                  "relative flex min-h-20 flex-col overflow-hidden rounded-[4px] border p-1.5 text-start transition-colors sm:min-h-24",
-                  booked
-                    ? "border-gold/50 bg-gold-wash/70 hover:border-gold"
-                    : "dk-hairline border-dashed hover:bg-gold-wash/40",
-                  isToday && "ring-2 ring-gold/60"
-                )}
-              >
-                {isKaraokeDay && !booked ? (
-                  // A watermark, not an event — same "hint, not a rule" the
-                  // pure-date check above already establishes. Purely
-                  // decorative (the Link's title carries the real label), so
-                  // it's aria-hidden rather than duplicating karaokeHint here.
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="pointer-events-none absolute -bottom-1.5 -end-1.5 h-10 w-10 text-gold-deep/20 sm:h-12 sm:w-12"
-                  >
-                    <circle cx="12" cy="12" r="10.5" strokeWidth="1.1" />
-                    <rect x="9.5" y="6" width="5" height="8" rx="2.5" />
-                    <path d="M7.5 12.5a4.5 4.5 0 0 0 9 0" />
-                    <line x1="12" y1="17" x2="12" y2="19" />
-                  </svg>
-                ) : null}
-
-                <span className="relative flex items-center justify-between gap-1">
-                  <span
-                    className={cn(
-                      "text-xs font-bold",
-                      booked ? "text-ink" : "text-ink-faint"
-                    )}
-                  >
-                    {day}
-                  </span>
-                </span>
-
-                <span className="mt-1 flex-1 space-y-0.5 overflow-hidden">
-                  {dayEvents.slice(0, 2).map((event) => (
-                    <span key={event.id} className="flex items-start gap-1">
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
-                          STATUS_DOT[event.status]
-                        )}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[0.7rem] font-semibold leading-tight text-ink">
-                          {titleOf(event)}
-                        </span>
-                        <span className="block truncate text-[0.65rem] leading-tight text-ink-faint">
-                          {formatTime(event.startsAt, locale)}
-                        </span>
-                      </span>
-                    </span>
-                  ))}
-                  {dayEvents.length > 2 ? (
-                    <span className="block text-[0.65rem] font-semibold text-ink-faint">
-                      +{dayEvents.length - 2}
-                    </span>
-                  ) : null}
-                </span>
-              </Link>
+              {href ? (
+                <Link href={href} title={title} className={cellClassName}>
+                  {content}
+                </Link>
+              ) : (
+                <div title={title} className={cellClassName}>
+                  {content}
+                </div>
+              )}
             </StaggerItem>
           );
         })}

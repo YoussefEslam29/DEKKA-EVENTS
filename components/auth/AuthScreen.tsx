@@ -96,11 +96,11 @@ export async function AuthScreen({
           <h2
             lang="en"
             dir="ltr"
-            className="max-w-md text-4xl font-extrabold leading-tight text-cream xl:text-5xl"
+            className="max-w-md text-[34px] font-semibold leading-tight text-cream/90"
           >
             {headlineEn}
           </h2>
-          <p className="mt-3 max-w-md text-lg font-light text-cream/75">
+          <p className="mt-3 max-w-md text-base font-light text-cream/60">
             <span lang="ar" dir="rtl" className="font-arabic">
               {headlineAr}
             </span>
