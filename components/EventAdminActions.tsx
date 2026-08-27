@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
-import type { EventStatus } from "@/lib/constants";
+import type { EventStatus } from "@/lib/constants"
 
 /** Lifecycle buttons for one event: draft → published → closed → happened → archived. */
 export function EventAdminActions({
