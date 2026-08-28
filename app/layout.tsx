@@ -35,7 +35,10 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={dir} className={`${cairo.variable} ${jakarta.variable}`}>
-      <body className="min-h-screen bg-ink-black text-on-dark">
+      {/* Extensions (Grammarly and friends) stamp `data-gr-*` attributes onto
+          <body> before React hydrates. Suppressing here covers this one element
+          only — a real mismatch anywhere inside still reports. */}
+      <body className="min-h-screen bg-ink-black text-on-dark" suppressHydrationWarning>
         <Providers
           locale={locale}
           dir={dir}
