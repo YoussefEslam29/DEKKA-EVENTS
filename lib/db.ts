@@ -1,13 +1,6 @@
 import dns from "node:dns";
 import mongoose from "mongoose";
 
-// Some Windows/router setups hand Node an IPv6 link-local DNS server (fe80::1)
-// that its resolver can't reach, breaking the SRV lookup mongodb+srv:// needs.
-// Force a routable resolver in dev only; production hosts don't hit this.
-if (process.env.NODE_ENV !== "production") {
-  dns.setServers(["8.8.8.8", "1.1.1.1"]);
-}
-
 const MONGODB_URI = process.env.MONGODB_URI;
 
 type MongooseCache = {
@@ -27,6 +20,15 @@ const cached: MongooseCache =
 
 /** Opens (or reuses) the MongoDB connection. Call before any Mongoose query. */
 export async function connectDB(): Promise<typeof mongoose> {
+  // Some Windows/router setups hand Node an IPv6 link-local DNS server (fe80::1)
+  // that its resolver can't reach, breaking the SRV lookup mongodb+srv:// needs.
+  // Next.js dev spreads request handling across worker threads, and
+  // dns.setServers() only affects the thread that calls it, so this has to run
+  // per-call rather than once at module load. Cheap and idempotent; skipped in
+  // production, where hosts don't hit this DNS quirk.
+  if (process.env.NODE_ENV !== "production") {
+    dns.setServers(["8.8.8.8", "1.1.1.1"]);
+  }
   if (!MONGODB_URI) {
     throw new Error(
       "MONGODB_URI is not set. Copy .env.example to .env.local and fill it in."
