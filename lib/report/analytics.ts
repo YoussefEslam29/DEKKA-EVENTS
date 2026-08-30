@@ -38,6 +38,9 @@ export type ReportAnalytics = {
   };
   /** Arrivals bucketed into half-hour windows, cafe time, earliest first. */
   timing: { window: string; count: number }[];
+  /** Gender of people through the door, staff-entered (`unknown` = not
+   * recorded). The point of the feature — e.g. verifying a female-only night. */
+  gender: { male: number; female: number; unknown: number };
 };
 
 const PAYMENT_METHODS: PaymentMethod[] = ["cash", "instapay"];
@@ -85,6 +88,13 @@ export function computeAnalytics(data: EventReportData): ReportAnalytics {
     .map(([window, count]) => ({ window, count }))
     .sort((a, b) => a.window.localeCompare(b.window));
 
+  const gender = { male: 0, female: 0, unknown: 0 };
+  for (const r of attendees) {
+    if (r.gender === "male") gender.male += 1;
+    else if (r.gender === "female") gender.female += 1;
+    else gender.unknown += 1;
+  }
+
   const limit = data.event.capacity;
 
   return {
@@ -112,6 +122,7 @@ export function computeAnalytics(data: EventReportData): ReportAnalytics {
       pct: limit && limit > 0 ? ratio(totalAttendees, limit) : null,
     },
     timing,
+    gender,
   };
 }
 

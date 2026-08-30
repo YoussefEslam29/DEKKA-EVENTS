@@ -381,6 +381,15 @@ store and therefore no duplication to avoid. `Cache-Control: no-store`.
 - **No new `Event` field.** The plan's §10 "remember the Sheet/PDF location"
   question is moot once nothing is stored — every click regenerates from live
   reservation/check-in data.
+- **New `CheckIn.gender`** (`"male" | "female" | null`, optional, `enum` in
+  `lib/constants.ts` as `GENDERS`). Staff-entered at the door — a dropdown in
+  `DoorTable`'s quick-entry form and an editable column in its `DataGrid`;
+  threaded through `checkInSchema` / `updateCheckInSchema`, both check-in
+  routes, and `CheckInDTO`. The report adds a **Gender** column to the roster
+  and a third stacked bar (Female / Male / Not recorded) beside Payments and
+  Attendance, plus `analytics.gender` counts over everyone through the door.
+  Reason: the owner runs female-only nights and wants to confirm the room at a
+  glance. No-shows and un-recorded entries show "—".
 - **New dependencies:** `@sparticuz/chromium` (^149) added to `dependencies`;
   `puppeteer-core` (^25) **moved** devDeps → deps (the report route imports it
   at runtime now, not just `scripts/shoot.mjs`). `next.config.ts` gains

@@ -51,6 +51,7 @@ export async function PATCH(request: Request, { params }: Params) {
         phone: updated.phone,
         paymentMethod: updated.paymentMethod,
         amount: updated.amount,
+        gender: updated.gender ?? null,
         reservationId: updated.reservation ? String(updated.reservation) : null,
         createdAt: new Date(updated.createdAt).toISOString(),
         note: updated.note ?? "",

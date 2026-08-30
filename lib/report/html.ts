@@ -21,6 +21,7 @@ const C = {
   gold: "#b98f3e",
   good: "#4f8f68",
   warm: "#c06b4f",
+  brown: "#7a6142",
   line: "#e7dcc9",
   ink: "#23180f",
   muted: "#8a7960",
@@ -33,6 +34,9 @@ const SEGMENT_COLOR: Record<string, string> = {
   attended: C.good,
   walkin: C.gold,
   noshow: C.warm,
+  female: C.good,
+  male: C.brown,
+  gunknown: C.faint,
 };
 
 function esc(value: Cell): string {
@@ -148,7 +152,7 @@ function chartsBlock(view: ReportView, rtl: boolean): string {
       <h2>${esc(view.charts.arrivalsHeading)}</h2>
       ${arrivalsChart(view, rtl)}
     </section>
-    <section class="block cols2">
+    <section class="block cols3">
       <div>
         <h2>${esc(view.charts.paymentHeading)}</h2>
         ${stackedBar(view.charts.payment, view.charts.paymentEmpty, rtl)}
@@ -156,6 +160,10 @@ function chartsBlock(view: ReportView, rtl: boolean): string {
       <div>
         <h2>${esc(view.charts.attendanceHeading)}</h2>
         ${stackedBar(view.charts.attendance, view.charts.attendanceEmpty, rtl)}
+      </div>
+      <div>
+        <h2>${esc(view.charts.genderHeading)}</h2>
+        ${stackedBar(view.charts.gender, view.charts.genderEmpty, rtl)}
       </div>
     </section>`;
 }
@@ -186,7 +194,7 @@ function detailsBlock(view: ReportView): string {
 }
 
 function peopleTable(view: ReportView): string {
-  const numericCols = new Set([7]); // amount
+  const numericCols = new Set([8]); // amount
   const ltrCols = new Set([1, 3]); // phone, code — keep digits/"+" unreordered in RTL
   const cellClass = (i: number) =>
     numericCols.has(i) ? "num" : ltrCols.has(i) ? "ltr" : "";
@@ -264,7 +272,7 @@ export function reportHtml(view: ReportView, locale: Locale): string {
     color: ${C.muted}; font-weight: 700; margin: 0 0 5px;
   }
   .block { margin-bottom: 20px; break-inside: avoid; }
-  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 
   /* headline figures */
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 22px; }

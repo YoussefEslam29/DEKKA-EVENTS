@@ -10,7 +10,7 @@ import { Stagger, StaggerItem } from "@/components/ui/Motion";
 import { DataGrid, type GridColumn } from "@/components/ui/DataGrid";
 import { formatMoney, formatTime } from "@/lib/format";
 import type { CheckInDTO, ReservationDTO } from "@/lib/data";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/constants";
+import { PAYMENT_METHODS, GENDERS, type PaymentMethod } from "@/lib/constants";
 
 type Props = {
   eventId: string;
@@ -50,6 +50,7 @@ export function DoorTable({
     phone: "",
     paymentMethod: paymentMethods[0] ?? "cash",
     amount: String(defaultPrice),
+    gender: "",
     reservationId: "",
   });
 
@@ -96,6 +97,7 @@ export function DoorTable({
           phone: form.phone,
           paymentMethod: form.paymentMethod,
           amount: Number(form.amount) || 0,
+          gender: form.gender || undefined,
           reservationId: form.reservationId || undefined,
         }),
       });
@@ -116,6 +118,7 @@ export function DoorTable({
         phone: "",
         paymentMethod: form.paymentMethod,
         amount: String(defaultPrice),
+        gender: "",
         reservationId: "",
       });
     } catch {
@@ -181,6 +184,14 @@ export function DoorTable({
     [paymentMethods, t]
   );
 
+  const genderLabel = (g: string) =>
+    g === "male" ? t.staff.male : g === "female" ? t.staff.female : "—";
+  const genderOptions = useMemo(
+    () => GENDERS.map((g) => ({ value: g, label: genderLabel(g) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t]
+  );
+
   const columns: GridColumn<CheckInDTO>[] = [
     {
       key: "name",
@@ -219,6 +230,12 @@ export function DoorTable({
         validate: (v) => Number.isFinite(Number(v)) && Number(v) >= 0,
       },
       render: (r) => <span className="font-semibold">{formatMoney(r.amount, locale)}</span>,
+    },
+    {
+      key: "gender",
+      header: t.staff.gender,
+      editor: { kind: "select", value: (r) => r.gender ?? "", options: genderOptions },
+      render: (r) => (r.gender ? genderLabel(r.gender) : <span className="dk-muted">—</span>),
     },
   ];
 
@@ -284,6 +301,21 @@ export function DoorTable({
                 />
               </FormRow>
             </div>
+
+            <FormRow label={t.staff.gender} htmlFor="attendee-gender">
+              <Select
+                id="attendee-gender"
+                value={form.gender}
+                onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
+              >
+                <option value="">{t.staff.genderUnset}</option>
+                {GENDERS.map((g) => (
+                  <option key={g} value={g}>
+                    {genderLabel(g)}
+                  </option>
+                ))}
+              </Select>
+            </FormRow>
 
             {form.reservationId ? (
               <p className="mb-3 text-xs font-semibold text-good">

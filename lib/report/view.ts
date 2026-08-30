@@ -30,6 +30,9 @@ export type ReportView = {
     attendanceHeading: string;
     attendance: { key: "attended" | "walkin" | "noshow"; value: number; legend: string }[];
     attendanceEmpty: string;
+    genderHeading: string;
+    gender: { key: "male" | "female" | "gunknown"; value: number; legend: string }[];
+    genderEmpty: string;
   };
   detailsHeading: string;
   summary: { heading: string; items: { label: string; value: string }[] }[];
@@ -60,7 +63,7 @@ export function buildReportView(
   generatedAt: Date
 ): ReportView {
   const r = t.admin.eventReport;
-  const { money: m, attendance: a, capacity: c } = analytics;
+  const { money: m, attendance: a, capacity: c, gender: g } = analytics;
 
   const capacityValue =
     c.limit == null
@@ -120,6 +123,17 @@ export function buildReportView(
       },
     ],
     attendanceEmpty: r.noPeople,
+    genderHeading: r.genderSplit,
+    gender: [
+      { key: "female", value: g.female, legend: `${r.female} · ${formatNumber(g.female, locale)}` },
+      { key: "male", value: g.male, legend: `${r.male} · ${formatNumber(g.male, locale)}` },
+      {
+        key: "gunknown",
+        value: g.unknown,
+        legend: `${r.genderUnknown} · ${formatNumber(g.unknown, locale)}`,
+      },
+    ],
+    genderEmpty: r.noPeople,
   };
 
   const summary: ReportView["summary"] = [
@@ -154,6 +168,8 @@ export function buildReportView(
     "walk-in": r.statusWalkIn,
   };
 
+  const genderLabel: Record<string, string> = { male: r.male, female: r.female };
+
   const people: ReportView["people"] = {
     heading: r.people,
     columns: [
@@ -163,6 +179,7 @@ export function buildReportView(
       r.colCode,
       r.colCheckedIn,
       r.colStatus,
+      r.colGender,
       r.colMethod,
       r.colAmount,
       r.colCheckInTime,
@@ -174,6 +191,7 @@ export function buildReportView(
       row.code,
       row.checkedIn ? t.common.yes : t.common.no,
       statusLabel[row.status] ?? row.status,
+      row.gender ? genderLabel[row.gender] ?? row.gender : "—",
       row.paymentMethod
         ? row.paymentMethod === "cash"
           ? t.event.cash

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { Event, type IEvent, type EventStatus, type PaymentMethod } from "@/models/Event";
+import type { Gender } from "@/lib/constants";
 import { Reservation, type IReservation } from "@/models/Reservation";
 import { CheckIn } from "@/models/CheckIn";
 import { BandSubmission, type SubmissionStatus } from "@/models/BandSubmission";
@@ -59,6 +60,7 @@ export type CheckInDTO = {
   phone: string;
   paymentMethod: PaymentMethod;
   amount: number;
+  gender: Gender | null;
   reservationId: string | null;
   createdAt: string;
   note: string;
@@ -269,6 +271,7 @@ export async function getCheckIns(eventId: string): Promise<CheckInDTO[]> {
     phone: d.phone,
     paymentMethod: d.paymentMethod,
     amount: d.amount,
+    gender: d.gender ?? null,
     reservationId: d.reservation ? String(d.reservation) : null,
     createdAt: new Date(d.createdAt).toISOString(),
     note: d.note ?? "",
@@ -294,6 +297,8 @@ export type ReportPersonRow = {
   /** How they paid at the door — null for a no-show. */
   paymentMethod: PaymentMethod | null;
   amount: number | null;
+  /** Staff-entered at the door — null for a no-show or when not recorded. */
+  gender: Gender | null;
   /** ISO instant they were checked in — null for a no-show. */
   checkInAt: string | null;
 };
@@ -371,6 +376,7 @@ export async function getEventReportData(
           phone: 1,
           paymentMethod: 1,
           amount: 1,
+          gender: 1,
           reservation: 1,
           createdAt: 1,
         },
@@ -387,6 +393,7 @@ export async function getEventReportData(
     phone: string;
     paymentMethod: PaymentMethod;
     amount: number;
+    gender: Gender | null;
     reservation: mongoose.Types.ObjectId | null;
     createdAt: Date;
   };
@@ -419,6 +426,7 @@ export async function getEventReportData(
       status: ci ? "attended" : "no-show",
       paymentMethod: ci ? ci.paymentMethod : null,
       amount: ci ? Number(ci.amount ?? 0) : null,
+      gender: ci ? ci.gender ?? null : null,
       checkInAt: ci ? new Date(ci.createdAt).toISOString() : null,
     });
   }
@@ -443,6 +451,7 @@ export async function getEventReportData(
       status: "walk-in",
       paymentMethod: c.paymentMethod,
       amount: Number(c.amount ?? 0),
+      gender: c.gender ?? null,
       checkInAt: new Date(c.createdAt).toISOString(),
     });
   }
@@ -699,6 +708,7 @@ export async function getAllCheckIns({
         phone: 1,
         paymentMethod: 1,
         amount: 1,
+        gender: 1,
         note: 1,
         createdAt: 1,
         event: 1,
@@ -717,6 +727,7 @@ export async function getAllCheckIns({
     phone: r.phone ?? "",
     paymentMethod: r.paymentMethod,
     amount: Number(r.amount ?? 0),
+    gender: r.gender ?? null,
     reservationId: r.reservation ? String(r.reservation) : null,
     createdAt: new Date(r.createdAt).toISOString(),
     note: r.note ?? "",

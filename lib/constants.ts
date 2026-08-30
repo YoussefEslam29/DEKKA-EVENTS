@@ -22,6 +22,10 @@ export type EventStatus = (typeof EVENT_STATUSES)[number];
 export const PAYMENT_METHODS = ["cash", "instapay"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+/** Optional, staff-entered at the door — for the event analysis report. */
+export const GENDERS = ["male", "female"] as const;
+export type Gender = (typeof GENDERS)[number];
+
 export const RESERVATION_STATUSES = ["confirmed", "cancelled"] as const;
 export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   EVENT_STATUSES,
   PAYMENT_METHODS,
+  GENDERS,
   SUBMISSION_STATUSES,
 } from "@/lib/constants";
 
@@ -176,6 +177,7 @@ export const checkInSchema = z.object({
   phone: trimmed(30).min(4),
   paymentMethod: z.enum(PAYMENT_METHODS),
   amount: z.number().min(0).max(1_000_000),
+  gender: z.enum(GENDERS).nullish(),
   reservationId: z.string().trim().max(40).optional(),
   note: optionalText(300),
 });
@@ -195,6 +197,7 @@ export const updateCheckInSchema = z
     phone: trimmed(30).min(4),
     paymentMethod: z.enum(PAYMENT_METHODS),
     amount: z.number().min(0).max(1_000_000),
+    gender: z.enum(GENDERS),
     note: optionalText(300),
   })
   .partial()

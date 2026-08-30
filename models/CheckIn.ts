@@ -1,5 +1,10 @@
 import mongoose, { Schema, model, models } from "mongoose";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/lib/constants";
+import {
+  PAYMENT_METHODS,
+  GENDERS,
+  type PaymentMethod,
+  type Gender,
+} from "@/lib/constants";
 
 /**
  * One row of the door table for an event night. This — not Reservation — is the
@@ -12,6 +17,9 @@ export interface ICheckIn {
   phone: string;
   paymentMethod: PaymentMethod;
   amount: number;
+  /** Optional, staff-entered at the door — feeds the event analysis report
+   * (e.g. confirming a female-only night). `null` when not recorded. */
+  gender?: Gender | null;
   /** Set when staff checked someone in off the reservation list. */
   reservation?: mongoose.Types.ObjectId | null;
   /** Which staff member logged the entry. */
@@ -28,6 +36,7 @@ const CheckInSchema = new Schema<ICheckIn>(
     phone: { type: String, required: true, trim: true, maxlength: 30 },
     paymentMethod: { type: String, enum: PAYMENT_METHODS, required: true },
     amount: { type: Number, required: true, min: 0 },
+    gender: { type: String, enum: GENDERS, default: null },
     reservation: { type: Schema.Types.ObjectId, ref: "Reservation", default: null },
     recordedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     note: { type: String, maxlength: 300 },
