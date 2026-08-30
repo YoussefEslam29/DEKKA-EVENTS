@@ -38,13 +38,6 @@ export type EventDTO = {
    * shows an event is `force-dynamic`, so this is evaluated per request anyway.
    */
   isPast: boolean;
-  /**
-   * Set once the admin has generated this event's "Show on PDF" report at
-   * least once (Admin_Event_PDF.md). `null` until then. Only the openable
-   * links and the timestamp cross to the client — the Sheets/Drive file ids
-   * stay server-side.
-   */
-  report: { spreadsheetUrl: string; pdfUrl: string; generatedAt: string } | null;
 };
 
 export type ReservationDTO = {
@@ -112,14 +105,6 @@ export function toEventDTO(e: LeanEvent): EventDTO {
     termsAr: e.termsAr ?? "",
     termsEn: e.termsEn ?? "",
     status: e.status ?? "draft",
-    report:
-      e.report && e.report.generatedAt
-        ? {
-            spreadsheetUrl: e.report.spreadsheetUrl ?? "",
-            pdfUrl: e.report.pdfUrl ?? "",
-            generatedAt: new Date(e.report.generatedAt).toISOString(),
-          }
-        : null,
   };
 }
 

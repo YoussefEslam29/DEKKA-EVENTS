@@ -5,15 +5,12 @@ import type { EventReportData } from "@/lib/data";
 import type { ReportAnalytics } from "@/lib/report/analytics";
 
 /**
- * The locale-shaped, presentation-ready view of a report, built once and
- * consumed by both outputs: `lib/report/html.ts` (the PDF) and
- * `toSheetValues()` below (the Google Sheet). Keeping this in one place is
- * what guarantees the PDF and the Sheet always say the same thing
- * (Admin_Event_PDF.md §5 "the same underlying data").
+ * The locale-shaped, presentation-ready view of a report — built once by
+ * `buildReportView()` and rendered to PDF by `lib/report/html.ts`
+ * (Admin_Event_PDF.md §5/§6).
  *
- * Cells are `string | number`: money amounts and arrival counts stay numeric
- * so the admin can actually sort and total them in the Sheet; everything else
- * is a localized string.
+ * People-table cells are `string | number`: the amount column stays numeric,
+ * everything else is a localized string.
  */
 export type Cell = string | number;
 
@@ -147,38 +144,4 @@ export function buildReportView(
     timing,
     people,
   };
-}
-
-/** Flattens the view into the 2-D value grid the Sheet is written from. */
-export function toSheetValues(view: ReportView): Cell[][] {
-  const rows: Cell[][] = [];
-  rows.push([view.title]);
-  rows.push([view.subtitle]);
-  rows.push([view.generatedNote]);
-  rows.push([]);
-
-  for (const section of view.summary) {
-    rows.push([section.heading]);
-    for (const item of section.items) rows.push([item.label, item.value]);
-    rows.push([]);
-  }
-
-  rows.push([view.timing.heading]);
-  rows.push([view.timing.columns[0], view.timing.columns[1]]);
-  if (view.timing.rows.length === 0) {
-    rows.push([view.timing.empty]);
-  } else {
-    for (const tr of view.timing.rows) rows.push([tr[0], tr[1]]);
-  }
-  rows.push([]);
-
-  rows.push([view.people.heading]);
-  rows.push(view.people.columns);
-  if (view.people.rows.length === 0) {
-    rows.push([view.people.empty]);
-  } else {
-    for (const pr of view.people.rows) rows.push(pr);
-  }
-
-  return rows;
 }

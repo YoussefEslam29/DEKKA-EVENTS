@@ -10,25 +10,6 @@ import {
 export { EVENT_STATUSES, PAYMENT_METHODS };
 export type { EventStatus, PaymentMethod };
 
-/**
- * Where this event's "Show on PDF" report lives once it has been generated
- * once. Set by `POST /api/events/:id/report`; a second click refreshes the
- * same Sheet and PDF in place instead of creating new ones (Admin_Event_PDF.md
- * §4 / §9). All optional — absent until the first successful generation.
- */
-export interface IEventReport {
-  /** Google Sheets file id, for the values/formatting refresh calls. */
-  spreadsheetId: string;
-  /** Ready-to-open `https://docs.google.com/spreadsheets/d/…` link. */
-  spreadsheetUrl: string;
-  /** Google Drive file id of the PDF, for the in-place media refresh. */
-  pdfFileId: string;
-  /** Drive `webViewLink` for the PDF. */
-  pdfUrl: string;
-  /** When the report was last (re)generated. */
-  generatedAt: Date;
-}
-
 export interface IEvent {
   _id: mongoose.Types.ObjectId;
   titleAr: string;
@@ -51,21 +32,9 @@ export interface IEvent {
   termsAr?: string;
   termsEn?: string;
   status: EventStatus;
-  report?: IEventReport | null;
   createdAt: Date;
   updatedAt: Date;
 }
-
-const EventReportSchema = new Schema<IEventReport>(
-  {
-    spreadsheetId: { type: String, default: "" },
-    spreadsheetUrl: { type: String, default: "" },
-    pdfFileId: { type: String, default: "" },
-    pdfUrl: { type: String, default: "" },
-    generatedAt: { type: Date },
-  },
-  { _id: false }
-);
 
 const EventSchema = new Schema<IEvent>(
   {
@@ -96,7 +65,6 @@ const EventSchema = new Schema<IEvent>(
       default: "draft",
       index: true,
     },
-    report: { type: EventReportSchema, default: null },
   },
   { timestamps: true }
 );

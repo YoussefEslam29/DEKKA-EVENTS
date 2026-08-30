@@ -21,6 +21,7 @@ export const buttonStyles = cva(
         ghost: "bg-transparent text-on-dark hover:bg-surface-dark",
         dark: "bg-coffee text-on-dark hover:bg-surface-dark",
         danger: "bg-bad text-white hover:brightness-110",
+        success: "bg-good text-white hover:brightness-110",
         // Cream workspace variants
         lightPrimary: "bg-ink text-cream hover:bg-ink-soft focus-visible:ring-offset-cream",
         lightOutline:

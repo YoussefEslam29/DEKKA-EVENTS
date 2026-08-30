@@ -308,17 +308,10 @@ export const ar = {
     byMethod: "حسب طريقة الدفع",
     perEvent: "حسب الحفلة",
     noRevenue: "مفيش إيراد مسجّل في الشهر ده.",
-    /** "تقرير الليلة (PDF)" — الزرار الأحمر في صف إجراءات الحفلة، وكل نصوص
-     * التقرير نفسه (الشيت والـ PDF). Admin_Event_PDF.md */
+    /** "عرض تقرير التحليل" — الزرار الأخضر في صف إجراءات الحفلة، وكل نصوص
+     * الـ PDF نفسه. بيتولّد وقت الطلب ويتفتح في تبويب جديد. Admin_Event_PDF.md */
     eventReport: {
-      button: "تقرير الليلة (PDF)",
-      regenerate: "تحديث التقرير",
-      generating: "جارٍ التجهيز…",
-      openSheet: "افتح Google Sheet",
-      openPdf: "افتح الـ PDF",
-      lastGenerated: "آخر تحديث {time}",
-      notConfigured: "تقارير Google لسه مش متظبطة — لازم مفاتيح حساب الخدمة تتضاف في الإعدادات.",
-      failed: "مقدرناش نجهّز التقرير. جرّب تاني.",
+      button: "عرض تقرير التحليل",
       docTitle: "تقرير دكة",
       generatedAt: "اتجهّز في {time}",
       money: "الفلوس",
@@ -710,15 +703,7 @@ export const en: DeepMutable<Dict> = {
     perEvent: "By event",
     noRevenue: "Nothing recorded for this month.",
     eventReport: {
-      button: "Show on PDF",
-      regenerate: "Refresh report",
-      generating: "Preparing…",
-      openSheet: "Open Google Sheet",
-      openPdf: "Open PDF",
-      lastGenerated: "Updated {time}",
-      notConfigured:
-        "Google reporting isn't set up yet — the service-account keys need to be added in the settings.",
-      failed: "Couldn't build the report. Try again.",
+      button: "Show Analysis Report",
       docTitle: "Dekka Report",
       generatedAt: "Generated {time}",
       money: "Money",

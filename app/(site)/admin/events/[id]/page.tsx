@@ -60,7 +60,7 @@ export default async function AdminEventDetailPage({
           <EventAdminActions eventId={event.id} status={event.status} />
           <DuplicateEventButton event={event} />
           {(event.status === "happened" || event.status === "archived") && (
-            <ShowEventReportButton eventId={event.id} report={event.report} />
+            <ShowEventReportButton eventId={event.id} />
           )}
         </div>
 
