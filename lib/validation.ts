@@ -10,18 +10,38 @@ const trimmed = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) => trimmed(max).optional().default("");
 
 /**
- * The exact shape `POST /api/uploads` hands back (see that route): empty
- * string (no photo), or `/uploads/events/<uuid>.<ext>` for one of the four
- * types it accepts. Anchored to that shape — not just "same-origin" — because
+ * The exact shapes `POST /api/uploads` hands back (see `lib/storage.ts`): empty
+ * string (no photo), a local-disk path, or a Vercel Blob CDN URL — the same
+ * `events/<uuid>.<ext>` key either way, for one of the four types it accepts.
+ *
+ * Anchored to those shapes — not just "an HTTPS URL" — because
  * `updateAccountSchema.image` is member-reachable (`/api/uploads` was widened
- * admin→member this session) while `next.config.ts` allows image proxying
- * from *any* HTTPS host; without this, a member could PATCH an arbitrary
- * attacker-controlled URL into `image` and have `next/image` proxy-fetch it
- * server-side on every render of `/account`. Keep this pattern in sync with
- * `app/api/uploads/route.ts`'s `EXT_BY_TYPE`/`UPLOAD_DIR` if either changes.
+ * admin→member) while `next.config.ts` allows image proxying from *any* HTTPS
+ * host; without this, a member could PATCH an arbitrary attacker-controlled URL
+ * into `image` and have `next/image` proxy-fetch it server-side on every render
+ * of `/account`.
+ *
+ * The host half is deliberately `[a-z0-9-]` only. That class excludes `.`, `/`,
+ * `@` and `:`, so none of the usual host-confusion tricks can reach past it —
+ * `https://evil.com@x.public.blob.vercel-storage.com/...` and
+ * `https://x.public.blob.vercel-storage.com.evil.com/...` both fail to match.
+ * It is not pinned to *this deploy's* store id (that isn't known at build time),
+ * so in principle someone could point the field at their own Vercel Blob store.
+ * That buys them a static image on a Vercel CDN host under a fixed path shape —
+ * not a fetch of an origin of their choosing, which is the hole that matters
+ * here. `scripts/check-upload-pattern.ts` holds the adversarial cases.
+ *
+ * Keep in sync with `lib/storage.ts`'s `EXT_BY_TYPE` and its `events/<uuid>`
+ * key if either changes.
  */
-const UPLOAD_IMAGE_PATTERN =
-  /^(|\/uploads\/events\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp|gif))$/;
+const UPLOAD_KEY = "events/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\\.(?:jpg|png|webp|gif)";
+export const UPLOAD_IMAGE_PATTERN = new RegExp(
+  "^(?:" +
+    "" + // no photo
+    `|/uploads/${UPLOAD_KEY}` + // local disk (`next dev`, persistent server)
+    `|https://[a-z0-9-]{1,64}\\.public\\.blob\\.vercel-storage\\.com/${UPLOAD_KEY}` +
+    ")$"
+);
 
 export const registerSchema = z.object({
   name: trimmed(120).min(2),

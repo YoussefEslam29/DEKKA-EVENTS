@@ -10,10 +10,12 @@
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "set-role": "tsx --env-file=.env.local scripts/set-role.ts",
     "typecheck": "tsc --noEmit",
+    "check:uploads": "tsx scripts/check-upload-pattern.ts",
     "brand:assets": "tsx scripts/prepare-brand-assets.ts"
   },
   "dependencies": {
     "@sparticuz/chromium": "^149.0.0",
+    "@vercel/blob": "^2.8.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

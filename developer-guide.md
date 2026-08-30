@@ -258,16 +258,24 @@ Cairo, regardless of where the admin physically is.
 ## 7. Known Gaps (carried over from README — keep this list current)
 
 - Capacity is checked read-then-write, not atomically (§4.4 — accepted tradeoff).
-- `next.config.ts` allows images from any HTTPS host (§6 — flagged, not yet narrowed).
-- Admin-uploaded posters (`app/api/uploads/route.ts`) are written straight to
-  `public/uploads/events/` on local disk — fine for `next dev`/a single persistent
-  server, but a typical serverless host (e.g. Vercel) has a read-only/ephemeral
-  filesystem at runtime, so uploads would silently fail or vanish between
-  invocations there. Swap in real object storage (Vercel Blob, S3, etc.) before
-  deploying to one; `coverImage` already just stores a URL string, so the schema
-  needs no change, only the upload route's write target. There's also no cleanup of
-  orphaned files when a poster is replaced or an event is deleted — accepted for now,
-  same spirit as the capacity tradeoff above.
+- `next.config.ts` still allows images from any HTTPS host, which makes
+  `/_next/image` an **open image proxy on this domain**. It stayed after the Blob
+  migration for one concrete reason: `coverImage` can be an external URL an admin
+  pastes into the field by hand (`EventForm.tsx` offers both a paste box and an
+  upload button), so the host isn't knowable ahead of time. Deleting the
+  `hostname: "**"` entry closes the proxy and costs only the paste path — the
+  `*.public.blob.vercel-storage.com` entry above it already covers everything
+  `/api/uploads` produces. Worth doing once admins always upload the poster.
+- ~~Uploads written to local disk~~ — **fixed**, see `lib/storage.ts`. Uploads go to
+  Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set and to `public/uploads/events/`
+  otherwise, so `next dev` still needs no Blob store. What remains: there's no
+  cleanup of orphaned blobs when a poster is replaced or an event is deleted —
+  accepted for now, same spirit as the capacity tradeoff above. Vercel Blob has no
+  TTL, so those accumulate and bill; `del()` from `@vercel/blob` is the fix when it
+  matters. Also note the two backends are **not** a migration path for each other:
+  rows already holding `/uploads/events/...` keep working (the regex accepts both
+  shapes) but those files do not exist on a Vercel deploy, so any poster uploaded
+  before the switch renders broken and has to be re-uploaded once.
 - Out of scope for v1 per `PLAN/idea.md` §8: online payments, loyalty, non-event table
   bookings, push reminders, waitlists, QR check-in.
 - No MCP servers (Context7/Tavily) wired up yet — would remove guesswork on Next.js/

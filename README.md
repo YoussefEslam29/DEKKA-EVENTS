@@ -325,7 +325,11 @@ And from [PLAN/authorization-UI.md](PLAN/authorization-UI.md) §9:
 
 - Capacity is checked read-then-write rather than enforced atomically. At cafe scale a
   simultaneous double-booking is unlikely; an admin can close reservations by hand.
-- `next.config.ts` allows images from any HTTPS host because cover images are admin-typed
-  URLs. Narrow `remotePatterns` once you settle on an image host.
+- `next.config.ts` allows images from any HTTPS host because cover images can be
+  admin-typed URLs, which leaves `/_next/image` an open image proxy. Drop the
+  `hostname: "**"` entry once posters are always uploaded rather than pasted.
+- Uploaded images go to Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set, and to
+  `public/uploads/events/` otherwise (`lib/storage.ts`). Orphaned files are never
+  cleaned up when a poster is replaced or an event is deleted.
 - Out of scope for v1, per PLAN/idea.md §8: online payments, loyalty, non-event table bookings,
   push reminders, waitlists, QR check-in.
