@@ -14,6 +14,7 @@ import { FadeUp } from "@/components/ui/Motion";
 import { EventForm } from "@/components/EventForm";
 import { EventAdminActions } from "@/components/EventAdminActions";
 import { DuplicateEventButton } from "@/components/DuplicateEventButton";
+import { ShowEventReportButton } from "@/components/ShowEventReportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,9 @@ export default async function AdminEventDetailPage({
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <EventAdminActions eventId={event.id} status={event.status} />
           <DuplicateEventButton event={event} />
+          {(event.status === "happened" || event.status === "archived") && (
+            <ShowEventReportButton eventId={event.id} report={event.report} />
+          )}
         </div>
 
         <div className="mb-6 grid gap-3 sm:grid-cols-3">

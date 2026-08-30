@@ -314,6 +314,22 @@ Cairo, regardless of where the admin physically is.
   cleanup → unsubscribe), but nothing drove an actual browser permission dialog
   or confirmed a notification arriving on a phone. The Push API also requires
   HTTPS outside `localhost`. Confirm on the first real deploy.
+- **Event report ("Show on PDF") is operationally pending Google credentials.**
+  Code-complete, but `POST /api/events/:id/report` returns `501
+  REPORT_NOT_CONFIGURED` until `GOOGLE_SERVICE_ACCOUNT_*` + `GOOGLE_DRIVE_FOLDER_ID`
+  are set (see §8's feature entry for the runbook) — same "infra, not code"
+  blocker as `AUTH_GOOGLE_*`. Also unverified end-to-end: the live Sheets/Drive
+  sync, since it needs those same credentials.
+- **`@sparticuz/chromium` (^149) vs `puppeteer-core` (^25, targets Chrome ~152)
+  are a few versions apart.** PDF generation uses only stable CDP surface
+  (`setContent` + `page.pdf`), which is version-tolerant, and it's verified
+  working locally against installed Chrome. If Vercel PDF rendering ever throws a
+  CDP/protocol error, align the two package versions (bump `@sparticuz/chromium`
+  or pin `puppeteer-core` to a matching Chrome major).
+- **`lib/report/fonts/Cairo.ttf` is a vendored binary (~600 KB).** It's the OFL
+  variable font, embedded into the report HTML as a data URI at render time. If
+  the app's Arabic face ever changes, change this too (it's independent of
+  `next/font`'s Cairo in `app/layout.tsx`).
 - **`stripDefaults()` in `lib/validation.ts` touches Zod internals**
   (`instanceof z.ZodDefault`, `.removeDefault()`). It's the structural guard that
   stops `updateEventSchema` re-introducing the default-leak bug described in §8,
@@ -326,6 +342,97 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Event report — "Show on PDF" — `PLAN/Admin_Event_PDF.md` (2026-08-30)
+
+A red **"Show on PDF"** button in the action row on `/admin/events/[id]`
+(`components/ShowEventReportButton.tsx`, `variant="danger"`, next to Duplicate),
+rendered by the page only when `event.status` is `happened` or `archived`. First
+click builds one Google Sheet + one PDF for that event; every click after
+refreshes those same two files in place and reopens the Sheet in a new tab. The
+Sheet opens in a new tab; both links plus a "last updated" line stay on the page.
+Admin-only via `guard("admin")` on the one new route.
+
+- **New route:** `POST /api/events/:id/report` (`runtime = "nodejs"`,
+  `maxDuration = 60`). `guard("admin")` → status must be `happened`/`archived`
+  (else `409 REPORT_NOT_AVAILABLE`) → Google must be configured (else
+  `501 REPORT_NOT_CONFIGURED`, surfaced by the button as a "not set up yet"
+  message, the same graceful-degrade shape as `enabledOAuthProviders`). Then:
+  gather data → analytics → view → PDF → sync to Google → persist `event.report`.
+- **New read path:** `getEventReportData(eventId)` in `lib/data.ts` — one
+  `$lookup` aggregation (Event ⨝ CheckIn ⨝ confirmed Reservation) then a plain
+  in-memory merge into the one-row-per-person list of §5: every confirmed
+  reservation becomes `attended` or `no-show`, every check-in not consumed by a
+  reservation becomes `walk-in` (covers `reservation: null` and check-ins whose
+  reservation was later cancelled). No new collection; same join shape as
+  `getEventReservations`, widened.
+- **`lib/report/`** (new folder): `analytics.ts` (pure §6 math — money split,
+  no-show/walk-in rates, half-hour arrival buckets in cafe time; same input
+  always gives same output, so it's checkable against the door table by hand),
+  `view.ts` (one locale-shaped view model feeding both outputs, so the Sheet and
+  PDF can never disagree; `toSheetValues()` flattens it to the 2-D grid),
+  `html.ts` (report HTML, Cairo embedded as a data URI), `pdf.ts` (HTML → PDF),
+  `google.ts` (service-account Sheets + Drive).
+- **New `Event` field:** `report` subdoc (`models/Event.ts`, `_id: false`,
+  default `null`) — `spreadsheetId`, `spreadsheetUrl`, `pdfFileId`, `pdfUrl`,
+  `generatedAt`. Set only by the report route via an explicit `$set` (never
+  through `parseBody`/the PATCH passthrough, so it can't be mass-assigned).
+  `EventDTO.report` exposes only `{ spreadsheetUrl, pdfUrl, generatedAt }` to the
+  client — the Sheets/Drive file ids stay server-side.
+- **New env vars** (`.env.example`, "Event report" section):
+  `GOOGLE_SERVICE_ACCOUNT_JSON` *or* `GOOGLE_SERVICE_ACCOUNT_EMAIL` +
+  `GOOGLE_SERVICE_ACCOUNT_KEY`, plus `GOOGLE_DRIVE_FOLDER_ID`, plus optional
+  `LOCAL_CHROME_PATH` (local dev only). Until the three Google vars are set the
+  button returns the "not set up yet" message — the feature is code-complete but
+  operationally pending the owner creating the service account, exactly like the
+  Google Sign-in `AUTH_GOOGLE_*` situation.
+- **New dependencies:** `@sparticuz/chromium` (^149) and `google-auth-library`
+  (^11) added to `dependencies`; `puppeteer-core` (^25) **moved** devDeps →
+  deps (the report route imports it at runtime now, not just `scripts/shoot.mjs`).
+  `next.config.ts` gains `serverExternalPackages: ["@sparticuz/chromium",
+  "puppeteer-core"]` (both are already on Next's auto-external list — pinned
+  explicitly so a native binary is never traced into the bundle).
+- **i18n:** new `t.admin.eventReport.*` block (ar + en) — button labels, the
+  "not configured"/"failed" messages, and every heading/column/status label in
+  the report document itself. Nothing hardcoded.
+- **New vendored asset:** `lib/report/fonts/Cairo.ttf` (the OFL variable font,
+  already the app's Arabic face) — see the PDF decision below for why it's
+  embedded rather than linked.
+
+**§10 decision 1 — Google Cloud project: reuse, don't create a second.** The
+project started for "Sign in with Google" (HANDOFF.md §2) is reused. Enabling the
+Sheets API and Drive API and adding a service account are project-scoped,
+additive actions — they don't touch the existing OAuth client or consent screen,
+and the service-account path needs no consent screen at all, so the unfinished
+Sign-in consent work doesn't block it. Runbook: on that project, enable **Google
+Sheets API** + **Google Drive API**, create a **service account**, download its
+JSON key → `GOOGLE_SERVICE_ACCOUNT_JSON` (or split into the `_EMAIL`/`_KEY`
+pair). Create a folder in the cafe's own Google Drive, share it with the service
+account's email as **Editor**, put its id in `GOOGLE_DRIVE_FOLDER_ID`. The Sheet
+and PDF are created inside that folder, so the cafe controls access to them the
+way it controls any other shared business doc (§8 of the plan).
+
+**§10 decision 2 — PDF generation: real headless Chromium, not a browser-free
+library.** `puppeteer-core` (already present for `scripts/shoot.mjs`) + a Linux
+Chromium from `@sparticuz/chromium` on Vercel/Lambda; locally it falls back to
+the installed Chrome (`LOCAL_CHROME_PATH` or the per-OS default — the same binary
+`shoot.mjs` drives). Reason: the §5 people list is full of real guest names,
+which at Dekka are overwhelmingly Arabic. `pdfkit`/`pdf-lib`/`@react-pdf/renderer`
+do **no** Arabic glyph shaping or bidi and would render those names as broken,
+reversed letters — useless for a list whose purpose is phoning guests. Chromium
+shapes Arabic and mixed RTL/LTR natively. The route is admin-only and rarely hit,
+so Chromium's cold-start / bundle cost never touches a guest path. Cairo is
+embedded in the report HTML as a base64 data URI (not a `<link>`) so Arabic still
+renders on a serverless Chromium whose system font set has little Arabic
+coverage, and with no network dependency at render time.
+
+**Verification:** typecheck + lint + `next build` clean. The data → analytics →
+view → PDF pipeline was exercised against one real `happened` event's real
+production data (read-only, no DB writes, seed script untouched) — the merge,
+the §6 numbers, the bilingual Sheet grid, and both the English and Arabic PDFs
+(Arabic shaping correct) all verified by eye. **Not** exercised here: the live
+Sheets/Drive sync and the `event.report` write-back — both need the owner's
+service-account credentials, same blocker as Google Sign-in.
 
 ### Login/Sign-up/Account fix — `PLAN/LOG_SIGN_AUTH_IN.md`
 

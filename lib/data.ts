@@ -38,6 +38,13 @@ export type EventDTO = {
    * shows an event is `force-dynamic`, so this is evaluated per request anyway.
    */
   isPast: boolean;
+  /**
+   * Set once the admin has generated this event's "Show on PDF" report at
+   * least once (Admin_Event_PDF.md). `null` until then. Only the openable
+   * links and the timestamp cross to the client — the Sheets/Drive file ids
+   * stay server-side.
+   */
+  report: { spreadsheetUrl: string; pdfUrl: string; generatedAt: string } | null;
 };
 
 export type ReservationDTO = {
@@ -105,6 +112,14 @@ export function toEventDTO(e: LeanEvent): EventDTO {
     termsAr: e.termsAr ?? "",
     termsEn: e.termsEn ?? "",
     status: e.status ?? "draft",
+    report:
+      e.report && e.report.generatedAt
+        ? {
+            spreadsheetUrl: e.report.spreadsheetUrl ?? "",
+            pdfUrl: e.report.pdfUrl ?? "",
+            generatedAt: new Date(e.report.generatedAt).toISOString(),
+          }
+        : null,
   };
 }
 
@@ -273,6 +288,199 @@ export async function getCheckIns(eventId: string): Promise<CheckInDTO[]> {
     createdAt: new Date(d.createdAt).toISOString(),
     note: d.note ?? "",
   }));
+}
+
+/** One person's line on the combined report list (Admin_Event_PDF.md §5). */
+export type ReportPersonRow = {
+  name: string;
+  phone: string;
+  /** Held a spot ahead of time. */
+  reserved: boolean;
+  /** Reservation door code, or "" for a walk-in. */
+  code: string;
+  /** Came through the door. */
+  checkedIn: boolean;
+  /**
+   * `attended` — reserved and checked in.
+   * `no-show` — reserved, never checked in.
+   * `walk-in` — checked in with no live reservation.
+   */
+  status: "attended" | "no-show" | "walk-in";
+  /** How they paid at the door — null for a no-show. */
+  paymentMethod: PaymentMethod | null;
+  amount: number | null;
+  /** ISO instant they were checked in — null for a no-show. */
+  checkInAt: string | null;
+};
+
+export type EventReportData = {
+  event: {
+    id: string;
+    titleAr: string;
+    titleEn: string;
+    startsAt: string;
+    price: number;
+    capacity: number | null;
+  };
+  /** One row per person connected to the night, in any way. */
+  rows: ReportPersonRow[];
+};
+
+const REPORT_STATUS_ORDER: Record<ReportPersonRow["status"], number> = {
+  attended: 0,
+  "walk-in": 1,
+  "no-show": 2,
+};
+
+/**
+ * Everything the "Show on PDF" report needs for one event, in a single round
+ * trip: the event's own money/capacity fields plus its reservations and
+ * check-ins, merged into the one-row-per-person list of §5. The merge itself
+ * is plain array work on the two already-fetched sets — the same join shape
+ * `getEventReservations` uses (reservation ⨝ check-in on `reservation`),
+ * widened to also surface walk-ins and no-shows. Analytics are derived from
+ * this by `lib/report/analytics.ts`, not here.
+ */
+export async function getEventReportData(
+  eventId: string
+): Promise<EventReportData | null> {
+  if (!mongoose.Types.ObjectId.isValid(eventId)) return null;
+  await connectDB();
+
+  const [row] = await Event.aggregate([
+    { $match: { _id: new mongoose.Types.ObjectId(eventId) } },
+    {
+      $lookup: {
+        from: CheckIn.collection.name,
+        localField: "_id",
+        foreignField: "event",
+        as: "checkins",
+      },
+    },
+    {
+      $lookup: {
+        from: Reservation.collection.name,
+        let: { eventId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ["$event", "$$eventId"] },
+              status: "confirmed",
+            },
+          },
+          { $sort: { createdAt: 1 } },
+        ],
+        as: "reservations",
+      },
+    },
+    {
+      $project: {
+        titleAr: 1,
+        titleEn: 1,
+        startsAt: 1,
+        price: 1,
+        capacity: 1,
+        checkins: {
+          _id: 1,
+          name: 1,
+          phone: 1,
+          paymentMethod: 1,
+          amount: 1,
+          reservation: 1,
+          createdAt: 1,
+        },
+        reservations: { _id: 1, name: 1, phone: 1, code: 1 },
+      },
+    },
+  ]);
+
+  if (!row) return null;
+
+  type CheckinLean = {
+    _id: mongoose.Types.ObjectId;
+    name: string;
+    phone: string;
+    paymentMethod: PaymentMethod;
+    amount: number;
+    reservation: mongoose.Types.ObjectId | null;
+    createdAt: Date;
+  };
+  type ReservationLean = {
+    _id: mongoose.Types.ObjectId;
+    name: string;
+    phone: string;
+    code: string;
+  };
+
+  const checkins: CheckinLean[] = row.checkins ?? [];
+  const reservations: ReservationLean[] = row.reservations ?? [];
+
+  const checkinByReservation = new Map<string, CheckinLean>();
+  for (const c of checkins) {
+    if (c.reservation) checkinByReservation.set(String(c.reservation), c);
+  }
+
+  const rows: ReportPersonRow[] = [];
+
+  // Every confirmed reservation → attended or no-show.
+  for (const r of reservations) {
+    const ci = checkinByReservation.get(String(r._id));
+    rows.push({
+      name: r.name ?? "",
+      phone: r.phone ?? "",
+      reserved: true,
+      code: r.code ?? "",
+      checkedIn: Boolean(ci),
+      status: ci ? "attended" : "no-show",
+      paymentMethod: ci ? ci.paymentMethod : null,
+      amount: ci ? Number(ci.amount ?? 0) : null,
+      checkInAt: ci ? new Date(ci.createdAt).toISOString() : null,
+    });
+  }
+
+  // Every check-in not consumed by a confirmed reservation → walk-in
+  // (covers `reservation: null` and check-ins whose reservation was later
+  // cancelled — either way the person was at the door without a live booking).
+  const consumed = new Set(
+    reservations
+      .map((r) => checkinByReservation.get(String(r._id)))
+      .filter((c): c is CheckinLean => Boolean(c))
+      .map((c) => String(c._id))
+  );
+  for (const c of checkins) {
+    if (consumed.has(String(c._id))) continue;
+    rows.push({
+      name: c.name ?? "",
+      phone: c.phone ?? "",
+      reserved: false,
+      code: "",
+      checkedIn: true,
+      status: "walk-in",
+      paymentMethod: c.paymentMethod,
+      amount: Number(c.amount ?? 0),
+      checkInAt: new Date(c.createdAt).toISOString(),
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (a.status !== b.status) {
+      return REPORT_STATUS_ORDER[a.status] - REPORT_STATUS_ORDER[b.status];
+    }
+    if (a.checkInAt && b.checkInAt) return a.checkInAt.localeCompare(b.checkInAt);
+    return a.name.localeCompare(b.name, ["ar", "en"]);
+  });
+
+  return {
+    event: {
+      id: String(row._id),
+      titleAr: (row.titleAr as string) ?? "",
+      titleEn: (row.titleEn as string) ?? "",
+      startsAt: new Date(row.startsAt).toISOString(),
+      price: Number(row.price ?? 0),
+      capacity: row.capacity == null ? null : Number(row.capacity),
+    },
+    rows,
+  };
 }
 
 /** Events staff can run a door for: happening around now, not drafts. */
