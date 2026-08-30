@@ -371,8 +371,13 @@ store and therefore no duplication to avoid. `Cache-Control: no-store`.
 - **`lib/report/`** (new folder): `analytics.ts` (pure §6 math — money split,
   no-show/walk-in rates, half-hour arrival buckets in cafe time; same input
   always gives the same output, so it's checkable against the door table by
-  hand), `view.ts` (one locale-shaped view model — `buildReportView()`),
-  `html.ts` (report HTML, Cairo embedded as a data URI), `pdf.ts` (HTML to PDF).
+  hand), `view.ts` (one locale-shaped view model — `buildReportView()` — that
+  also bakes the chart series + legends so `html.ts` stays presentation-only),
+  `html.ts` (report HTML: a headline 4-stat band, an inline-SVG arrivals bar
+  chart, two CSS 100%-stacked bars for the payment / attendance split, a
+  3-column details grid and the roster table — all hand-built, no chart
+  library; Cairo embedded as a data URI; palette is one gold accent + green /
+  terracotta for data, RTL-mirrored for Arabic), `pdf.ts` (HTML to PDF).
 - **No new `Event` field.** The plan's §10 "remember the Sheet/PDF location"
   question is moot once nothing is stored — every click regenerates from live
   reservation/check-in data.

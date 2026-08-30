@@ -7,10 +7,9 @@ import type { ReportAnalytics } from "@/lib/report/analytics";
 /**
  * The locale-shaped, presentation-ready view of a report — built once by
  * `buildReportView()` and rendered to PDF by `lib/report/html.ts`
- * (Admin_Event_PDF.md §5/§6).
- *
- * People-table cells are `string | number`: the amount column stays numeric,
- * everything else is a localized string.
+ * (Admin_Event_PDF.md §5/§6). Every string here is already localized and
+ * every number is display-ready; `html.ts` does layout only, no formatting
+ * and no dictionary access.
  */
 export type Cell = string | number;
 
@@ -18,8 +17,22 @@ export type ReportView = {
   title: string;
   subtitle: string;
   generatedNote: string;
+  /** The four headline figures, big, across the top. */
+  stats: { label: string; value: string }[];
+  charts: {
+    arrivalsHeading: string;
+    /** `count` drives the bar height; `countLabel` is what's printed on it. */
+    arrivals: { window: string; count: number; countLabel: string }[];
+    arrivalsEmpty: string;
+    paymentHeading: string;
+    payment: { key: "cash" | "instapay"; value: number; legend: string }[];
+    paymentEmpty: string;
+    attendanceHeading: string;
+    attendance: { key: "attended" | "walkin" | "noshow"; value: number; legend: string }[];
+    attendanceEmpty: string;
+  };
+  detailsHeading: string;
   summary: { heading: string; items: { label: string; value: string }[] }[];
-  timing: { heading: string; columns: [string, string]; rows: [string, number][]; empty: string };
   people: { heading: string; columns: string[]; rows: Cell[][]; empty: string };
 };
 
@@ -57,19 +70,65 @@ export function buildReportView(
           .replace("{capacity}", formatNumber(c.limit, locale))
           .replace("{pct}", c.pct == null ? "—" : pct(c.pct, locale));
 
+  const stats: ReportView["stats"] = [
+    { label: r.totalRevenue, value: money(m.total, locale, t) },
+    { label: r.totalAttendees, value: formatNumber(a.totalAttendees, locale) },
+    { label: r.noShowRate, value: pct(a.noShowRate, locale) },
+    c.pct == null
+      ? { label: r.walkInRate, value: pct(a.walkInRate, locale) }
+      : { label: r.fillRate, value: pct(c.pct, locale) },
+  ];
+
+  const charts: ReportView["charts"] = {
+    arrivalsHeading: r.timing,
+    arrivals: analytics.timing.map((w) => ({
+      window: w.window,
+      count: w.count,
+      countLabel: formatNumber(w.count, locale),
+    })),
+    arrivalsEmpty: r.noArrivals,
+    paymentHeading: r.money,
+    payment: [
+      {
+        key: "cash",
+        value: m.byMethod.cash,
+        legend: `${t.event.cash} · ${money(m.byMethod.cash, locale, t)} · ${pct(m.pctByMethod.cash, locale)}`,
+      },
+      {
+        key: "instapay",
+        value: m.byMethod.instapay,
+        legend: `${t.event.instapay} · ${money(m.byMethod.instapay, locale, t)} · ${pct(m.pctByMethod.instapay, locale)}`,
+      },
+    ],
+    paymentEmpty: r.noPayments,
+    attendanceHeading: r.attendance,
+    attendance: [
+      {
+        key: "attended",
+        value: a.attended,
+        legend: `${r.statusAttended} · ${formatNumber(a.attended, locale)}`,
+      },
+      {
+        key: "walkin",
+        value: a.walkIns,
+        legend: `${r.statusWalkIn} · ${formatNumber(a.walkIns, locale)}`,
+      },
+      {
+        key: "noshow",
+        value: a.noShows,
+        legend: `${r.statusNoShow} · ${formatNumber(a.noShows, locale)}`,
+      },
+    ],
+    attendanceEmpty: r.noPeople,
+  };
+
   const summary: ReportView["summary"] = [
     {
       heading: r.money,
       items: [
         { label: r.totalRevenue, value: money(m.total, locale, t) },
-        {
-          label: t.event.cash,
-          value: `${money(m.byMethod.cash, locale, t)} · ${pct(m.pctByMethod.cash, locale)}`,
-        },
-        {
-          label: t.event.instapay,
-          value: `${money(m.byMethod.instapay, locale, t)} · ${pct(m.pctByMethod.instapay, locale)}`,
-        },
+        { label: t.event.cash, value: money(m.byMethod.cash, locale, t) },
+        { label: t.event.instapay, value: money(m.byMethod.instapay, locale, t) },
         { label: r.avgPerAttendee, value: money(m.avgPerAttendee, locale, t) },
       ],
     },
@@ -81,8 +140,6 @@ export function buildReportView(
         { label: r.noShows, value: formatNumber(a.noShows, locale) },
         { label: r.walkIns, value: formatNumber(a.walkIns, locale) },
         { label: r.totalAttendees, value: formatNumber(a.totalAttendees, locale) },
-        { label: r.noShowRate, value: pct(a.noShowRate, locale) },
-        { label: r.walkInRate, value: pct(a.walkInRate, locale) },
       ],
     },
     {
@@ -90,13 +147,6 @@ export function buildReportView(
       items: [{ label: r.capacity, value: capacityValue }],
     },
   ];
-
-  const timing: ReportView["timing"] = {
-    heading: r.timing,
-    columns: [r.timeWindow, r.arrivals],
-    rows: analytics.timing.map((w) => [w.window, w.count] as [string, number]),
-    empty: r.noArrivals,
-  };
 
   const statusLabel: Record<string, string> = {
     attended: r.statusAttended,
@@ -138,10 +188,14 @@ export function buildReportView(
   return {
     title: eventReportTitle(data, locale, t),
     subtitle: `${formatDate(data.event.startsAt, locale)} · ${formatTime(data.event.startsAt, locale)}`,
-    generatedNote: r.generatedAt
-      .replace("{time}", `${formatDate(generatedAt, locale)} · ${formatTime(generatedAt, locale)}`),
+    generatedNote: r.generatedAt.replace(
+      "{time}",
+      `${formatDate(generatedAt, locale)} · ${formatTime(generatedAt, locale)}`
+    ),
+    stats,
+    charts,
+    detailsHeading: r.details,
     summary,
-    timing,
     people,
   };
 }
