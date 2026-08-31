@@ -263,12 +263,23 @@ export const submissionSchema = z.object({
   links: z.array(z.string().trim().max(400)).max(10).optional().default([]),
   preferredDates: optionalText(300),
   pitch: optionalText(3000),
-});
+})
+  // Public endpoint. The route spreads the parsed result into BandSubmission.create(),
+  // so although Mongoose would drop unknown keys anyway, .strict() rejects them at the
+  // edge rather than relying on that. The submit form sends exactly these fields.
+  .strict();
 
-export const submissionUpdateSchema = z.object({
-  status: z.enum(SUBMISSION_STATUSES).optional(),
-  adminNote: z.string().trim().max(1000).optional(),
-});
+export const submissionUpdateSchema = z
+  .object({
+    status: z.enum(SUBMISSION_STATUSES).optional(),
+    adminNote: z.string().trim().max(1000).optional(),
+  })
+  // Feeds findByIdAndUpdate. The route currently copies the two fields across by hand
+  // rather than spreading, so nothing unlisted can reach Mongo today -- but the whole
+  // point of the .strict() convention is that safety should not depend on the call site
+  // staying written that way. Every other $set-feeding schema here is strict; this one
+  // was the exception, found by the Before_Deployment.md §2 audit.
+  .strict();
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
