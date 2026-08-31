@@ -175,6 +175,23 @@ Cairo, regardless of where the admin physically is.
    `scripts/set-role.ts <email> <role>` (the person must sign out and back in;
    sessions are JWTs). Don't re-introduce env-based role checks anywhere else in the
    app.
+7. **No CORS headers are set anywhere, deliberately.** The app is same-origin only —
+   one Next.js app, the browser talking to `/api/*` on the origin it was served from.
+   Next doesn't send `Access-Control-Allow-Origin` unless you add it, so the browser's
+   same-origin policy already stops any other site reading this API with a signed-in
+   visitor's cookies. **Don't "fix" a cross-origin fetch error by adding a wildcard
+   `*`** — that would let any website make authenticated requests on a member's behalf,
+   since these routes read the session cookie. If a mobile app or a separately-hosted
+   admin tool is ever built, add an explicit origin allowlist, never a wildcard.
+8. **Rate limiting fails open** (`lib/ratelimit.ts`) — an unconfigured or unreachable
+   Upstash allows the request rather than blocking it, so a third-party blip can't lock
+   everyone out of signing in. The consequence worth remembering: **a deploy missing
+   `UPSTASH_REDIS_REST_*` is unprotected while looking perfectly healthy.** It warns on
+   every boot and reports to Sentry in production — don't ignore that warning.
+9. **`/api/health` is the one intentionally unauthenticated route.** An uptime monitor
+   can't hold a session. It's bought by leaking nothing: no data, no counts, no build
+   id, and a fixed `"unhealthy"` string on failure rather than the error text (a
+   Mongoose failure can carry `MONGODB_URI` with its credentials).
 
 ---
 
@@ -276,6 +293,41 @@ Cairo, regardless of where the admin physically is.
   rows already holding `/uploads/events/...` keep working (the regex accepts both
   shapes) but those files do not exist on a Vercel deploy, so any poster uploaded
   before the switch renders broken and has to be re-uploaded once.
+- **Password reset does not invalidate already-issued session JWTs.** Sessions are
+  self-contained tokens (`session: { strategy: "jwt" }`), so resetting a password stops
+  an attacker obtaining a *new* session but does not evict one they already hold — it
+  stays valid until it expires. Same limitation as the role-change note above. This
+  matters precisely in the case a reset is most urgently used ("someone got into my
+  account"), so it is recorded rather than glossed. Real revocation means database
+  sessions or a session-version stamp checked per request — deliberately out of scope.
+- **Rate limiting fails open.** Unconfigured or unreachable Upstash allows the request.
+  See §3 rule 8 — a deploy missing `UPSTASH_REDIS_REST_*` is unprotected while looking
+  healthy. Deliberate: a limiter that turns a third-party outage into a total auth
+  outage does more damage than the abuse it prevents.
+- **No 429 has ever actually been observed.** The limiter's table, IP resolution and
+  fail-open path are covered by `npm run check:ratelimit`, but no Upstash account exists
+  yet, so real throttling — and the sliding window's behaviour across concurrent Vercel
+  instances — is untested. Verify on the first real deploy.
+- **No email has ever actually been delivered.** The reset flow is complete and its
+  token rules are verified (`npm run check:reset`, plus a live-cluster run against a
+  throwaway user), but `RESEND_API_KEY`/`EMAIL_FROM` are unset because no sending domain
+  exists. `emailEnabled` is therefore false, which hides the "Forgot?" link and
+  redirects both pages — the flow is dormant, not broken. Resend needs a **verified
+  domain**; without one it delivers only to your own account address, which would look
+  like it works and silently fail for every member.
+- **Do not put a TTL index on `User.resetTokenExpiresAt`**, however sensible it sounds
+  (`PLAN/Before_Deployment.md` §5/§7 asks for one). A MongoDB TTL index deletes the
+  **whole document**, so it would delete every member who ever requested a reset, 30
+  minutes later. The reasoning is recorded in `models/User.ts` at the point of
+  temptation. The live cluster was audited and carries no TTL index anywhere.
+- **Redundant single-field indexes exist on the live cluster**, found by the §7 audit
+  and left alone: `events.status_1`, `reservations.status_1`, `checkins.event_1` and
+  `bandsubmissions.status_1` are each a prefix of an existing compound index
+  (`status_1_startsAt_1`, `event_1_status_1`, `event_1_createdAt_-1`,
+  `status_1_createdAt_-1`) and so serve no query the compound one can't. Mongoose
+  created them from `index: true` on the field alongside the explicitly declared
+  compound. They cost write throughput, not correctness. Dropping them is a live-DB
+  write and was out of scope for a read-only audit — worth doing deliberately.
 - Out of scope for v1 per `PLAN/idea.md` §8: online payments, loyalty, non-event table
   bookings, push reminders, waitlists, QR check-in.
 - No MCP servers (Context7/Tavily) wired up yet — would remove guesswork on Next.js/
@@ -346,6 +398,139 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Pre-launch hardening - PLAN/Before_Deployment.md phases 1-5 (2026-08-31)
+
+Five phases from the pre-launch checklist, each planned in its own `PLAN/` doc first and
+reviewed before the next started. Two of them deviated from the spec; those deviations
+are the most important thing in this entry, because in one case following the spec
+literally would have destroyed user accounts.
+
+**Phase 1 - Error tracking (`PLAN/observability.md`).** `@sentry/nextjs`, errors only:
+`tracesSampleRate: 0` in all three runtimes, no `replayIntegration`, no
+`feedbackIntegration`, `enableLogs: false`, and the webpack treeshake flags strip the
+tracing half of the SDK rather than shipping it dead. New `instrumentation.ts`,
+`instrumentation-client.ts`, `sentry.{server,edge}.config.ts`. `handle()` in `lib/api.ts`
+gained one `captureException` tagged by route label - one call site covers every API
+route, the same reason `guard()` and `parseBody()` are shared helpers. New
+`app/global-error.tsx` catches a throw in the *root layout*, which `app/error.tsx`
+structurally cannot (it renders inside the layout that died); it owns `<html>`/`<body>`,
+uses inline styles and a system font stack, and shows both languages at once because the
+locale cookie is turned into `<html lang dir>` by the very layout that failed.
+`app/error.tsx`'s component was named `GlobalError` - the name of a *different* Next.js
+boundary - and is now `RouteError`.
+
+The app-specific work was scrubbing. `lib/sentry-scrub.ts` exists because this app's real
+leak vector is not a field called `password`: it is `MONGODB_URI`, which is
+`mongodb+srv://user:pass@host` and lands verbatim in any Mongoose connection error. No
+default scrubber catches that, because it is a URI rather than a named field. The
+`beforeSend` rewrites the credential half of *any* `scheme://user:pass@` - covering
+Upstash Redis too - while keeping the hostname, since "which cluster failed" is the
+debugging value worth preserving.
+
+**Phase 2 - Alerts.** Mostly dashboard configuration, but with a code prerequisite that
+turned out to matter. Two errors in the publish path are caught deliberately and never
+rethrow (an individual `web-push` send failing, and the whole fan-out failing, wrapped so
+a push problem cannot turn a successful publish into a 500). Both behaviours are correct
+and unchanged - but *swallowed had become the same as unseen*: the publish succeeds, the
+admin sees success, and nobody learns that nobody was notified. An alert cannot fire on
+an error that never arrives, so this was a prerequisite for alerting rather than a
+footnote. Both now `captureException` with a `stage` tag.
+
+New `GET /api/health` for an external uptime monitor - the one intentionally
+unauthenticated route (§3 rule 9). Capped at 5s because `connectDB()` against an
+unreachable host was measured taking **30008ms** (Mongoose's default
+`serverSelectionTimeoutMS`), which would leave a monitor hanging on every poll during an
+outage. It deliberately does *not* report to Sentry: the monitor polling it is itself the
+alerting channel, and capturing here would file ~288 duplicate issues a day during an
+outage.
+
+**Phase 3 - Rate limiting (`PLAN/rate-limiting.md`).** Upstash Redis, not an in-memory
+counter: every Vercel invocation is a separate process, so an in-memory limit of 5 is
+really 5 *per instance*. `lib/ratelimit.ts` is shaped like `guard()` and holds all eight
+limits in one table, so no route hardcodes a number.
+
+*Deviation:* `Before_Deployment.md` §4 names `POST /api/auth/[...nextauth]` as the top
+target. That file is `export const { GET, POST } = handlers` - one catch-all also serving
+session, CSRF, sign-out and every OAuth callback - so limiting it would throttle far more
+than sign-in. The limit lives in the Credentials provider's `authorize()` instead, which
+runs exactly once per attempt and has the submitted email in hand, so it can key per
+account. Two sign-in buckets: per-email (targeted brute force) and per-IP (spraying many
+accounts). The email bucket is *peeked* before the password check and *charged* only on
+failure, so signing in legitimately on several devices does not burn your own allowance -
+but it is charged for unknown addresses too, so it cannot become an oracle for which
+emails have accounts. A throttled attempt throws `CredentialsSignin` with code
+`RATE_LIMITED` rather than returning `null`, because telling someone "invalid
+credentials" while actually throttling them makes them retype a correct password harder.
+
+**Phase 4 - Password reset (`PLAN/password-reset.md`).** `randomBytes(32)` hex tokens
+stored as SHA-256 (never raw), compared with `timingSafeEqual`, 30-minute expiry checked
+in code, single-use, and superseded by any newer request. SHA-256 rather than bcrypt
+deliberately: bcrypt is slow because *passwords* are low-entropy, and a 256-bit random
+token has nothing to brute force, so the slow hash would buy nothing while adding latency
+to a path that is also an enumeration-timing surface. The reset write matches on
+`{ _id, resetTokenHash }`, so two requests racing the same link cannot both succeed. No
+enumeration anywhere: an identical 202 for an address with an account, without one, with
+an OAuth-only account, and on send failure - with both rate-limit buckets charged
+*before* the lookup so timing does not diverge either. `lib/email.ts` is a thin `fetch`
+wrapper over Resend rather than the SDK, plain text only, bilingual.
+
+*Deviation, and the important one:* §5 and §7 both call for **a MongoDB TTL index on
+`resetTokenExpiresAt`**. Applied to the `User` collection that instruction **deletes user
+accounts** - a TTL index removes the whole document, never one field, so every member who
+ever requested a reset would be silently deleted 30 minutes later. It would have passed
+testing; the damage lands half an hour after anyone stops watching. Rejected, with the
+reasoning recorded in `models/User.ts` at the point of temptation, and the live-cluster
+check explicitly asserts the user document survives.
+
+**Phase 5 - Three audits.** §1 (ownership): every route touching user-owned data was
+checked and all are correct. `DELETE /api/reservations/:id` compares `reservation.user`
+to `currentUser().id` with an admin escape; both `/api/account` routes act on
+`auth.user.id` and never take an id from the body; `DELETE /api/push/subscribe` scopes to
+`user`, so a guessed endpoint cannot unsubscribe someone else's device. Staff/admin
+routes that legitimately act on other people's rows (check-ins, events) are role-only by
+design and were left that way - §7 of the checklist is explicit that adding ownership
+checks there would be wrong. §2 (validation): no route reads `request.json()` outside
+`parseBody`, and every dynamic route validates its ObjectId first. **One real gap:**
+`submissionUpdateSchema` feeds a `findByIdAndUpdate` but was not `.strict()` - the only
+`$set`-feeding schema that was not. Not exploitable today (the route copies its two
+fields across by hand rather than spreading) but the convention exists precisely so
+safety does not depend on the call site staying written that way; fixed, along with
+`submissionSchema`. §7 (indexes): every index listed in the checklist exists on the live
+cluster, and **no TTL index exists anywhere**. Found four redundant single-field indexes
+- see §7 Known Gaps - and left them alone, since dropping them is a live-DB write and the
+audit was read-only.
+
+**New dependencies:** `@sentry/nextjs`, `@upstash/ratelimit`, `@upstash/redis`.
+
+**New env vars:** `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
+`SENTRY_AUTH_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`,
+`RESEND_API_KEY`, `EMAIL_FROM`. Every one is optional: absent, the feature it powers
+switches itself off rather than half-working - the same rule `enabledOAuthProviders`
+already followed. The one place that rule bites is rate limiting, where "off" means
+unprotected; hence the boot warning and the Sentry report (§3 rule 8).
+
+**New checks:** `npm run check:sentry`, `check:config`, `check:ratelimit`, `check:reset`,
+joining the existing `check:uploads`.
+
+**Verification.** typecheck, lint and build clean throughout, and the build was run both
+with *and without* the Sentry env vars, since the wrapped config is what production
+actually uses. `check:config` exists because that comparison found Sentry **appends 22
+packages of its own** to `serverExternalPackages` - ours survive, but a future upgrade
+changing that would break the event-report PDF route in production with a build that
+still passes. Sentry was proven end-to-end against a real DSN: a test event arrived in
+the project, and the scrubber was confirmed on the wire (a deliberately embedded password
+left the process as `mongodb+srv://[redacted]@dekka.abc12.mongodb.net/dekka`). The reset
+flow's database guarantees were exercised against the live cluster with **one throwaway
+user, deleted afterwards** (cleanup confirmed): `select: false` holds, a new request
+supersedes the old token, single-use is enforced (a second spend modifies 0 documents),
+the fields clear on success, and the user document is not deleted. The index audit was
+read-only.
+
+**Not verified, stated plainly:** no real 429 has been observed (no Upstash account
+exists), no email has been delivered (no verified sending domain), and
+`@sparticuz/chromium` on a real Vercel deploy remains untested from before. All are in
+§7.
 
 ### Event analysis report — "Show Analysis Report" — `PLAN/Admin_Event_PDF.md` (2026-08-30)
 

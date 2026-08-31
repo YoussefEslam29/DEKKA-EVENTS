@@ -17,18 +17,25 @@ prompt for Claude Code (Opus) in VS Code.
 
 ## Status at a glance
 
-| # | Item | State | Effort |
-|---|---|---|---|
-| 1 | Authorization (own-data access) | ✅ Pattern exists — **audit** | Small |
-| 2 | Input validation | ✅ Pattern exists — **audit** | Small |
-| 3 | CORS policy | ✅ Already correct by default — **document** | Tiny |
-| 4 | Rate limiting | ❌ Doesn't exist | Medium |
-| 5 | Password reset security | ❌ Doesn't exist (no forgot-password flow at all) | Medium |
-| 6 | Frontend error handling | ⚠️ Global boundary exists — **needs work** | Small |
-| 7 | Database indexes | ✅ Already well-indexed — **audit** | Tiny |
-| 8 | Logging | ⚠️ console.error only, no aggregation | Small |
-| 9 | Alerts | ❌ Doesn't exist | Small |
-| 10 | Rollback strategy | ⚠️ Vercel supports it natively — **not documented/drilled** | Tiny |
+> **Status as of 2026-08-31:** phases 1-5 are built and committed. Two deviations
+> from this document were deliberate and are explained where they occur - most
+> importantly, **the TTL index §5 and §7 ask for would delete user accounts** and
+> was rejected (see `models/User.ts` and `PLAN/password-reset.md` §1). What remains
+> is operational, not code: an Upstash account, a verified sending domain, and the
+> §10 rollback drill.
+
+| # | Item | State |
+|---|---|---|
+| 1 | Authorization (own-data access) | ✅ **Audited — no gaps.** Every owner-scoped route checks ownership, not just role |
+| 2 | Input validation | ✅ **Audited — one gap, fixed.** `submissionUpdateSchema` was the only `$set`-feeding schema not `.strict()` |
+| 3 | CORS policy | ✅ **Documented** in `developer-guide.md` §3 rule 7 — same-origin only, never add a wildcard |
+| 4 | Rate limiting | ✅ **Built** (Upstash, 8 buckets). ⚠️ No real 429 observed yet — needs an Upstash account |
+| 5 | Password reset security | ✅ **Built** and verified against the live DB. ⚠️ **Dormant** — no verified sending domain, so no email can be delivered |
+| 6 | Frontend error handling | ✅ `global-error.tsx` added; 429s render inline in every form that can hit one |
+| 7 | Database indexes | ✅ **Audited live.** All present, no TTL index anywhere. 4 redundant single-field indexes found, left alone |
+| 8 | Logging | ✅ **Built** (Sentry, errors only) and **proven end-to-end** with a real DSN |
+| 9 | Alerts | ✅ Sentry issue alert + Vercel deploy-failure. Uptime monitor pending deploy (`/api/health` is built) |
+| 10 | Rollback strategy | ⚠️ Unchanged — Vercel-native, still not documented or drilled |
 
 ---
 
