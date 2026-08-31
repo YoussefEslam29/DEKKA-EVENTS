@@ -4,6 +4,7 @@
 // DELETE /api/events/:id — delete an event and everything hanging off it (admin only)
 import { NextResponse } from "next/server";
 import webpush from "web-push";
+import * as Sentry from "@sentry/nextjs";
 import { connectDB } from "@/lib/db";
 import { Event, type IEvent } from "@/models/Event";
 import { Reservation } from "@/models/Reservation";
@@ -68,6 +69,14 @@ async function notifyEventPublished(doc: IEvent) {
           await PushSubscription.deleteOne({ _id: sub._id }).catch(() => {});
         } else {
           console.error("[events publish] push send failed", statusCode ?? "", err);
+          // A push that fails for any reason other than a dead endpoint is invisible
+          // otherwise: the publish still succeeds, the admin sees success, and nobody
+          // learns that nobody was notified. Reported, not thrown -- one device
+          // failing must not abort the fan-out to the rest.
+          Sentry.captureException(err, {
+            tags: { route: "PATCH /api/events/:id", stage: "push-send" },
+            extra: { statusCode },
+          });
         }
       }
     })
@@ -143,6 +152,13 @@ export async function PATCH(request: Request, { params }: Params) {
         await notifyEventPublished(doc);
       } catch (err) {
         console.error("[PATCH /api/events/:id] push fan-out failed", err);
+        // Deliberately swallowed so a push failure never turns a successful publish
+        // into a 500 -- but swallowed is not the same as unseen. Without this the
+        // whole fan-out can fail silently on every publish forever.
+        Sentry.captureException(err, {
+          tags: { route: "PATCH /api/events/:id", stage: "push-fanout" },
+          extra: { eventId: String(doc._id) },
+        });
       }
     }
 
