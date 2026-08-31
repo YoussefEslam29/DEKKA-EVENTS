@@ -11,9 +11,12 @@
     "set-role": "tsx --env-file=.env.local scripts/set-role.ts",
     "typecheck": "tsc --noEmit",
     "check:uploads": "tsx scripts/check-upload-pattern.ts",
+    "check:sentry": "tsx scripts/check-sentry-scrub.ts",
+    "check:config": "tsx scripts/check-next-config.ts",
     "brand:assets": "tsx scripts/prepare-brand-assets.ts"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.72.0",
     "@sparticuz/chromium": "^149.0.0",
     "@vercel/blob": "^2.8.0",
     "bcryptjs": "^3.0.3",

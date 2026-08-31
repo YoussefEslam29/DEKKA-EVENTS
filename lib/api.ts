@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
+import * as Sentry from "@sentry/nextjs";
 import { ZodError, type ZodType } from "zod";
 
 export function jsonError(message: string, status: number, extra?: unknown) {
@@ -42,7 +43,15 @@ export function isValidId(id: string): boolean {
   return mongoose.Types.ObjectId.isValid(id);
 }
 
-/** Wraps a handler so an unexpected throw becomes a logged 500, not a stack trace. */
+/**
+ * Wraps a handler so an unexpected throw becomes a logged 500, not a stack trace.
+ *
+ * This is the single call site that gives every API route error tracking — the same
+ * reason `guard()` and `parseBody()` are shared helpers rather than per-route code.
+ * `captureException` is a no-op when Sentry was never initialised (no DSN configured),
+ * so local development neither reports nor needs an account. `label` becomes the
+ * grouping tag, so five failures of one route are one Sentry issue rather than five.
+ */
 export async function handle(
   label: string,
   fn: () => Promise<NextResponse>
@@ -51,6 +60,7 @@ export async function handle(
     return await fn();
   } catch (error) {
     console.error(`[${label}]`, error);
+    Sentry.captureException(error, { tags: { route: label } });
     return jsonError("Internal server error", 500);
   }
 }
