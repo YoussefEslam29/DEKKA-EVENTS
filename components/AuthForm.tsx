@@ -28,6 +28,13 @@ type Props = {
   mode: "login" | "signup";
   next: string;
   providers: OAuthAvailability;
+  /**
+   * Whether a mail provider is configured. Gates the "Forgot?" link exactly as
+   * `providers` gates each social button: a link into a flow that cannot deliver an
+   * email is worse than no link, because the user waits for a message that is never
+   * coming. See PLAN/password-reset.md.
+   */
+  emailEnabled?: boolean;
 };
 
 type SocialOption = {
@@ -80,7 +87,7 @@ function SocialButton({
  * sits below the switch link — one tap away, but not competing with the
  * primary sign-in action.
  */
-export function AuthForm({ mode, next, providers }: Props) {
+export function AuthForm({ mode, next, providers, emailEnabled }: Props) {
   const { t, bi } = useI18n();
   const router = useRouter();
   const isSignup = mode === "signup";
@@ -169,7 +176,15 @@ export function AuthForm({ mode, next, providers }: Props) {
         redirect: false,
       });
       if (result?.error) {
-        setError(t.auth.invalid);
+        // A throttled attempt must not read as "wrong password" — that just makes
+        // someone retype their correct password harder. `lib/auth.ts` throws a
+        // CredentialsSignin carrying this code; NextAuth surfaces it on `code`,
+        // and the `error` string is checked too so a version that folds the code
+        // in there still lands on the right message.
+        const throttled =
+          (result as { code?: string }).code === "RATE_LIMITED" ||
+          String(result.error).includes("RATE_LIMITED");
+        setError(throttled ? t.errors.rateLimited : t.auth.invalid);
         return;
       }
       // §6: arms the one-shot post-auth push toast, rendered globally in
@@ -290,9 +305,9 @@ export function AuthForm({ mode, next, providers }: Props) {
           required
           // §4.4: "Forgot?" sits opposite the label.
           action={
-            isSignup ? undefined : (
+            isSignup || !emailEnabled ? undefined : (
               <Link
-                href="/login"
+                href="/forgot-password"
                 className="text-xs font-semibold text-gold-accent hover:underline"
               >
                 {t.authUi.forgotShort}

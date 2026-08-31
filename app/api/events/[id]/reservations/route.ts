@@ -8,6 +8,7 @@ import { User } from "@/models/User";
 import { handle, isValidId, jsonError } from "@/lib/api";
 import { currentUser, guard } from "@/lib/rbac";
 import { getEventReservations } from "@/lib/data";
+import { rateLimit } from "@/lib/ratelimit";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -27,6 +28,11 @@ export async function POST(_request: Request, { params }: Params) {
   return handle("POST /api/events/:id/reservations", async () => {
     const user = await currentUser();
     if (!user) return jsonError("Unauthorized", 401);
+
+    // Booking spam on a real event night. Keyed by user id -- authenticated, and
+    // an IP key would throttle a whole table of friends on the same wifi.
+    const rl = await rateLimit("reserve", user.id);
+    if ("response" in rl) return rl.response;
 
     const { id } = await params;
     if (!isValidId(id)) return jsonError("Invalid ID", 400);

@@ -3,6 +3,7 @@ import path from "node:path";
 import Image from "next/image";
 import { dictFor } from "@/lib/i18n";
 import { enabledOAuthProviders } from "@/lib/auth";
+import { emailEnabled } from "@/lib/email";
 import { AuthForm } from "@/components/AuthForm";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 
@@ -53,9 +54,19 @@ function heroImage(mode: "login" | "signup"): string | null {
 export async function AuthScreen({
   mode,
   next,
+  children,
 }: {
   mode: "login" | "signup";
   next: string;
+  /**
+   * Renders in the form column instead of `AuthForm`. The forgot-password and
+   * reset-password screens use this so they inherit the exact split layout, hero
+   * resolution and gradient rather than reimplementing them — they are the same screen
+   * with a different form in it, and should keep looking that way when this one
+   * changes. `mode` still selects the hero art; both new screens pass `"login"`,
+   * since they belong to the signing-in half of the flow.
+   */
+  children?: React.ReactNode;
 }) {
   const photo = heroImage(mode);
 
@@ -111,7 +122,14 @@ export async function AuthScreen({
 
       {/* Right: the form panel — the whole screen on mobile. */}
       <section className="flex min-h-screen items-center justify-center bg-ink-black px-5 py-12 sm:px-8 lg:min-h-0 lg:px-10">
-        <AuthForm mode={mode} next={next} providers={enabledOAuthProviders} />
+        {children ?? (
+          <AuthForm
+            mode={mode}
+            next={next}
+            providers={enabledOAuthProviders}
+            emailEnabled={emailEnabled}
+          />
+        )}
       </section>
     </div>
   );

@@ -19,6 +19,14 @@ export interface IUser {
   image?: string;
   providers: string[];
   role: UserRole;
+  /**
+   * SHA-256 of the password-reset token — never the token itself. Same instinct as
+   * `passwordHash`: a database dump must not hand anyone a working reset link.
+   * `select: false`, so it never rides along on an ordinary user query.
+   */
+  resetTokenHash?: string;
+  /** When the current reset token stops working. TTL-indexed below. */
+  resetTokenExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,9 +47,33 @@ const UserSchema = new Schema<IUser>(
     image: { type: String, maxlength: 500 },
     providers: { type: [String], default: ["credentials"] },
     role: { type: String, enum: USER_ROLES, default: "member", index: true },
+    resetTokenHash: { type: String, select: false },
+    resetTokenExpiresAt: { type: Date, select: false },
   },
   { timestamps: true }
 );
+
+/**
+ * NO TTL INDEX HERE — and that is a deliberate rejection of what
+ * `PLAN/Before_Deployment.md` §5/§7 asks for. Read this before "fixing" it.
+ *
+ * That doc calls for "a Mongo TTL index on `resetTokenExpiresAt` so expired, unused
+ * tokens are purged automatically rather than lingering as dead rows forever."
+ * Applied to *this* collection that instruction destroys user accounts: a MongoDB TTL
+ * index deletes **the whole document**, never a single field. Every member who ever
+ * requested a password reset would have their account silently deleted 30 minutes
+ * later — along with, by cascade of meaning, their reservation history.
+ *
+ * The doc's underlying worry doesn't actually apply here either. There are no "dead
+ * rows" to reap: this is two optional, `select: false` fields on a document that has
+ * every reason to keep existing. They are overwritten by the next reset request and
+ * cleared on a successful one, so at most one stale hash sits on a user at a time,
+ * and an expired hash is inert because the reset route checks expiry explicitly.
+ *
+ * If auto-purging is ever genuinely wanted, the correct shape is a separate
+ * `PasswordResetToken` collection whose documents are *entirely* ephemeral — which is
+ * what TTL indexes are for. That was judged not worth a collection for two fields.
+ */
 
 export const User =
   (models.User as mongoose.Model<IUser>) || model<IUser>("User", UserSchema);

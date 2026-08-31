@@ -13,11 +13,15 @@
     "check:uploads": "tsx scripts/check-upload-pattern.ts",
     "check:sentry": "tsx scripts/check-sentry-scrub.ts",
     "check:config": "tsx scripts/check-next-config.ts",
+    "check:ratelimit": "tsx scripts/check-ratelimit.ts",
+    "check:reset": "tsx scripts/check-password-reset.ts",
     "brand:assets": "tsx scripts/prepare-brand-assets.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.72.0",
     "@sparticuz/chromium": "^149.0.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.3",
     "@vercel/blob": "^2.8.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",

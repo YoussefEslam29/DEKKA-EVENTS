@@ -11,11 +11,17 @@ import { NextResponse } from "next/server";
 import { handle, jsonError } from "@/lib/api";
 import { guard } from "@/lib/rbac";
 import { EXT_BY_TYPE, MAX_UPLOAD_BYTES, storeUpload } from "@/lib/storage";
+import { rateLimit } from "@/lib/ratelimit";
 
 export async function POST(request: Request) {
   return handle("POST /api/uploads", async () => {
     const auth = await guard("member");
     if ("response" in auth) return auth.response;
+
+    // Keyed by user id, not IP: uploads are authenticated, and an IP key would
+    // make one guest on cafe wifi throttle everyone else on it.
+    const rl = await rateLimit("upload", auth.user.id);
+    if ("response" in rl) return rl.response;
 
     const form = await request.formData();
     const file = form.get("file");

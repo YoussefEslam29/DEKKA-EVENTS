@@ -6,9 +6,14 @@ import { User } from "@/models/User";
 import { handle, jsonError, parseBody } from "@/lib/api";
 import { registerSchema } from "@/lib/validation";
 import { bootstrapRole } from "@/lib/roles";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 export async function POST(request: Request) {
   return handle("POST /api/register", async () => {
+    // Signup spam: keyed by IP, since there is no account yet to key on.
+    const rl = await rateLimit("register", clientIp(request));
+    if ("response" in rl) return rl.response;
+
     const parsed = await parseBody(request, registerSchema);
     if ("response" in parsed) return parsed.response;
     const { name, email, phone, password } = parsed.data;

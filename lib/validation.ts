@@ -97,6 +97,37 @@ export const setPasswordSchema = z
   .strict();
 
 /**
+ * `POST /api/auth/forgot-password` (`PLAN/password-reset.md`) — asks for a reset link.
+ *
+ * `.strict()` like everything else here, though this one never reaches a `$set`: the
+ * point is that an unlisted key is a sign the caller is doing something unintended, and
+ * the cheapest time to notice is now.
+ */
+export const requestPasswordResetSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email().max(200),
+  })
+  .strict();
+
+/**
+ * `POST /api/auth/reset-password` — spends a token and sets a new password.
+ *
+ * `newPassword`/`confirmPassword` are re-compared server-side in the route even though
+ * the form already did it, for the same reason `setPasswordSchema` does: the client
+ * check is a UX affordance, never the security boundary.
+ *
+ * The token is length-bounded but otherwise unconstrained beyond hex — it is looked up
+ * by hash, so a malformed one simply matches nothing.
+ */
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().trim().regex(/^[0-9a-f]{64}$/, "Invalid or expired link"),
+    newPassword: z.string().min(8).max(200),
+    confirmPassword: z.string().min(8).max(200),
+  })
+  .strict();
+
+/**
  * `POST /api/push/subscribe` (`PLAN/LOG_SIGN_AUTH_IN.md` §6) — the browser's
  * own `PushSubscription.toJSON()` shape, unchanged. `.strict()` for the same
  * mass-assignment reason as every other schema here: this feeds a Mongoose

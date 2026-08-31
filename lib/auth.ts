@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthConfig } from "next-auth";
+import NextAuth, { CredentialsSignin, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import Facebook from "next-auth/providers/facebook";
@@ -7,6 +7,24 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import { User, type UserRole } from "@/models/User";
 import { bootstrapRole } from "@/lib/roles";
+import {
+  clientIp,
+  consumeRateLimit,
+  peekRateLimit,
+  rateLimit,
+} from "@/lib/ratelimit";
+
+/**
+ * Thrown when a sign-in attempt is throttled rather than simply wrong.
+ *
+ * This has to be distinguishable from a bad password: telling someone "invalid
+ * credentials" while actually rate limiting them makes them retry harder, which is the
+ * opposite of what the limit is for. `AuthForm.tsx` reads the code and shows the
+ * "too many attempts" copy instead.
+ */
+class RateLimitedSignin extends CredentialsSignin {
+  code = "RATE_LIMITED";
+}
 
 // `ADMIN_EMAILS`/`STAFF_EMAILS` bootstrap lives in `lib/roles.ts` so the
 // register route shares exactly this logic — see the note there on which path
@@ -31,17 +49,44 @@ export const enabledOAuthProviders = {
 const providers: NextAuthConfig["providers"] = [
   Credentials({
     credentials: { email: {}, password: {} },
-    authorize: async (credentials) => {
+    authorize: async (credentials, request) => {
       const email = String(credentials?.email ?? "").trim().toLowerCase();
       const password = String(credentials?.password ?? "");
       if (!email || !password) return null;
 
+      // Rate limiting lives here rather than on the /api/auth/[...nextauth] route
+      // Before_Deployment.md §4 named: that route is one catch-all also serving
+      // session, CSRF, sign-out and every OAuth callback, so limiting it would
+      // throttle far more than sign-in. This function runs exactly once per
+      // credentials attempt and has the email in hand. See PLAN/rate-limiting.md §1.
+      const ip = clientIp(request);
+
+      // Per-IP: charged on every attempt, since the abuse it stops is one machine
+      // spraying many different accounts.
+      const byIp = await rateLimit("signin-ip", ip);
+      if ("response" in byIp) throw new RateLimitedSignin();
+
+      // Per-email: only *peeked* here. It is charged below, and only when the
+      // password turns out to be wrong — otherwise a member signing in on phone and
+      // laptop would spend their own allowance on successful logins.
+      if (!(await peekRateLimit("signin-email", email))) {
+        throw new RateLimitedSignin();
+      }
+
       await connectDB();
       const user = await User.findOne({ email }).select("+passwordHash").lean();
-      if (!user?.passwordHash) return null;
+      if (!user?.passwordHash) {
+        // Charged for an unknown address too — otherwise the bucket becomes an
+        // oracle telling an attacker which emails have accounts.
+        await consumeRateLimit("signin-email", email);
+        return null;
+      }
 
       const ok = await bcrypt.compare(password, user.passwordHash);
-      if (!ok) return null;
+      if (!ok) {
+        await consumeRateLimit("signin-email", email);
+        return null;
+      }
 
       return {
         id: String(user._id),

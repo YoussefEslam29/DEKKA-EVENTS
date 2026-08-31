@@ -21,11 +21,13 @@
 // ~288 duplicate Sentry issues a day during an outage, burning the free tier
 // precisely when attention is needed elsewhere.
 //
-// Add rate limiting in Phase 3: this is public, unauthenticated, and touches
-// the database.
+// Rate limited (bucket "health") because it is public, unauthenticated and
+// touches the database -- 60/min, two orders of magnitude above the one
+// request per 5 minutes an uptime monitor actually makes.
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 // A cached 200 served while the database is down would defeat the entire point.
 export const dynamic = "force-dynamic";
@@ -46,7 +48,10 @@ function timeout(ms: number): Promise<never> {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const rl = await rateLimit("health", clientIp(request));
+  if ("response" in rl) return rl.response;
+
   try {
     await Promise.race([
       (async () => {
