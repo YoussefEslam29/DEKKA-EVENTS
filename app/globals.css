@@ -282,5 +282,36 @@ html[dir="rtl"] body {
   .dk-workspace .dk-ring-today {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-gold) 60%, transparent);
   }
+
+  /*
+   * The loading screen's appearance delay (`PLAN/coffee-loader.md` §3).
+   *
+   * Deliberately CSS rather than a `setTimeout` in an effect. A `loading.tsx`
+   * fallback is streamed as HTML and painted well before React hydrates, so a
+   * JS timer would not even start until hydration — and on the one path this
+   * splash exists for (a cold first load, which is also the slowest) it would
+   * still be waiting when the real page arrived. This runs from first paint,
+   * with or without JS, and covers the client-side variant swap besides.
+   */
+  .dk-loader-appear {
+    animation: dk-loader-in 200ms ease-out 180ms both;
+  }
+
+  /* The delay is a debounce against a one-frame flash, not decoration, so it
+     survives here — only the fade goes. */
+  @media (prefers-reduced-motion: reduce) {
+    .dk-loader-appear {
+      animation: dk-loader-in 0ms linear 180ms both;
+    }
+  }
+}
+
+@keyframes dk-loader-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 

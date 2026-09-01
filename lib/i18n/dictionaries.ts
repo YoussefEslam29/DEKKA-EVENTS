@@ -43,6 +43,12 @@ export const ar = {
     language: "English",
     all: "الكل",
   },
+  /** The coffee-cup loading screen (`PLAN/coffee-loader.md`). The accessible
+   * label is `common.loading` — this is the visible line under the cup, and it
+   * is deliberately about *brewing*, not about loading. */
+  loader: {
+    brewing: "جاري التحضير…",
+  },
   /** The inline-edit spreadsheet shared by the door table and Customers. */
   grid: {
     editHint: "دوس على أي خانة عشان تعدّلها",
@@ -463,6 +469,9 @@ export const en: DeepMutable<Dict> = {
     tryAgain: "Try again",
     language: "العربية",
     all: "All",
+  },
+  loader: {
+    brewing: "Brewing…",
   },
   grid: {
     editHint: "Click any cell to edit",
