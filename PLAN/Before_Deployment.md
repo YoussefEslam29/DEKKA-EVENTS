@@ -17,12 +17,15 @@ prompt for Claude Code (Opus) in VS Code.
 
 ## Status at a glance
 
-> **Status as of 2026-08-31:** phases 1-5 are built and committed. Two deviations
-> from this document were deliberate and are explained where they occur - most
-> importantly, **the TTL index §5 and §7 ask for would delete user accounts** and
-> was rejected (see `models/User.ts` and `PLAN/password-reset.md` §1). What remains
-> is operational, not code: an Upstash account, a verified sending domain, and the
-> §10 rollback drill.
+> **Status as of 2026-09-01:** phases 1-5 are built and committed, and the §10
+> rollback runbook is now written up in `developer-guide.md` §9 (pre-deploy
+> checklist, post-deploy smoke test, rollback steps). Two deviations from this
+> document were deliberate and are explained where they occur - most importantly,
+> **the TTL index §5 and §7 ask for would delete user accounts** and was rejected
+> (see `models/User.ts` and `PLAN/password-reset.md` §1). What remains is entirely
+> operational, no code: provision Upstash / Resend (verified domain) / Sentry /
+> Vercel Blob and set their env vars in Vercel, click the two alert settings (§9),
+> and run one practice rollback (§10).
 
 | # | Item | State |
 |---|---|---|
@@ -34,8 +37,8 @@ prompt for Claude Code (Opus) in VS Code.
 | 6 | Frontend error handling | ✅ `global-error.tsx` added; 429s render inline in every form that can hit one |
 | 7 | Database indexes | ✅ **Audited live.** All present, no TTL index anywhere. 4 redundant single-field indexes found, left alone |
 | 8 | Logging | ✅ **Built** (Sentry, errors only) and **proven end-to-end** with a real DSN |
-| 9 | Alerts | ✅ Sentry issue alert + Vercel deploy-failure. Uptime monitor pending deploy (`/api/health` is built) |
-| 10 | Rollback strategy | ⚠️ Unchanged — Vercel-native, still not documented or drilled |
+| 9 | Alerts | ✅ Code prereq done — swallowed push failures now report to Sentry. ⚠️ Dashboard steps still to do: Sentry "new issue" alert + Vercel deploy-failure notification. Uptime monitor optional (`/api/health` is built) |
+| 10 | Rollback strategy | ✅ **Documented** in `developer-guide.md` §9 — pre-deploy checklist, post-deploy smoke test, rollback steps. ⚠️ One practice rollback still not drilled |
 
 ---
 
@@ -513,8 +516,8 @@ touches auth, reservations, or payments-adjacent flows):**
    work is the worst version of this situation.
 
 **Steps to actually do before shipping:**
-- Paste the two checklists above into `developer-guide.md` (or keep them living here,
-  linked from there) so they're not lost after this session.
+- ✅ Done (2026-09-01): both checklists and the rollback steps are now in
+  `developer-guide.md` §9, adapted to this codebase's scripts and routes.
 - Do one practice rollback against a real (harmless) deploy now, while there's no
   pressure, so the first time isn't during an actual incident.
 
