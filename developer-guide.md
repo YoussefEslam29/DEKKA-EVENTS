@@ -857,7 +857,69 @@ persistent Node server.
 
 ---
 
-## 9. Quick Reference — adding a typical CRUD feature
+## 9. Deployment & rollback
+
+`main` auto-deploys to production through Vercel's GitHub integration — §6's
+"commit directly to `main`" rule means every commit is a candidate release. There
+is no staging environment and no test suite, so the checklists below are the gate.
+
+### Before every push to `main`
+
+- [ ] `npm run typecheck` — clean
+- [ ] `npm run lint` — clean
+- [ ] `npm run build` — succeeds locally
+- [ ] The relevant `npm run check:*` script passes if you touched what it covers
+      (`check:uploads`, `check:sentry`, `check:config`, `check:ratelimit`,
+      `check:reset`)
+- [ ] Manually exercise the code path you changed against a real `happened` event
+      or a throwaway document — `MONGODB_URI` is the live cluster, so treat every
+      write as real (`HANDOFF.md` "Standing rules")
+- [ ] Any new or changed `Event`/`User`/etc. field is **additive and optional** —
+      never a rename or a required-field addition in the same deploy. This is what
+      keeps a rollback data-safe: an older deployment ignores a newer optional
+      field it doesn't know about, and never crashes on data a newer version wrote.
+- [ ] Any new env var is set in **Vercel's** environment variables, not just
+      `.env.local`. A missing env var fails at runtime, not at build, so the
+      checklist above won't catch it — and several features degrade silently to
+      "off" when their var is absent (rate limiting → unprotected, §3 rule 8;
+      password-reset email → dormant, §7; Sentry → no error tracking). "The deploy
+      is green" is not proof they work.
+
+### Immediately after a deploy that touched auth, reservations, uploads, or the report
+
+- [ ] Sign in with credentials
+- [ ] Sign in with Google (if `AUTH_GOOGLE_*` is configured)
+- [ ] Create a reservation and confirm it appears on the staff door table
+- [ ] Open an event's **Show Analysis Report** and confirm the PDF renders —
+      `@sparticuz/chromium` on a real Vercel deploy is still unverified (§7), so
+      check it after *any* deploy that changed dependencies, not just report code
+- [ ] If email is live: request a password reset, confirm the mail arrives, the
+      link works, and it's rejected after 30 minutes or on a second use
+
+### Rolling back
+
+Vercel deployments are immutable and pushing to `main` never deletes the previous
+one, so a rollback is a platform action, not a rebuild:
+
+1. Vercel dashboard → the project → **Deployments**.
+2. Find the last deployment known healthy (the one before whatever broke).
+3. Its "…" menu → **Promote to Production**. Works on every Vercel plan — the
+   "Instant Rollback" button is a Pro-plan shortcut for the same action, not a
+   different capability.
+4. From a terminal instead: `vercel rollback` (prompts for the deployment) —
+   useful if the dashboard is slow to load during an incident.
+5. **This reverts code, not data.** If the bad deploy already wrote bad data,
+   promoting an older deployment does not undo those writes — that's a separate
+   manual fix against the live cluster.
+6. Re-run the post-deploy smoke test against the **restored** deployment before
+   treating the incident as closed.
+
+**Not yet drilled:** do one practice rollback against a harmless deploy while
+there's no pressure, so the first real one isn't learned live.
+
+---
+
+## 10. Quick Reference — adding a typical CRUD feature
 
 1. Model: add/extend a schema in `models/`, exporting types + re-exported constants.
 2. Validation: add a Zod schema to `lib/validation.ts`.
