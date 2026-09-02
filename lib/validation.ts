@@ -97,6 +97,28 @@ export const setPasswordSchema = z
   .strict();
 
 /**
+ * `POST /api/auth/mobile-login` (`PLAN/DEKKA_MOBILE_APP.MD` §3) — the native
+ * app's sign-in, exchanging the same credentials NextAuth already validates for
+ * a bearer token instead of a session cookie.
+ *
+ * Deliberately *not* reusing `registerSchema`'s `password` bounds: this is a
+ * check against an existing hash, not a new password being set, so a `min(8)`
+ * here would reject an older account whose password predates that rule and turn
+ * a wrong-password 401 into a confusing 400. Only `max` is kept, to bound the
+ * bcrypt work an unauthenticated caller can ask for.
+ *
+ * `.strict()` for the same reason as every schema here — an unlisted key is a
+ * sign the caller is doing something unintended, and the cheapest time to
+ * notice is now.
+ */
+export const mobileLoginSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email().max(200),
+    password: z.string().min(1).max(200),
+  })
+  .strict();
+
+/**
  * `POST /api/auth/forgot-password` (`PLAN/password-reset.md`) — asks for a reset link.
  *
  * `.strict()` like everything else here, though this one never reaches a `$set`: the
@@ -282,6 +304,7 @@ export const submissionUpdateSchema = z
   .strict();
 
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type MobileLoginInput = z.infer<typeof mobileLoginSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type SetPasswordInput = z.infer<typeof setPasswordSchema>;
 export type PushSubscribeInput = z.infer<typeof pushSubscribeSchema>;

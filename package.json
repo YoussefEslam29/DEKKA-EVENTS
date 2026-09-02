@@ -15,6 +15,7 @@
     "check:config": "tsx scripts/check-next-config.ts",
     "check:ratelimit": "tsx scripts/check-ratelimit.ts",
     "check:reset": "tsx scripts/check-password-reset.ts",
+    "check:mobile-auth": "tsx scripts/check-mobile-auth.ts",
     "brand:assets": "tsx scripts/prepare-brand-assets.ts"
   },
   "dependencies": {

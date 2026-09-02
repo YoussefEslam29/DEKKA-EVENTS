@@ -300,6 +300,36 @@ Cairo, regardless of where the admin physically is.
   matters precisely in the case a reset is most urgently used ("someone got into my
   account"), so it is recorded rather than glossed. Real revocation means database
   sessions or a session-version stamp checked per request — deliberately out of scope.
+- **Mobile bearer tokens inherit that, over a longer window.** `lib/mobile-token.ts`
+  issues the same kind of self-contained JWT for 30 days, so a password reset, a
+  `set-role.ts` demotion, and even deleting the account do not revoke a token already on
+  a phone. The live run confirmed the last one specifically: after the throwaway user was
+  deleted, its token still resolved to an identity through `currentUser()` and only failed
+  at the database lookup inside the route (`404`). It is the same property the web session
+  has, but a phone holds its credential for longer and more passively than a browser tab,
+  so it is worth stating separately. **The mass-revocation lever is
+  `MOBILE_TOKEN_SALT`** — changing that one string invalidates every issued mobile token
+  at once, at the cost of every app user signing in again. Per-user revocation would need
+  the same session-version stamp the note above rules out.
+- **No refresh token in the mobile bridge.** At 30 days the app asks for the password
+  again; there is no silent renewal. Deliberate for v1 — a refresh token is a second
+  credential with its own storage and rotation rules, and it buys convenience rather than
+  capability. `expiresAt` comes back on the login response precisely so the app can
+  re-prompt on its own schedule instead of discovering expiry as a 401 mid-action.
+- **Sign-in timing still differs between a known and an unknown email.** `bcrypt.compare`
+  only runs when a `passwordHash` exists, so an unknown address answers measurably faster
+  than a wrong password on a real account. This predates the mobile work — it is how
+  `lib/auth.ts`'s credentials `authorize()` has always behaved — and
+  `POST /api/auth/mobile-login` was deliberately written to match it rather than diverge.
+  The *response* is byte-identical either way (verified), so this is a timing side channel
+  only. Fixing it means a dummy compare against a throwaway hash on both paths together.
+- **OAuth-only accounts cannot sign in to the mobile app.** No `passwordHash` means
+  `INVALID_CREDENTIALS`, with no hint about why — the non-enumeration rule costs the
+  ability to say "this account uses Google, set a password first." They have to set one at
+  `/account` on the website. This affects nobody today (no OAuth provider is configured,
+  so no OAuth-only account can exist yet), but it becomes real the moment
+  `AUTH_GOOGLE_*` is set, and it is the main thing that would push the app toward the
+  OAuth-in-webview option in `PLAN/DEKKA_MOBILE_APP.MD` §13.1.
 - **Rate limiting fails open.** Unconfigured or unreachable Upstash allows the request.
   See §3 rule 8 — a deploy missing `UPSTASH_REDIS_REST_*` is unprotected while looking
   healthy. Deliberate: a limiter that turns a third-party outage into a total auth
@@ -398,6 +428,86 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Mobile auth bridge — `PLAN/DEKKA_MOBILE_APP.MD` §3, phase 1 of 10 (2026-09-02)
+
+The backend half of the companion Android app: a native client cannot hold NextAuth's
+httpOnly session cookie, so it needs a bearer token instead. This is the only genuinely
+new backend piece the whole mobile plan calls for — §3 of that doc confirmed every other
+endpoint the app needs already exists.
+
+**The change is smaller than the plan expected, because of where it was made.** §3
+anticipated teaching `guard()` *and* `currentUser()` about the header. In fact `guard()`
+resolves its caller through `currentUser()`, and `currentUser()` can read the request's
+`Authorization` header via `next/headers` without taking a parameter — so **one function
+changed and no call site did.** Every already-guarded route accepts the app today,
+including ones written long before the app existed. That is the payoff of §2/§5's rule
+that every protected surface funnels through the same three functions.
+
+- **New `lib/mobile-token.ts`** — `issueMobileToken()` / `verifyMobileToken()` /
+  `readBearerToken()`, built on the same `@auth/core/jwt` `encode`/`decode` and the same
+  `AUTH_SECRET` NextAuth uses for its session cookie. Tokens are JWE (A256CBC-HS512), so
+  the claims are *encrypted*, not merely signed — verified: the member's email, id and
+  phone are not recoverable from the token string.
+- **The two channels use different HKDF salts, deliberately.** `encode`/`decode` derive
+  their key from (`secret`, `salt`) and NextAuth passes its cookie *name* as the salt;
+  this passes `"dekka.mobile-token"`. The result is that a mobile token pasted into a
+  browser's cookie jar does not decrypt, and a session cookie lifted from a browser is not
+  a usable bearer token — for the price of one string. Both directions are asserted in
+  `check:mobile-auth`, and both were confirmed to actually fail by mutating the salt to
+  match and watching the two assertions fire.
+- **New `POST /api/auth/mobile-login`** — `handle()` + `parseBody()` + the standard
+  `{ data }` / `{ error }` shape, like every other route here. It **shares the sign-in
+  rate-limit buckets with `lib/auth.ts`'s credentials provider** rather than getting its
+  own, keyed identically (`signin-ip` charged always, `signin-email` peeked then charged
+  only on failure). A separate bucket would have let an attacker double their allowance
+  against one account just by alternating between the app's endpoint and the website's —
+  a new sign-in channel has to share the existing limits, not add a parallel set.
+- **No new env var, no new collection, no new user table.** Same `User`, same
+  `passwordHash`, same `role`; the app is a new *client* of the existing identity system.
+- **No CORS headers, deliberately** — §3 rule 7 predicted a mobile app would tempt someone
+  into adding them. It doesn't: a native Android client is not a browser and is not bound
+  by the same-origin policy, so it needs none. The reasoning is written at the top of the
+  route so the next person meets it before the temptation. If a *browser-based* client is
+  ever built, that rule still stands: an explicit origin allowlist, never a wildcard.
+- **`mobileLoginSchema`** is `.strict()` like every other schema here, and deliberately
+  does *not* reuse `registerSchema`'s `password.min(8)`: this validates against an existing
+  hash rather than setting a new one, so a length floor would turn a wrong-password 401
+  into a confusing 400 for an older account.
+
+**New check:** `npm run check:mobile-auth`, joining the existing five. DB-free and
+network-free, covering token round-trip, payload encryption, exact 30-day TTL and enforced
+expiry, salt non-interchangeability in both directions, the required `channel`/`sub`
+claims, tampered / spliced / foreign-secret / junk rejection, 13 `Authorization`-header
+parse cases, and the login schema. Two deliberate mutations (unifying the salts; deleting
+the claim checks) were run to confirm the negative assertions actually fail rather than
+passing vacuously.
+
+**Verification.** typecheck, lint and build clean; the build manifest confirms
+`/api/auth/mobile-login` resolves alongside the `[...nextauth]` catch-all rather than
+colliding with it, the same way `forgot-password` and `reset-password` already do.
+Exercised end-to-end against the **live cluster** with **one throwaway member, deleted
+afterwards** (deletion confirmed by re-query, per `HANDOFF.md`'s standing rules — the
+seed script was not touched): correct credentials return a token whose `expiresAt` is 30
+days out; the response carries neither the password nor a hash; the token is accepted by
+`guard("member")` on a real route and the write lands on that token's own user; junk,
+empty, truncated and tampered tokens all 401; a member token on a `guard("staff")` route
+gets **403, not 200**; a guest still gets 401 on both, so the cookie path is untouched;
+wrong-password and unknown-email responses are **byte-identical**
+(`401 {"error":"INVALID_CREDENTIALS"}`); an unlisted `role: "admin"` key is a 400 rather
+than an escalation. Rate limiting was inactive during the run (no Upstash configured — it
+fails open, §3 rule 8), so the buckets themselves are still unverified against a real 429,
+exactly as noted in §7 for every other limited route.
+
+**Decisions locked in for the mobile project** (`PLAN/DEKKA_MOBILE_APP.MD` §13, which
+asked for these before Phase 2): **§13.1** email+password only for v1 — social sign-in is
+not configured on the website either, so OAuth-in-webview would have been built on a flow
+that does not yet work in a browser; **§13.2/§13.5** the app lives in its own repo beside
+this one (`Websites/DEKKA-APP`), so Gradle never enters the Vercel build and this repo's
+history stays website-only; **§13.4** minimum Android 8.0 / API 26, which is where
+notification channels become native and so removes a compat branch from the FCM work in
+phase 8. §13.3 (push delivery shape) and §13.6 (Menu sequencing) are not needed until
+phases 8 and 9 and are still open.
 
 ### Pre-launch hardening - PLAN/Before_Deployment.md phases 1-5 (2026-08-31)
 
@@ -870,7 +980,7 @@ is no staging environment and no test suite, so the checklists below are the gat
 - [ ] `npm run build` — succeeds locally
 - [ ] The relevant `npm run check:*` script passes if you touched what it covers
       (`check:uploads`, `check:sentry`, `check:config`, `check:ratelimit`,
-      `check:reset`)
+      `check:reset`, `check:mobile-auth`)
 - [ ] Manually exercise the code path you changed against a real `happened` event
       or a throwaway document — `MONGODB_URI` is the live cluster, so treat every
       write as real (`HANDOFF.md` "Standing rules")
@@ -889,6 +999,10 @@ is no staging environment and no test suite, so the checklists below are the gat
 
 - [ ] Sign in with credentials
 - [ ] Sign in with Google (if `AUTH_GOOGLE_*` is configured)
+- [ ] `POST /api/auth/mobile-login` returns a token, and that token is accepted as
+      `Authorization: Bearer` on a guarded route — `AUTH_SECRET` differing between
+      environments is the failure mode here, and it fails as a plain 401 with nothing
+      in the logs to say why
 - [ ] Create a reservation and confirm it appears on the staff door table
 - [ ] Open an event's **Show Analysis Report** and confirm the PDF renders —
       `@sparticuz/chromium` on a real Vercel deploy is still unverified (§7), so
