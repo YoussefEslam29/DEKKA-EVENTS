@@ -13,6 +13,8 @@ in [PLAN/idea.md](PLAN/idea.md) with one system:
 No online payments: a reservation only holds a spot. Guests pay **cash or InstaPay at
 the cafe** on the day.
 
+**Live at [dekka-events.vercel.app](https://dekka-events.vercel.app)** — deployed on Vercel.
+
 ---
 
 ## Tech stack
@@ -197,6 +199,32 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
 npm run brand:assets # regenerate public/brand/* from IMGS/
 ```
+
+---
+
+## Deployment
+
+Live at **https://dekka-events.vercel.app**, hosted on Vercel through its GitHub
+integration: every push to `main` builds a new immutable deployment and promotes it.
+A bad deploy is rolled back by promoting the previous one from the dashboard (or
+`vercel rollback`) — the old build is still there, nothing is rebuilt.
+
+Production does not use the `docker compose` database. `MONGODB_URI` points at a MongoDB
+Atlas cluster, and every variable from `.env.example` is set in the Vercel project rather
+than in a file. Three behave differently than they do locally:
+
+- `AUTH_URL` is the deployed origin, and each social provider's console needs
+  `https://dekka-events.vercel.app/api/auth/callback/<provider>` registered as an
+  authorized redirect — otherwise sign-in completes and returns to `localhost`.
+- `BLOB_READ_WRITE_TOKEN` must be set. Vercel's filesystem is read-only, so without it
+  poster uploads take the `public/uploads/` branch of `lib/storage.ts` and fail.
+- `UPSTASH_REDIS_REST_URL` / `_TOKEN` back the rate limiter. It **fails open** by
+  design (`lib/ratelimit.ts`), so a deploy missing them accepts unlimited requests on
+  every limited endpoint while looking perfectly healthy — it warns to Sentry rather
+  than erroring.
+
+`GET /api/health` returns `{ "data": { "status": "ok" } }` — point an uptime monitor
+there rather than at `/`.
 
 ---
 
