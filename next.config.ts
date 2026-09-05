@@ -7,6 +7,22 @@ const nextConfig: NextConfig = {
   // must not be traced into the bundle. (Next already auto-externalises both,
   // but pinning it here keeps that guarantee explicit — see Admin_Event_PDF.md.)
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  // `serverExternalPackages` above stops webpack/Turbopack from bundling
+  // @sparticuz/chromium's JS — but that's a *bundling* guarantee, not a
+  // *file-tracing* one. Vercel's separate file-tracing step (@vercel/nft)
+  // decides which node_modules files actually get zipped into the deployed
+  // function, and it can still miss @sparticuz/chromium's compressed Chromium
+  // binaries (`bin/*.br`, ~67MB) because they're only touched indirectly via
+  // chromium.executablePath()'s own internal fs logic, not a static `require`.
+  // That's exactly what happened on the real Vercel deploy Admin_Event_PDF.md
+  // §10 flagged as "unverified": `GET /api/events/:id/report` failed in
+  // production with "The input directory .../bin does not exist" (Sentry
+  // issue SENTRY-BYZANTINE-YACHT-3, 2026-09-04) even with the line above in
+  // place. Scoped to just this one route so the other ~20 API routes don't
+  // each carry an extra 67MB of Chromium binaries they never use.
+  outputFileTracingIncludes: {
+    "/api/events/\\[id\\]/report": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+  },
   images: {
     remotePatterns: [
       // Uploaded images (posters + account photos) — `lib/storage.ts` writes
