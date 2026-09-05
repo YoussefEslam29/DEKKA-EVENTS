@@ -404,14 +404,19 @@ Cairo, regardless of where the admin physically is.
   cleanup → unsubscribe), but nothing drove an actual browser permission dialog
   or confirmed a notification arriving on a phone. The Push API also requires
   HTTPS outside `localhost`. Confirm on the first real deploy.
-- **Event analysis report — `@sparticuz/chromium` on Vercel is unverified.**
-  `GET /api/events/:id/report` builds the PDF with headless Chromium. Local runs
-  use the installed Chrome and are verified; the Vercel path (`@sparticuz/chromium`
-  Linux binary, picked when `process.env.VERCEL` is set) has not been exercised on
-  a real deploy. Also note `@sparticuz/chromium` (^149) and `puppeteer-core` (^25,
-  targets Chrome ~152) are a few versions apart — only stable CDP surface is used
-  (`setContent` + `page.pdf`), which is version-tolerant, but if a deploy throws a
-  CDP/protocol error, align the two package versions.
+- **~~Event analysis report — `@sparticuz/chromium` on Vercel is unverified.~~
+  Verified, and it broke — fixed 2026-09-05 (Feature Log below).** The first real
+  hit of `GET /api/events/:id/report` in production threw `Error: The input
+  directory ".../bin" does not exist` (Sentry SENTRY-BYZANTINE-YACHT-3). Cause:
+  `serverExternalPackages` stops the bundler from touching `@sparticuz/chromium`'s
+  JS, but Vercel's separate file-tracing step (`@vercel/nft`) still didn't pick up
+  its ~67MB of compressed binaries in `bin/*.br`, since they're only reached via
+  `chromium.executablePath()`'s internal `fs` logic rather than a static
+  `require`. Fixed with `outputFileTracingIncludes` in `next.config.ts`, scoped to
+  just this route. Still note: `@sparticuz/chromium` (^149) and `puppeteer-core`
+  (^25, targets Chrome ~152) are a few versions apart — only stable CDP surface is
+  used (`setContent` + `page.pdf`), which is version-tolerant, but if a deploy
+  throws a CDP/protocol error, align the two package versions.
 - **`lib/report/fonts/Cairo.ttf` is a vendored binary (~600 KB).** It's the OFL
   variable font, embedded into the report HTML as a data URI at render time. If
   the app's Arabic face ever changes, change this too (it's independent of
@@ -428,6 +433,45 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Fix: PDF report's Chromium binaries missing from the Vercel deploy (2026-09-05)
+
+Diagnosed from a Sentry email (SENTRY-BYZANTINE-YACHT-3): the first real production
+hit of `GET /api/events/:id/report` — the Admin_Event_PDF.md feature — threw
+`Error: The input directory "/var/task/.../@sparticuz/chromium/bin" does not exist`
+the moment an admin actually clicked **Show Analysis Report** on a live deploy. This
+is exactly the gap §7 had flagged as "unverified" before a real click ever happened.
+
+**Root cause, and why `serverExternalPackages` alone didn't cover it:**
+`serverExternalPackages` in `next.config.ts` is a *bundling* instruction — it tells
+webpack/Turbopack not to inline `@sparticuz/chromium`'s JS into the compiled output.
+It says nothing to Vercel's separate *file-tracing* step (`@vercel/nft`), which
+decides which `node_modules` files actually get zipped into the deployed function.
+`chromium.executablePath()` reaches its bundled binaries (`bin/*.br`, ~67MB — the
+compressed Chromium build, fonts, and swiftshader) through its own internal `fs`
+logic rather than a static `require`/`import`, so nft's static analysis never saw
+them as a dependency and silently left all four files out of the deploy.
+
+**Fix:** added `outputFileTracingIncludes` to `next.config.ts`, keyed to just
+`/api/events/[id]/report` (escaped for picomatch as the docs specify), pointing at
+`./node_modules/@sparticuz/chromium/bin/**/*`. This is the option Next.js's own docs
+name for exactly this failure mode ("Next.js might fail to include required
+files"). Scoped to the one route rather than every API route, since the ~67MB
+shouldn't ride along on functions that never touch Chromium.
+
+**Verified before shipping, not just reasoned through:** cloned the repo into a
+throwaway sandbox with real npm-registry access, built it once with the fix and
+once without, and diffed the emitted
+`.next/server/app/api/events/[id]/report/route.js.nft.json` trace file directly:
+0 `@sparticuz/chromium/bin/*.br` files traced without the fix (reproducing the
+exact production failure), 4 traced with it. Full `npm run build` (Turbopack)
+passes; `tsc --noEmit` is clean. Not verified: an actual PDF render against a real
+Vercel deploy — that's the one thing this fix couldn't test from outside Vercel's
+own infrastructure, so it's still worth a manual **Show Analysis Report** click
+after this deploys (§9's post-deploy checklist already asks for this on every
+dependency-touching deploy; keep doing it, since a version bump of
+`@sparticuz/chromium` or `puppeteer-core` could reintroduce a *different* mismatch
+even with this fix in place).
 
 ### Mobile auth bridge — `PLAN/DEKKA_MOBILE_APP.MD` §3, phase 1 of 10 (2026-09-02)
 
@@ -1005,8 +1049,10 @@ is no staging environment and no test suite, so the checklists below are the gat
       in the logs to say why
 - [ ] Create a reservation and confirm it appears on the staff door table
 - [ ] Open an event's **Show Analysis Report** and confirm the PDF renders —
-      `@sparticuz/chromium` on a real Vercel deploy is still unverified (§7), so
-      check it after *any* deploy that changed dependencies, not just report code
+      this broke once in production already (§7, fixed 2026-09-05) because file
+      tracing is what actually needs to catch `@sparticuz/chromium`'s binaries, not
+      just bundler externalization, so re-check after *any* deploy that changed
+      dependencies, not just report code
 - [ ] If email is live: request a password reset, confirm the mail arrives, the
       link works, and it's rejected after 30 minutes or on a second use
 
