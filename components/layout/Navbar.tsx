@@ -8,6 +8,7 @@ import { LocaleToggle } from "@/components/LocaleToggle";
 import { SignOutButton } from "@/components/SignOutButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { buttonStyles } from "@/components/ui/Button";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { cn } from "@/lib/utils";
 
 /**
@@ -74,13 +75,12 @@ export async function Navbar() {
           )}
 
           {/* No-JS mobile menu: a native disclosure beats a hydrated drawer here. */}
-          <details className={cn("relative", wide ? "lg:hidden" : "md:hidden")}>
-            <summary
-              className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-border-dark text-on-dark"
-              aria-label={t.nav.menu}
-            >
-              <Menu className="h-4 w-4" />
-            </summary>
+          <Disclosure
+            className={cn("relative", wide ? "lg:hidden" : "md:hidden")}
+            summaryClassName="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-border-dark text-on-dark"
+            summaryAriaLabel={t.nav.menu}
+            summary={<Menu className="h-4 w-4" />}
+          >
             <div className="absolute end-0 mt-2 w-56 rounded-xl border border-border-dark bg-surface-dark p-2">
               <NavMenuLinks links={links} />
               <div className="my-1 h-px bg-border-dark" />
@@ -103,7 +103,7 @@ export async function Navbar() {
                 </Link>
               )}
             </div>
-          </details>
+          </Disclosure>
         </div>
       </div>
     </header>

@@ -7,6 +7,7 @@ import { Check, Ticket } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { ConsentText } from "@/components/legal/ConsentText";
 
 type Props = {
   eventId: string;
@@ -144,6 +145,12 @@ export function ReserveButton({
         <Ticket className="h-4 w-4" />
         {busy ? t.event.reserving : t.event.reserve}
       </Button>
+      {/* A note, not a checkbox: this is one tap by an already-signed-in member
+          whose name and phone the server copies from the account they already
+          agreed to at signup. */}
+      <p className="mt-2 text-xs leading-relaxed text-text-muted">
+        <ConsentText prefix={t.legal.consent.reserveNotePrefix} withTerms={false} />
+      </p>
       {error ? (
         <div role="alert" className="mt-2 text-sm text-bad">
           <p>{error}</p>

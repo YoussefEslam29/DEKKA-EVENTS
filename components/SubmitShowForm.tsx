@@ -6,6 +6,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
 import { TextField, TextAreaField } from "@/components/ui/TextField";
 import { Card } from "@/components/ui/Surface";
+import { ConsentCheckbox } from "@/components/legal/ConsentCheckbox";
 
 /** Maps a bilingual pair onto the label props the field components expect. */
 function labels(pair: { en: string; ar: string }) {
@@ -27,6 +28,9 @@ const empty = {
 export function SubmitShowForm() {
   const { t, bi } = useI18n();
   const [form, setForm] = useState(empty);
+  // Kept out of `form` because it isn't a field of the submission — it gates
+  // one, and it resets independently when the form clears on success.
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +42,10 @@ export function SubmitShowForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!consent) {
+      setError(t.legal.consent.required);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -46,6 +54,7 @@ export function SubmitShowForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          consent: true,
           // The textarea is one link per line; the API stores an array.
           links: form.links
             .split("\n")
@@ -59,6 +68,7 @@ export function SubmitShowForm() {
       }
       setDone(true);
       setForm(empty);
+      setConsent(false);
     } catch {
       setError(t.common.somethingWrong);
     } finally {
@@ -147,9 +157,15 @@ export function SubmitShowForm() {
           onChange={set("pitch")}
         />
 
-        {error ? <p className="mb-3 text-sm font-semibold text-bad">{error}</p> : null}
+        <ConsentCheckbox checked={consent} onChange={setConsent} />
 
-        <Button type="submit" size="lg" disabled={busy}>
+        {error ? (
+          <p role="alert" className="mb-3 text-sm font-semibold text-bad">
+            {error}
+          </p>
+        ) : null}
+
+        <Button type="submit" size="lg" disabled={busy || !consent}>
           {busy ? t.submit.sending : t.submit.send}
         </Button>
       </form>

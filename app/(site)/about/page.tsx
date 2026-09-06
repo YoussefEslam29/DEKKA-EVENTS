@@ -5,6 +5,7 @@ import { site } from "@/lib/site";
 import { LogoBadge } from "@/components/ui/LogoBadge";
 import { Card } from "@/components/ui/Surface";
 import { PatternAccent } from "@/components/ui/PatternAccent";
+import { MapEmbed } from "@/components/MapEmbed";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function AboutPage() {
             href={site.maps}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-5 inline-block font-semibold text-gold-accent hover:underline"
+            className="mt-5 inline-block font-semibold text-gold-accent underline"
           >
             {t.event.directions}
           </a>
@@ -94,12 +95,11 @@ export default async function AboutPage() {
 
         {site.mapsEmbed ? (
           <div className="md:col-span-2">
-            <iframe
+            <MapEmbed
               src={site.mapsEmbed}
               title="Dekka on Google Maps"
               className="h-80 w-full rounded-xl border border-border-dark"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
+              directionsHref={site.maps}
             />
           </div>
         ) : null}

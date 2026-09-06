@@ -110,7 +110,11 @@ export default async function EventsHubPage({
         <PatternAccent />
         <div className="mx-auto max-w-[1180px] px-4 py-12 text-center md:px-8 md:py-16">
           <LogoBadge size="xl" tagline priority />
-          <p className="mt-4 text-lg font-semibold text-on-dark">{t.home.heroLine}</p>
+          {/* The page's real <h1>: the logo above is an image, and this line is
+              the descriptive copy a screen reader (or a search result) should
+              get as the page title. Same classes as the <p> it replaces, so
+              nothing moves visually. */}
+          <h1 className="mt-4 text-lg font-semibold text-on-dark">{t.home.heroLine}</h1>
           <p className="mx-auto mt-3 max-w-xl text-sm text-text-muted">{t.home.heroBody}</p>
 
           <form action="/" className="mx-auto mt-6 max-w-md">
@@ -171,9 +175,11 @@ export default async function EventsHubPage({
           />
 
           <aside className="dk-card p-4">
-            <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-on-dark">
+            {/* h2, not h3: it sits between the calendar's own h2 and the
+                "upcoming"/"past" h2s below, so an h3 here skipped a level. */}
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-on-dark">
               {t.home.upcomingSoonest}
-            </h3>
+            </h2>
             {upcoming.length === 0 ? (
               <p className="dk-muted text-sm">{q || filter !== "all" ? t.home.searchEmpty : t.home.upcomingEmpty}</p>
             ) : (
@@ -222,7 +228,10 @@ export default async function EventsHubPage({
           <h2 className="mb-5 text-xl font-bold tracking-tight text-text-muted">
             {t.home.past}
           </h2>
-          <div className="grid gap-4 opacity-75">
+          {/* No `opacity-75` here: dimming the whole group pushed already-muted
+              text to ~3.9:1. The "past nights" heading above is what marks the
+              section, and it doesn't cost anyone the contrast. */}
+          <div className="grid gap-4">
             {past.map((event) => (
               <EventCard key={event.id} event={event} locale={locale} t={t} />
             ))}

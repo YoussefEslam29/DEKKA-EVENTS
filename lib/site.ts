@@ -18,8 +18,18 @@ export const site = {
     "https://www.google.com/maps?q=31.2067034,29.9258693&z=17&output=embed",
   addressAr: process.env.NEXT_PUBLIC_ADDRESS_AR || "الإسكندرية، مصر",
   addressEn: process.env.NEXT_PUBLIC_ADDRESS_EN || "Alexandria, Egypt",
+  // The legal pages (/privacy, /terms, /cookies, /refund-policy) all point
+  // data and refund requests here, so this one can't be blank the way `phone`
+  // still is — swap it for a dedicated inbox the day there is one.
   phone: process.env.NEXT_PUBLIC_CAFE_PHONE || "",
-  email: process.env.NEXT_PUBLIC_CAFE_EMAIL || "",
+  email: process.env.NEXT_PUBLIC_CAFE_EMAIL || "yousef.islam.hussein@gmail.com",
   hoursAr: process.env.NEXT_PUBLIC_HOURS_AR || "يومياً من 10 ص حتى 1 ص",
   hoursEn: process.env.NEXT_PUBLIC_HOURS_EN || "Daily, 10am – 1am",
+  // Legal identity, shown in the business-info block on /privacy. Dekka trades
+  // under its own name with no separate registered company, so both stay blank
+  // and their rows simply don't render — deliberately not filled with a
+  // plausible-looking placeholder, since a made-up entity name or registry
+  // number on a legal page is worse than no line at all.
+  legalEntityName: process.env.NEXT_PUBLIC_LEGAL_ENTITY_NAME || "",
+  registrationNumber: process.env.NEXT_PUBLIC_BUSINESS_REGISTRATION_NUMBER || "",
 };

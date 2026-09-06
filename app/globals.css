@@ -27,7 +27,10 @@
   /* --- Light workspace (staff + admin) --- */
   --color-ink: #241611;
   --color-ink-soft: #4a342a;
-  --color-ink-faint: #8a7466;
+  /* Darkened from #8a7466, which read 3.59:1 on cream and 4.26:1 on paper —
+     both under AA for the muted body text this token carries all over the
+     staff/admin workspace. Now 5.87:1 and 6.97:1. */
+  --color-ink-faint: #6b5245;
   --color-gold: #c08b4a;
   --color-gold-deep: #9a6b33;
   --color-gold-wash: #f0e2cc;
@@ -37,7 +40,11 @@
   /* --- Status --- */
   --color-good: #5c9c74;
   --color-warn: #d9a566;
-  --color-bad: #c2604a;
+  /* Lightened from #c2604a (4.48:1 on ink-black, 4.08:1 on surface-dark —
+     both just under AA) so error text on the dark public app passes: now
+     5.51:1 and 5.02:1. The workspace needs it to move the other way, which is
+     what the `.dk-workspace` overrides below are for. */
+  --color-bad: #cc7460;
 
   --font-latin: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
   --font-arabic: var(--font-cairo), ui-sans-serif, system-ui, sans-serif;
@@ -214,6 +221,24 @@ html[dir="rtl"] body {
     color-scheme: light;
     background-color: var(--color-cream);
     color: var(--color-ink);
+
+    /*
+     * Status colours, re-pointed for the cream workspace.
+     *
+     * `good`/`bad`/`warn` are shared by both themes, but the two themes need
+     * them to move in opposite directions: lighter to carry on the dark public
+     * app, darker to carry on cream. Rather than fork every consumer, the
+     * tokens are simply redeclared in this scope — `Badge`, `text-good`,
+     * `border-bad/40`, `bg-warn/10` and the `danger`/`success` buttons all read
+     * `var(--color-*)`, so they pick this up with no component change.
+     *
+     * Against cream / paper: good 2.65 → 5.12 / 6.08:1, bad 3.38 → 5.42 /
+     * 6.44:1, warn 1.80 → 5.36 / 6.37:1. White-on-fill for the danger and
+     * success buttons (admin-only) lands at 6.65:1 and 6.28:1.
+     */
+    --color-good: #3a6a4c;
+    --color-bad: #9c3f2b;
+    --color-warn: #7d5522;
   }
 
   .dk-workspace ::selection {

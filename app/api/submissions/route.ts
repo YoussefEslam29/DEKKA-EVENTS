@@ -7,6 +7,7 @@ import { handle, parseBody } from "@/lib/api";
 import { submissionSchema } from "@/lib/validation";
 import { currentUser, guard } from "@/lib/rbac";
 import { getSubmissions } from "@/lib/data";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 export async function GET(request: Request) {
   return handle("GET /api/submissions", async () => {
@@ -22,6 +23,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return handle("POST /api/submissions", async () => {
+    // Open to logged-out visitors by design, so IP is the only key available.
+    const rl = await rateLimit("submission-ip", clientIp(request));
+    if ("response" in rl) return rl.response;
+
     const parsed = await parseBody(request, submissionSchema);
     if ("response" in parsed) return parsed.response;
     const input = parsed.data;

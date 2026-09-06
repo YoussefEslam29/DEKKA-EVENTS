@@ -5,6 +5,7 @@ import { site } from "@/lib/site";
 import { LogoBadge } from "@/components/ui/LogoBadge";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { InstagramIcon, FacebookIcon, TikTokIcon } from "@/components/BrandIcons";
+import { CookiePreferencesButton } from "@/components/CookiePreferencesButton";
 
 export async function Footer() {
   const { t, locale } = await getI18n();
@@ -25,9 +26,9 @@ export async function Footer() {
         </div>
 
         <div>
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-gold-accent">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-gold-accent">
             {t.footer.follow}
-          </h3>
+          </h2>
           <ul className="space-y-2">
             {socials.map(({ href, label, Icon }) => (
               <li key={label}>
@@ -46,9 +47,9 @@ export async function Footer() {
         </div>
 
         <div>
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-gold-accent">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-gold-accent">
             {t.about.visit}
-          </h3>
+          </h2>
           <p className="text-sm text-text-muted">
             {locale === "ar" ? site.addressAr : site.addressEn}
           </p>
@@ -64,8 +65,36 @@ export async function Footer() {
         </div>
       </div>
 
-      <div className="border-t border-border-dark px-4 py-4 text-center text-xs text-text-muted md:px-8">
-        © {new Date().getFullYear()} {t.footer.madeWith} — {t.footer.rights}
+      {/*
+        * Legal links live in the bottom bar rather than as a fourth column, so
+        * the three-column grid above keeps its layout untouched. `flex-wrap`
+        * with centred content needs no RTL handling of its own.
+        */}
+      <div className="border-t border-border-dark px-4 py-4 md:px-8">
+        <nav
+          aria-label={t.footer.legalNav}
+          className="mb-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs"
+        >
+          <Link href="/privacy" className="text-text-muted hover:text-gold-accent hover:underline">
+            {t.legal.privacy.title}
+          </Link>
+          <Link href="/terms" className="text-text-muted hover:text-gold-accent hover:underline">
+            {t.legal.terms.title}
+          </Link>
+          <Link href="/cookies" className="text-text-muted hover:text-gold-accent hover:underline">
+            {t.legal.cookies.title}
+          </Link>
+          <Link
+            href="/refund-policy"
+            className="text-text-muted hover:text-gold-accent hover:underline"
+          >
+            {t.legal.refundPolicy.title}
+          </Link>
+          <CookiePreferencesButton className="text-text-muted hover:text-gold-accent hover:underline" />
+        </nav>
+        <p className="text-center text-xs text-text-muted">
+          © {new Date().getFullYear()} {t.footer.madeWith} — {t.footer.rights}
+        </p>
       </div>
     </footer>
   );

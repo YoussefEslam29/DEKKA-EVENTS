@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cairo, Plus_Jakarta_Sans } from "next/font/google";
 import { getI18n, dictFor } from "@/lib/i18n";
+import { getCookieConsent } from "@/lib/cookie-consent";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 
@@ -31,7 +32,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const { locale, dir, t } = await getI18n();
+  const [{ locale, dir, t }, cookieConsent] = await Promise.all([
+    getI18n(),
+    getCookieConsent(),
+  ]);
 
   return (
     <html lang={locale} dir={dir} className={`${cairo.variable} ${jakarta.variable}`}>
@@ -44,6 +48,7 @@ export default async function RootLayout({
           dir={dir}
           t={t}
           dicts={{ en: dictFor("en"), ar: dictFor("ar") }}
+          cookieConsent={cookieConsent}
         >
           {children}
         </Providers>

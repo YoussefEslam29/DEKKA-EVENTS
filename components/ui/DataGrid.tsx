@@ -265,6 +265,10 @@ export function DataGrid<Row>({
                             // something to do on every move.
                             key={cellKey}
                             editor={column.editor}
+                            // The column header is the only name this control
+                            // has — visually it's implied by the column it sits
+                            // in, which conveys nothing to a screen reader.
+                            ariaLabel={column.header}
                             initial={column.editor.value(row)}
                             align={column.align}
                             onDone={(raw, move) => {
@@ -349,11 +353,13 @@ function CellEditor<Row>({
   editor,
   initial,
   align,
+  ariaLabel,
   onDone,
 }: {
   editor: GridEditor<Row>;
   initial: string;
   align?: "start" | "end";
+  ariaLabel: string;
   onDone: (raw: string | null, move: Move) => void;
 }) {
   const [value, setValue] = useState(initial);
@@ -367,6 +373,7 @@ function CellEditor<Row>({
 
   const shared = {
     autoFocus: true,
+    "aria-label": ariaLabel,
     value,
     onBlur: () => finish(value, "stay"),
     className: cn(

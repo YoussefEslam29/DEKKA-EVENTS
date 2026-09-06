@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
-import { Input, Textarea, Select, FormRow, Label } from "@/components/ui/Field";
+import { Input, Textarea, Select, FormRow } from "@/components/ui/Field";
 import { Card } from "@/components/ui/Surface";
 import { toLocalInputValue, fromLocalInputValue, CAFE_TIMEZONE } from "@/lib/format";
 import { EVENT_STATUSES, PAYMENT_METHODS, type PaymentMethod } from "@/lib/constants";
@@ -212,6 +212,9 @@ export function EventForm({ event }: Props) {
           </FormRow>
           <FormRow label={t.admin.fields.coverImage} htmlFor="coverImage" hint={t.common.optional}>
             <Input id="coverImage" dir="ltr" value={form.coverImage} onChange={set("coverImage")} />
+            {/* next.config.ts allows an image URL on any host by design, so
+                nothing technical checks who owns what gets pasted here. */}
+            <p className="dk-muted mt-1 text-xs">{t.admin.fields.coverImageRightsHint}</p>
           </FormRow>
         </div>
 
@@ -303,8 +306,12 @@ export function EventForm({ event }: Props) {
           </FormRow>
         </div>
 
-        <div className="mb-4">
-          <Label>{t.admin.fields.paymentMethods}</Label>
+        {/* A group of checkboxes needs a fieldset/legend — the bare <Label>
+            this replaced had no `htmlFor`, so it labelled nothing at all. */}
+        <fieldset className="mb-4">
+          <legend className="dk-label mb-1.5 block text-sm font-semibold">
+            {t.admin.fields.paymentMethods}
+          </legend>
           <div className="flex gap-4">
             {PAYMENT_METHODS.map((method) => (
               <label key={method} className="inline-flex items-center gap-2 text-sm font-semibold">
@@ -318,7 +325,7 @@ export function EventForm({ event }: Props) {
               </label>
             ))}
           </div>
-        </div>
+        </fieldset>
 
         {methods.includes("instapay") ? (
           <FormRow label={t.admin.fields.instapayNumber} htmlFor="instapayNumber">
@@ -341,6 +348,9 @@ export function EventForm({ event }: Props) {
             <Textarea id="termsEn" dir="ltr" rows={4} value={form.termsEn} onChange={set("termsEn")} />
           </FormRow>
         </div>
+        {/* Per-event terms ship straight to the public event page with no
+            review step, which is what makes this worth saying here. */}
+        <p className="dk-muted -mt-2 mb-4 text-xs">{t.admin.fields.termsRightsHint}</p>
         <FormRow label={t.admin.fields.status} htmlFor="status" className="max-w-xs">
           <Select id="status" value={form.status} onChange={set("status")}>
             {EVENT_STATUSES.map((status) => (

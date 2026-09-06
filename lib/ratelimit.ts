@@ -25,6 +25,10 @@ const BUCKETS = {
   "signin-email": { limit: 10, window: "10 m" },
   "signin-ip": { limit: 30, window: "10 m" },
   register: { limit: 5, window: "1 h" },
+  // Same profile as `register`: public, unauthenticated, writes a row holding
+  // someone's name, email and phone. It sends no mail, so it doesn't need the
+  // tighter forgot-password treatment.
+  "submission-ip": { limit: 5, window: "1 h" },
   // The tightest limits in the table. This is the only anonymous endpoint that sends
   // email, so it is simultaneously a way to spam a real person's inbox and a way to
   // run up the mail provider's bill. Keyed both ways: per-IP stops one machine

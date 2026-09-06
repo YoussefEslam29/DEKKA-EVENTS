@@ -17,6 +17,8 @@ import { GoogleIcon, FacebookIcon, AppleIcon } from "@/components/BrandIcons";
 import { PUSH_TOAST_FLAG_KEY } from "@/components/PushOptIn";
 import { DURATION, useMotionPresets, type PressableProps } from "@/lib/motion";
 import { providerNames } from "@/lib/providers";
+import { ConsentCheckbox } from "@/components/legal/ConsentCheckbox";
+import { ConsentText } from "@/components/legal/ConsentText";
 
 export type OAuthAvailability = {
   google: boolean;
@@ -102,6 +104,11 @@ export function AuthForm({ mode, next, providers, emailEnabled }: Props) {
   const [emailTakenProviders, setEmailTakenProviders] = useState<string[] | null>(
     null
   );
+  // Signup only. Enforced here in the form rather than in `registerSchema`,
+  // because the native mobile app posts to the same /api/register endpoint and
+  // cannot be updated from this repo — see the note on `submissionSchema` in
+  // lib/validation.ts for when to tighten this to the server.
+  const [consent, setConsent] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -130,6 +137,10 @@ export function AuthForm({ mode, next, providers, emailEnabled }: Props) {
 
     try {
       if (isSignup) {
+        if (!consent) {
+          setError(t.legal.consent.required);
+          return;
+        }
         if (form.password.length < 8) {
           setError(t.auth.passwordShort);
           return;
@@ -353,6 +364,8 @@ export function AuthForm({ mode, next, providers, emailEnabled }: Props) {
           </div>
         ) : null}
 
+        {isSignup ? <ConsentCheckbox checked={consent} onChange={setConsent} /> : null}
+
         {error ? (
           <div
             role="alert"
@@ -374,7 +387,13 @@ export function AuthForm({ mode, next, providers, emailEnabled }: Props) {
         ) : null}
 
         {/* 5. Primary action — gold gradient, full width, bilingual + arrow. */}
-        <Button type="submit" variant="gold" size="lg" className="w-full" disabled={busy}>
+        <Button
+          type="submit"
+          variant="gold"
+          size="lg"
+          className="w-full"
+          disabled={busy || (isSignup && !consent)}
+        >
           {busy ? (
             t.common.loading
           ) : (
@@ -387,6 +406,15 @@ export function AuthForm({ mode, next, providers, emailEnabled }: Props) {
           )}
         </Button>
       </form>
+
+      {/* Sign-in has no checkbox — consent was given at signup — but the social
+          buttons below bypass this form entirely, so the reminder sits here
+          where it covers both paths. */}
+      {!isSignup ? (
+        <p className="mt-4 text-center text-xs leading-relaxed text-text-muted lg:text-start">
+          <ConsentText prefix={t.legal.consent.loginNotePrefix} />
+        </p>
+      ) : null}
 
       {socials.length > 0 ? (
         <>

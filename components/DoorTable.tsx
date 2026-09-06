@@ -336,6 +336,7 @@ export function DoorTable({
             <Search className="pointer-events-none absolute inset-y-0 start-2 my-auto h-4 w-4 text-ink-faint" />
             <Input
               className="ps-8"
+              aria-label={t.staff.searchReservations}
               placeholder={t.staff.searchReservations}
               value={query}
               onChange={(e) => setQuery(e.target.value)}

@@ -31,6 +31,7 @@ const EXPECTED: Bucket[] = [
   "signin-email",
   "signin-ip",
   "register",
+  "submission-ip",
   "forgot-password-ip",
   "forgot-password-email",
   "reserve",

@@ -14,6 +14,7 @@ import { Card, Badge } from "@/components/ui/Surface";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { ReserveButton } from "@/components/ReserveButton";
 import { site } from "@/lib/site";
+import { MapEmbed } from "@/components/MapEmbed";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +113,13 @@ export default async function EventDetailPage({
         {event.coverImage ? (
           <Image
             src={event.coverImage}
-            alt=""
+            /*
+             * A poster carries its own title and date as pixels and renders
+             * with the text overlay suppressed (§2c below), so alt="" would
+             * drop that information entirely. A photo hero is decorative —
+             * the <h1> beside it already says the same thing.
+             */
+            alt={event.isPoster ? event.titleEn || event.titleAr : ""}
             fill
             sizes="100vw"
             className="object-cover"
@@ -155,14 +162,18 @@ export default async function EventDetailPage({
 
             <dl className="grid gap-4 sm:grid-cols-2">
               {facts.map(({ Icon, label, value }) => (
-                <div key={label} className="flex items-start gap-3">
-                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gold-accent" />
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-                      {label}
-                    </dt>
-                    <dd className="font-semibold">{value}</dd>
-                  </div>
+                <div
+                  key={label}
+                  className="grid grid-cols-[auto_1fr] items-start gap-x-3"
+                >
+                  <Icon
+                    aria-hidden
+                    className="row-span-2 mt-0.5 h-5 w-5 shrink-0 text-gold-accent"
+                  />
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    {label}
+                  </dt>
+                  <dd className="font-semibold">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -197,8 +208,11 @@ export default async function EventDetailPage({
             ) : null}
           </div>
 
-          {/* Reserve panel sticks alongside the details on desktop. */}
-          <aside className="lg:sticky lg:top-20 lg:self-start">
+          {/* Reserve panel sticks alongside the details on desktop. A plain
+              div, not an <aside>: reserving is the primary action of this page,
+              so a "complementary" landmark both misdescribed it and nested a
+              top-level landmark inside the article. */}
+          <div className="lg:sticky lg:top-20 lg:self-start">
             <Card className="p-4">
               <ReserveButton
                 eventId={event.id}
@@ -212,12 +226,11 @@ export default async function EventDetailPage({
 
               {isCafeLocation ? (
                 <div className="mt-4 overflow-hidden rounded-xl border border-border-dark">
-                  <iframe
+                  <MapEmbed
                     src={site.mapsEmbed}
                     title="Dekka on Google Maps"
                     className="h-48 w-full"
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
+                    directionsHref={mapUrl}
                   />
                 </div>
               ) : (
@@ -238,7 +251,7 @@ export default async function EventDetailPage({
                 </p>
               ) : null}
             </Card>
-          </aside>
+          </div>
         </div>
       </div>
     </article>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -55,7 +55,7 @@ export function AdminOverviewTabs({
   submissions,
   reservationCounts,
 }: Props) {
-  const { t, locale } = useI18n();
+  const { t, locale, dir } = useI18n();
   const { tabIndicator, pressable, staggerContainer, staggerItem } = useMotionPresets();
   const router = useRouter();
   const pathname = usePathname();
@@ -94,6 +94,34 @@ export function AdminOverviewTabs({
       ? row.eventTitleAr || row.eventTitleEn
       : row.eventTitleEn || row.eventTitleAr;
 
+  /*
+   * Declaring role="tab" promises the APG keyboard contract: one tab stop for
+   * the whole strip, and arrows to move between tabs. Without this every tile
+   * was individually Tab-focusable while the arrow keys did nothing — which is
+   * worse than plain buttons, because a screen reader announces the arrow-key
+   * affordance either way.
+   */
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const onTabKeyDown = (event: React.KeyboardEvent) => {
+    const current = TABS.indexOf(active);
+    let next = -1;
+
+    if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = TABS.length - 1;
+    else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      // Right means "next" in LTR and "previous" in RTL — the strip follows
+      // the reading direction, as the tabs pattern requires for bidi text.
+      const forward = (event.key === "ArrowRight") !== (dir === "rtl");
+      next = (current + (forward ? 1 : -1) + TABS.length) % TABS.length;
+    }
+
+    if (next < 0) return;
+    event.preventDefault();
+    select(TABS[next]);
+    tabRefs.current[next]?.focus();
+  };
+
   return (
     <div>
       {/* The tiles double as the tab strip: same at-a-glance counts as before,
@@ -101,12 +129,13 @@ export function AdminOverviewTabs({
       <motion.div
         role="tablist"
         aria-label={t.admin.title}
+        onKeyDown={onTabKeyDown}
         className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
         variants={staggerContainer}
         initial="hidden"
         animate="show"
       >
-        {TABS.map((tab) => {
+        {TABS.map((tab, index) => {
           const selected = tab === active;
           return (
             <motion.button
@@ -116,6 +145,10 @@ export function AdminOverviewTabs({
               id={`overview-tab-${tab}`}
               aria-selected={selected}
               aria-controls="overview-panel"
+              tabIndex={selected ? 0 : -1}
+              ref={(el) => {
+                tabRefs.current[index] = el;
+              }}
               onClick={() => select(tab)}
               variants={staggerItem}
               {...pressable}

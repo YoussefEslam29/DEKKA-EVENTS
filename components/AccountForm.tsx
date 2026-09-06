@@ -264,7 +264,13 @@ export function AccountForm({ account }: Props) {
         <div className="mb-6 flex items-center gap-4">
           <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border border-border-dark bg-coffee">
             {image ? (
-              <Image src={image} alt="" fill sizes="80px" className="object-cover" />
+              <Image
+                src={image}
+                alt={t.account.profilePhotoAlt}
+                fill
+                sizes="80px"
+                className="object-cover"
+              />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xl font-bold text-gold-accent">
                 {initials(account.name)}

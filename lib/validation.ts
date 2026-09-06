@@ -277,6 +277,21 @@ export const updateCheckInSchema = z
   .strict();
 
 export const submissionSchema = z.object({
+  /**
+   * The agree-to-the-terms checkbox on `SubmitShowForm`, enforced here too —
+   * the client check is a UX guard, never the security boundary, same as every
+   * other schema in this file.
+   *
+   * Deliberately NOT mirrored onto `registerSchema` above: the native mobile
+   * app posts to `/api/register` directly (PLAN/DEKKA_MOBILE_APP.MD §3), so a
+   * hard-required field there would start rejecting its sign-ups the day this
+   * shipped, with no way to update that client from this repo. Signup consent
+   * is therefore enforced in the web form only until the mobile client sends
+   * this flag too — at which point the same line belongs on `registerSchema`.
+   */
+  consent: z.literal(true, {
+    message: "Consent to the Terms & Conditions and Privacy Policy is required.",
+  }),
   bandName: trimmed(160).min(1),
   genre: optionalText(120),
   contactName: trimmed(120).min(1),

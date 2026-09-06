@@ -24,15 +24,13 @@ export default async function MyEventsPage() {
     );
   const past = rows.filter((r) => r.event.isPast);
 
-  const section = (
-    title: string,
-    items: typeof rows,
-    dim: boolean
-  ) =>
+  // No `dim` flag any more: fading the past section dropped its already-muted
+  // text to ~3.5:1. The section heading is what separates past from upcoming.
+  const section = (title: string, items: typeof rows) =>
     items.length === 0 ? null : (
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-bold text-text-muted">{title}</h2>
-        <div className={`grid gap-3 ${dim ? "opacity-70" : ""}`}>
+        <div className="grid gap-3">
           {items.map(({ reservation, event }) => (
             <Card key={reservation.id} className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -83,8 +81,8 @@ export default async function MyEventsPage() {
         </EmptyState>
       ) : (
         <>
-          {section(t.myEvents.upcoming, upcoming, false)}
-          {section(t.myEvents.past, past, true)}
+          {section(t.myEvents.upcoming, upcoming)}
+          {section(t.myEvents.past, past)}
         </>
       )}
     </div>

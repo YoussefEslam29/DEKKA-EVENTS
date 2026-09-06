@@ -122,6 +122,7 @@ export function SubmissionRow({ submission }: { submission: SubmissionDTO }) {
               rows={2}
               value={note}
               onChange={(e) => setNote(e.target.value)}
+              aria-label={t.admin.adminNote}
               placeholder={t.admin.adminNote}
             />
             <div className="mt-2 flex gap-2">

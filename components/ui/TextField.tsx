@@ -129,7 +129,10 @@ export function PasswordField({
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? t.authUi.hidePassword : t.authUi.showPassword}
           aria-pressed={visible}
-          className="absolute inset-y-0 end-0 flex w-11 items-center justify-center rounded-e-xl text-text-muted transition-colors hover:text-gold-accent focus-visible:outline-none focus-visible:text-gold-accent"
+          // A ring, not just a colour shift — every other control in the app
+          // uses this exact treatment (see Button.tsx), and a hue change alone
+          // is a weak focus indicator.
+          className="absolute inset-y-0 end-0 flex w-11 items-center justify-center rounded-e-xl text-text-muted transition-colors hover:text-gold-accent focus-visible:text-gold-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-black"
         >
           {visible ? (
             <EyeOff className="h-4.5 w-4.5" />

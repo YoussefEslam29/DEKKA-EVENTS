@@ -40,7 +40,7 @@ const COLORS = {
   goldDeep: "#9a6b33",
   ink: "#241611",
   inkSoft: "#4a342a",
-  inkFaint: "#8a7466",
+  inkFaint: "#6b5245",
   line: "#e2d6c2",
   paper: "#fffbf3",
 } as const;

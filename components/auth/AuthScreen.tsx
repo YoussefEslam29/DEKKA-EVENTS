@@ -104,13 +104,18 @@ export async function AuthScreen({
 
         <div className="absolute inset-x-0 bottom-0 p-10 xl:p-14">
           <PatternAccent className="mb-6 max-w-[140px] text-gold-accent/40" />
-          <h2
+          {/* A <p>, not a heading: this decorative panel renders before the
+              form's real <h1> in DOM order on desktop, so as an <h2> it put the
+              document outline out of sequence. Still read aloud — the sr-only
+              subline below shows the copy is meant for everyone — just not
+              announced as a heading. */}
+          <p
             lang="en"
             dir="ltr"
             className="max-w-md text-[34px] font-semibold leading-tight text-cream/90"
           >
             {headlineEn}
-          </h2>
+          </p>
           <p className="mt-3 max-w-md text-base font-light text-cream/60">
             <span lang="ar" dir="rtl" className="font-arabic">
               {headlineAr}
