@@ -24,8 +24,8 @@ which that licence does not speak for.
 
 | File | Used by | Provenance |
 |---|---|---|
-| `public/brand/dekka-logo.png` | `components/ui/LogoBadge.tsx` (navbar, footer, auth screens) | Dekka's own logo, generated from `IMGS/DEKKA LOGO.jpg` by `scripts/prepare-brand-assets.ts`. **{{CONFIRM PROVENANCE}}** — see below. |
-| `public/brand/dekka-logo-square.png` | Favicon (`app/layout.tsx`) and the push-notification icon (`public/sw.js`) | Same source as above. **{{CONFIRM PROVENANCE}}** |
+| `public/brand/dekka-logo.png` | `components/ui/LogoBadge.tsx` (navbar, footer, auth screens) | Commissioned work — the Dekka logo, made for Dekka by a designer. Generated from `IMGS/DEKKA LOGO.jpg` by `scripts/prepare-brand-assets.ts`. See the note on commissioned artwork below. |
+| `public/brand/dekka-logo-square.png` | Favicon (`app/layout.tsx`) and the push-notification icon (`public/sw.js`) | Same commissioned logo as above. |
 | `public/brand/dekka-banner.jpg` | Currently unreferenced — kept for a future share/OG image. | From `IMGS/DEKKA BANNER.jpg`. **{{CONFIRM PROVENANCE}}** |
 
 **Source material** — `IMGS/` is design source, not served by the app, but it is committed to
@@ -34,7 +34,7 @@ is shared publicly:
 
 | File | Provenance |
 |---|---|
-| `IMGS/DEKKA LOGO.jpg`, `IMGS/dekka_logo_dark_transparent.png`, `IMGS/dekka_logo_white_transparent.png` | **{{CONFIRM PROVENANCE}}** — presumed Dekka's own mark. Confirm who drew it and that Dekka owns (or is licensed for) the result, especially if a designer or an AI tool made it. |
+| `IMGS/DEKKA LOGO.jpg`, `IMGS/dekka_logo_dark_transparent.png`, `IMGS/dekka_logo_white_transparent.png` | Commissioned work — drawn for Dekka by a designer. See the note on commissioned artwork below. |
 | `IMGS/DEKKA BANNER.jpg`, `IMGS/Main@1x.png` | **{{CONFIRM PROVENANCE}}** |
 | `IMGS/Coffee icon illustration.jpg`, `IMGS/Motion graphics of a coffee cup.jpg` | **{{CONFIRM PROVENANCE}}** — generic filenames with no attribution anywhere. If either came from a stock site, record the licence and, where required, the attribution line here. |
 | `IMGS/Karaoke Night Poster.pdf`, `IMGS/drawing contestjpg.jpg` | **{{CONFIRM PROVENANCE}}** — event artwork; confirm who made it and whether any photo or typeface inside it carries its own terms. |
@@ -50,6 +50,18 @@ it, so responsibility for rights sits with whoever types it in:
 - **Pasted external cover-image URLs** — `next.config.ts` deliberately allows an image URL on
   any HTTPS host, so a poster can be linked rather than uploaded. `components/EventForm.tsx`
   shows a reminder next to that field for exactly this reason.
+
+## A note on commissioned artwork
+
+The logo was made for Dekka by a designer. Worth knowing: commissioning a design and
+*owning* it are not automatically the same thing — in most jurisdictions, including Egypt,
+copyright stays with the person who drew it unless the agreement says otherwise. In practice
+a designer who delivered a logo for a cafe to use plainly intended the cafe to use it, so
+day-to-day this is fine.
+
+It only becomes a live question if Dekka ever wants to register the logo as a trademark, sell
+the business, or stop someone else from using the mark. If any of that is on the cards, ask
+the designer for one line in writing assigning the rights to Dekka, and record it here.
 
 ## Fixing a `{{CONFIRM PROVENANCE}}` row
 
