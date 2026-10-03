@@ -1,6 +1,15 @@
 @import "tailwindcss";
 
 /*
+ * `standalone:` — styles for the installed app only (PLAN/DEKKA_PWA_APP.md §2).
+ * The attribute is set in <head> by `EARLY_APP_SCRIPT` (lib/pwa.ts) before the
+ * body paints, from `display-mode: standalone` or iOS's `navigator.standalone`.
+ * A browser visitor never gets it, so nothing behind this variant can change
+ * the website.
+ */
+@custom-variant standalone (&:where([data-app="standalone"], [data-app="standalone"] *));
+
+/*
  * Dekka design tokens.
  *
  * Two surfaces, one palette. The public app is the "coffeehouse at night" dark
@@ -71,6 +80,15 @@ body {
   color: var(--color-on-dark);
   font-family: var(--font-latin);
   -webkit-font-smoothing: antialiased;
+  /*
+   * `viewport-fit=cover` (app/layout.tsx) lets the page run under a landscape
+   * iPhone's notch, in Safari as well as in the installed app. These keep
+   * content out of it. Physical left/right on purpose: the notch is a piece of
+   * hardware on one physical side, not a reading direction. Zero everywhere
+   * else, so nothing moves on a device without insets.
+   */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* Arabic copy gets Cairo; the Latin face stays on the geometric sans so a
@@ -337,6 +355,48 @@ html[dir="rtl"] body {
   }
   to {
     opacity: 1;
+  }
+}
+
+/*
+ * Skeleton shimmer (`components/ui/PageSkeleton.tsx`): a faint gold sheen
+ * sweeping across a tatreez-textured bone, in reading direction. Transform
+ * only, per lib/motion.ts. Under reduced motion the sheen is dropped and the
+ * bone is simply the static texture.
+ */
+.dk-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.dk-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-gold-accent) 9%, transparent),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: dk-shimmer 1.4s ease-in-out infinite;
+}
+
+[dir="rtl"] .dk-shimmer::after {
+  animation-direction: reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-shimmer::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@keyframes dk-shimmer {
+  to {
+    transform: translateX(100%);
   }
 }
 

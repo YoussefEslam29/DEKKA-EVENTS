@@ -421,6 +421,33 @@ Cairo, regardless of where the admin physically is.
   variable font, embedded into the report HTML as a data URI at render time. If
   the app's Arabic face ever changes, change this too (it's independent of
   `next/font`'s Cairo in `app/layout.tsx`).
+- **The installable app has never been installed on a real phone.** Everything in the
+  PWA phase-1 Feature Log entry was verified in headless Chrome, including an emulated
+  iPhone user agent and an emulated `navigator.standalone`. That is not Safari. Before
+  telling the owner it works, add it to the home screen on a real iPhone (Safari) and a
+  real Android (Chrome), launch it, switch tabs, and turn on airplane mode to see
+  `/offline`. iOS push additionally needs iOS 16.4+ and the app installed, on top of the
+  existing "push never verified on a device" gap below.
+- **`public/sw.js` has a hand-bumped `VERSION`.** Bump it when the *caching rules*
+  change, so the old `dekka-*` caches are dropped on activate. A normal deploy needs no
+  bump, because cached assets are content-hashed. Forgetting it after a rules change
+  leaves entries written under the old rules in place until their ceiling evicts them.
+- **The offline page is precached once, at worker install.** It shows the locale the
+  visitor had when the worker installed, and it's refreshed only when `sw.js` itself
+  changes. That's deliberate: it carries no user data, and refetching it on every visit
+  would cost every visitor bandwidth for a page almost nobody sees.
+- **Only Chromium gets a one-tap Install button.** `beforeinstallprompt` doesn't exist in
+  Safari, Firefox or (reliably) Samsung Internet. Those visitors get the written steps on
+  `/get-app`, and the strip under the header shows only for iPhone and Chromium.
+- **No iOS launch images** (`apple-touch-startup-image`). iOS shows a plain screen in
+  the manifest's `background_color` (`ink-black`) while the app boots. It needs one
+  image per device size, so it was left out; add them if the blank moment ever bothers
+  anyone.
+- **`next start` on Windows can't reach Atlas.** The DNS workaround in `lib/db.ts` is
+  guarded to non-production, so any database-backed page errors under a local
+  production build (`querySrv ECONNREFUSED`). Verify production-only behaviour, such as
+  the service worker, on pages that don't query the database (`/about`, `/menu`,
+  `/get-app`), or on a real deploy.
 - **`stripDefaults()` in `lib/validation.ts` touches Zod internals**
   (`instanceof z.ZodDefault`, `.removeDefault()`). It's the structural guard that
   stops `updateEventSchema` re-introducing the default-leak bug described in §8,
@@ -433,6 +460,123 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Installable app, phase 1 of 4: PWA foundation (`PLAN/DEKKA_PWA_APP.md` §2, 2026-10-03)
+
+The site is now installable from the browser on iPhone and Android, and when launched
+from the home screen it behaves like an app: bottom tab bar, no website footer, an
+offline page instead of the browser's error. `PLAN/DEKKA_PWA_APP.md` supersedes
+`PLAN/DEKKA_MOBILE_APP.MD` (native Kotlin) for v1 — "download it from the website, on
+iPhone too" is only possible as a PWA. A browser visitor sees the site exactly as
+before, plus two "Get the app" entry points.
+
+- **How "installed" is detected, and why it's not a component.** `EARLY_APP_SCRIPT`
+  (`lib/pwa.ts`) is an inline `<head>` script in `app/layout.tsx` that sets
+  `data-app="standalone"` on `<html>` from `display-mode: standalone` or iOS's
+  `navigator.standalone`, *before the body paints*. `globals.css` defines a Tailwind
+  `standalone:` variant on that attribute, and every installed-only style uses it. A
+  React detector (what the spec's file list named) would run after hydration, so the
+  website navbar/footer would flash on every launch. `<html>` carries
+  `suppressHydrationWarning` for that one attribute.
+- **The same script parks `beforeinstallprompt`** on `window`, because Chromium can fire
+  it before hydration and an unheard event is gone. `components/InstallPrompt.tsx` reads
+  it (and the platform, and a remembered dismissal) through `useSyncExternalStore` with a
+  "show nothing" server snapshot, so the server never renders a banner the client then
+  removes.
+- **Installed shell.** `components/layout/AppTabBar.tsx` (Home / Menu / My Events /
+  Account) is always in the markup and shown only by `standalone:`. It reuses
+  `isActive()` from `NavLinks.tsx`, so the two navs cannot disagree. It's a grid, so
+  Arabic reverses the order by itself (verified: Home is rightmost in Arabic, leftmost in
+  English). The `(site)` layout pads its bottom by the bar's height plus
+  `safe-area-inset-bottom`; the cookie banner and the push toast lift above the bar.
+- **Service worker** (`public/sw.js`, push listeners untouched). Now registered for every
+  visitor by `components/ServiceWorkerRegistrar.tsx` after `load`; `PushOptIn` goes
+  through the same `registerServiceWorker()`. The rule it's built around: **nothing user-
+  or role-specific is ever cached.** Pages are never cached — a failed navigation gets
+  the precached `/offline` page and nothing else. `/_next/static` and images are
+  cache-first with entry ceilings; `GET /api/menu` (phase 2) is stale-while-revalidate;
+  every other `/api` and everything under `/admin` and `/staff` is never intercepted.
+  `/offline` is precached *together with* the `/_next/static` files its HTML references,
+  in one cache, so it can't be left without its stylesheet. Navigation preload is on, so
+  having a worker never slows a navigation. `next dev` registers `/sw.js?cache=off`
+  instead: Turbopack's dev chunks aren't content-hashed, and dev and `next start` share
+  `localhost:3000`, so a production worker left over from a local build has to be
+  actively replaced.
+- **`next.config.ts`** serves `/sw.js` `no-cache` with the CSP from Next's PWA guide.
+  `check:config` now also asserts that header survives the Sentry wrapper; a mutation
+  (header changed to `max-age=3600`) made both configs fail, as intended.
+- **Icons.** `npm run brand:assets` now also writes `public/icons/` (192, 512, maskable
+  512, 180 apple-touch), all full-bleed cream plates — iOS paints a transparent touch icon
+  black, and the logo is dark ink. Re-running regenerated every existing brand file
+  byte-identically.
+- **Skeletons.** In the installed app, navigations after the cold launch show
+  `components/ui/PageSkeleton.tsx` (tatreez-textured bones with a sheen, `.dk-shimmer`)
+  instead of the compact coffee cup; the browser keeps the cup. Picked in CSS by
+  `standalone:` inside `CoffeeLoader`'s compact branch, so there's no detection to flash on.
+
+**New files:** `app/manifest.ts`, `app/offline/page.tsx`, `app/(site)/get-app/page.tsx`,
+`app/(site)/menu/page.tsx` (placeholder until phase 2), `lib/pwa.ts`,
+`components/ServiceWorkerRegistrar.tsx`, `components/InstallPrompt.tsx`,
+`components/InstallPanel.tsx`, `components/ReloadButton.tsx`,
+`components/layout/AppTabBar.tsx`, `components/ui/PageSkeleton.tsx`, `public/icons/*`.
+New i18n namespaces `t.app.*` and `t.cafeMenu.*`. **No new dependencies, no new env vars,
+no schema changes.**
+
+**Deviations from the spec, and why:**
+
+- **The navbar stays as the installed app's top bar** instead of being replaced by a new
+  slim bar. At phone width it already *is* logo + language + menu, and its menu is what
+  keeps Submit-a-Show, About, the door and the admin reachable without a fifth tab.
+- **The footer's column block is hidden, but its legal bar stays.** "Manage cookies" has
+  to be reachable from every page, app included.
+- **No `AppShell` component.** The shell is the `standalone:` variant applied to the
+  existing layout.
+- **Pages are network-only with the offline page as the fallback**, not
+  network-first-with-cache. Caching page HTML would break the rule above.
+- **New `/get-app` page.** The spec asked for "Get the app" links without naming where
+  they go. It's also the natural target for the QR poster in phase 4.
+- **Install strip sits under the header, not as a floating card.** The cookie banner and
+  push toast already own the bottom corner, and three stacked cards cover a small phone.
+- **`appleWebApp.statusBarStyle: "black"`**, not `black-translucent`. The bar then sits
+  above the page rather than over it, so no screen (the auth split screen included) has
+  to pad for it.
+- **One pre-existing bug fixed on the way:** below the nav breakpoint, `Navbar`'s
+  controls slid into the middle grid track because the hidden link pill dropped out of
+  the grid. Now pinned with `col-start-3`. This changes the *browser* header on phones
+  too — that is the fix, not a side effect.
+
+**Verification.** typecheck, lint, build clean; all six `check:*` scripts pass. A
+headless-Chrome script against `next start` ran 54 checks, all passing:
+- **Manifest, icons, head tags and headers:** the manifest fields, every icon served as
+  PNG, the `/sw.js` headers, and the manifest link, apple-touch icon, `viewport-fit`,
+  theme colour and early script in the page head.
+- **Service worker:** the worker controls the page after a reload.
+- **Offline fallback:** a navigation to `/about` with the network off shows the offline
+  page at the original URL, fully styled from cache.
+- **Cache contents:** after browsing, every cache holds only static files, images and
+  `/offline` — no page HTML, no private API, nothing from the back-office.
+- **Browser mode on iPhone:** no `data-app`, no tab bar, footer intact. The install strip
+  shows the Share hint, stays dismissed after a reload, and `/get-app` lists iPhone steps
+  first.
+- **Installed mode, in Arabic and English:** the attribute is set before hydration, the
+  tab bar shows, the footer columns hide while the legal bar stays, and there's no
+  install strip. Tab order mirrors per language, the current tab is correct, tabs are
+  64px tall, and the last line of the page clears the bar.
+- **Desktop:** neither the strip nor the tab bar appears.
+- **Reduced motion:** the shimmer stops.
+- **Console:** no hydration or console errors. The only ones were next-auth's session
+  fetch while the network was off.
+
+Screenshots in both languages were checked by eye.
+
+**Not verified, stated plainly:**
+- Installing on a **real iPhone** (Safari) or a **real Android** phone (Chrome).
+- Push arriving in the installed iOS app. It needs iOS 16.4+ and was never verified on
+  any device (§7).
+- The Home tab's active state on `/` itself. The home page queries MongoDB, and under
+  `next start` on Windows `lib/db.ts`'s DNS workaround is off by design, so DB-backed
+  pages error locally in production mode. The logic is `NavLinks`' `isActive()`, which
+  the desktop nav already relies on.
 
 ### Fix: PDF report's Chromium binaries missing from the Vercel deploy (2026-09-05)
 
@@ -1055,6 +1199,9 @@ is no staging environment and no test suite, so the checklists below are the gat
       dependencies, not just report code
 - [ ] If email is live: request a password reset, confirm the mail arrives, the
       link works, and it's rejected after 30 minutes or on a second use
+- [ ] If `public/sw.js`, `app/manifest.ts` or the `standalone:` styles changed: on a
+      phone, open the site and confirm the installed app still launches, the tab bar
+      shows, and airplane mode lands on `/offline` (`PLAN/DEKKA_PWA_APP.md` §2)
 
 ### Rolling back
 

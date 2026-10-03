@@ -8,6 +8,9 @@
  * how it merges that array would break PDF generation in production only, with a build
  * that passes. This asserts the invariant instead of trusting it.
  *
+ * It also asserts the `/sw.js` no-cache header (PLAN/DEKKA_PWA_APP.md §2) survives the
+ * wrapper, for the same reason: a stale-cached service worker fails silently.
+ *
  * Note what it does *not* assert: that the list is unchanged. Sentry legitimately
  * *appends* the packages it instruments (mongoose, mongodb, redis, ...). Ours surviving
  * is the requirement; exclusivity is not.
@@ -51,6 +54,23 @@ async function main() {
     if (!Array.isArray(patterns) || patterns.length < 2) {
       failures.push(`${label}: images.remotePatterns did not survive`);
     }
+
+    // The service worker must be served uncached (PLAN/DEKKA_PWA_APP.md §2):
+    // losing this would let an old worker's caching rules outlive a deploy.
+    const headersFn = config.headers;
+    if (typeof headersFn !== "function") {
+      failures.push(`${label}: headers() is missing`);
+    } else {
+      const rules = (await headersFn()) as {
+        source: string;
+        headers: { key: string; value: string }[];
+      }[];
+      const sw = rules.find((r) => r.source === "/sw.js");
+      const cacheControl = sw?.headers.find((h) => h.key.toLowerCase() === "cache-control");
+      if (!cacheControl || !/no-cache/.test(cacheControl.value)) {
+        failures.push(`${label}: /sw.js lost its no-cache header`);
+      }
+    }
   }
 
   // The unwrapped config must be exactly what this repo had before Sentry existed.
@@ -67,7 +87,8 @@ async function main() {
   console.log(
     `next.config: OK — ${REQUIRED.join(", ")} present in both configs ` +
       `(Sentry appends ${wrappedPkgs.length - REQUIRED.length} more); ` +
-      `remotePatterns intact; unwrapped config untouched without SENTRY_ORG/PROJECT.`
+      `remotePatterns intact; /sw.js served no-cache; ` +
+      `unwrapped config untouched without SENTRY_ORG/PROJECT.`
   );
 }
 

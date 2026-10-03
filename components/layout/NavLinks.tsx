@@ -41,8 +41,11 @@ const MotionLink = motion.create<ComponentProps<typeof Link>, "a">(Link);
  * "/" is the events hub and would prefix-match every route, so it matches
  * exactly — plus `/events/[id]`, the detail page that has no nav entry of its
  * own and belongs to the hub.
+ *
+ * Exported for the installed app's bottom tab bar (`AppTabBar`), so the two
+ * navs can never disagree about which section you're in.
  */
-function isActive(pathname: string, href: string) {
+export function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/" || pathname.startsWith("/events");
   return pathname === href || pathname.startsWith(`${href}/`);
 }

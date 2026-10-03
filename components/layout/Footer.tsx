@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin } from "lucide-react";
+import { MapPin, Smartphone } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { site } from "@/lib/site";
 import { LogoBadge } from "@/components/ui/LogoBadge";
@@ -18,8 +18,10 @@ export async function Footer() {
 
   return (
     <footer className="border-t border-border-dark bg-ink-black">
-      <PatternAccent />
-      <div className="mx-auto grid max-w-[1180px] gap-8 px-4 py-12 md:grid-cols-3 md:px-8">
+      {/* Installed app: the tab bar replaces this whole block, but the legal
+          bar below stays — "Manage cookies" has to be reachable everywhere. */}
+      <PatternAccent className="standalone:hidden" />
+      <div className="mx-auto grid max-w-[1180px] gap-8 px-4 py-12 md:grid-cols-3 md:px-8 standalone:hidden">
         <div>
           <LogoBadge size="md" tagline />
           <p className="mt-4 text-sm text-text-muted">{t.brand.tagline}</p>
@@ -61,6 +63,13 @@ export async function Footer() {
             className="mt-4 inline-block text-sm font-bold text-gold-accent hover:underline"
           >
             {t.nav.submitShow}
+          </Link>
+          <Link
+            href="/get-app"
+            className="mt-2 flex items-center gap-2 text-sm font-bold text-gold-accent hover:underline"
+          >
+            <Smartphone className="h-4 w-4" aria-hidden />
+            {t.app.install.getApp}
           </Link>
         </div>
       </div>

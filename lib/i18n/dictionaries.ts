@@ -426,6 +426,50 @@ export const ar = {
     error: "مقدرناش نفعّل الإشعارات. جرّب تاني.",
     dismiss: "إغلاق",
   },
+  /** The installable app (`PLAN/DEKKA_PWA_APP.md` §2): bottom tabs, the
+   * install prompt, the get-the-app page, and the offline fallback. */
+  app: {
+    tabsLabel: "التنقل الرئيسي",
+    tabs: {
+      home: "الرئيسية",
+      menu: "المنيو",
+      myEvents: "حفلاتي",
+      account: "حسابي",
+    },
+    install: {
+      title: "خلّي دكة على موبايلك",
+      body: "تفتحها بلمسة من الشاشة الرئيسية، أسرع من المتصفح.",
+      button: "نزّلها",
+      iosHint: "دوس على زرار المشاركة، وبعدين «إضافة إلى الشاشة الرئيسية».",
+      dismiss: "مش دلوقتي",
+      getApp: "نزّل تطبيق دكة",
+    },
+    getApp: {
+      title: "دكة على موبايلك",
+      subtitle: "من غير متجر تطبيقات — بتتنزّل من هنا في ثواني، على الآيفون والأندرويد.",
+      installed: "دكة متنزّلة على الجهاز ده خلاص. افتحها من الشاشة الرئيسية.",
+      iphoneTitle: "على الآيفون",
+      iphoneStep1: "افتح الموقع من Safari.",
+      iphoneStep2: "دوس على زرار المشاركة (المربع اللي طالع منه سهم).",
+      iphoneStep3: "اختار «إضافة إلى الشاشة الرئيسية»، وبعدين «إضافة».",
+      androidTitle: "على الأندرويد",
+      androidStep1: "افتح الموقع من Chrome.",
+      androidStep2: "دوس على «نزّلها» فوق — أو من قائمة Chrome (النقط التلاتة) اختار «تثبيت التطبيق».",
+      androidStep3: "هتلاقي دكة على الشاشة الرئيسية جنب باقي تطبيقاتك.",
+    },
+    offline: {
+      title: "مفيش نت دلوقتي",
+      body: "أول ما النت يرجع، كمّل من مكان ما وقفت.",
+      home: "الرئيسية",
+    },
+  },
+  /** The cafe menu (`PLAN/DEKKA_PWA_APP.md` §3). Its own namespace on purpose:
+   * `nav.menu` already means the hamburger nav menu, not food. */
+  cafeMenu: {
+    title: "المنيو",
+    comingSoonTitle: "المنيو جاي قريب",
+    comingSoonBody: "بنجهّز المنيو عشان تشوفه من هنا — القهوة، الحلو، وكل حاجة على البار.",
+  },
   /**
    * Legal pages (`/privacy`, `/terms`, `/cookies`, `/refund-policy`) plus the
    * shared consent-checkbox/cookie-banner/map-placeholder copy. Written in
@@ -901,6 +945,49 @@ export const en: DeepMutable<Dict> = {
       "Notifications are blocked in your browser settings — you'll need to turn them on manually.",
     error: "Couldn't turn on notifications. Try again.",
     dismiss: "Dismiss",
+  },
+  app: {
+    tabsLabel: "Main navigation",
+    tabs: {
+      home: "Home",
+      menu: "Menu",
+      myEvents: "My Events",
+      account: "Account",
+    },
+    install: {
+      title: "Keep Dekka on your phone",
+      body: "One tap from your home screen — quicker than the browser.",
+      button: "Install",
+      iosHint: "Tap Share, then “Add to Home Screen”.",
+      dismiss: "Not now",
+      getApp: "Get the Dekka app",
+    },
+    getApp: {
+      title: "Dekka on your phone",
+      subtitle:
+        "No app store needed — it installs right from here in seconds, on iPhone and Android.",
+      installed: "Dekka is already on this device. Open it from your home screen.",
+      iphoneTitle: "On iPhone",
+      iphoneStep1: "Open this site in Safari.",
+      iphoneStep2: "Tap the Share button (the square with an arrow coming out of it).",
+      iphoneStep3: "Choose “Add to Home Screen”, then “Add”.",
+      androidTitle: "On Android",
+      androidStep1: "Open this site in Chrome.",
+      androidStep2:
+        "Tap “Install” above — or open Chrome's menu (the three dots) and choose “Install app”.",
+      androidStep3: "Dekka lands on your home screen, right next to your other apps.",
+    },
+    offline: {
+      title: "You're offline",
+      body: "As soon as you're back online, pick up right where you left off.",
+      home: "Home",
+    },
+  },
+  cafeMenu: {
+    title: "Menu",
+    comingSoonTitle: "The menu is on its way",
+    comingSoonBody:
+      "We're putting it together so you can browse it right here — the coffee, the sweets, everything on the bar.",
   },
   legal: {
     common: {

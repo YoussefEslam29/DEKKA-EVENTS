@@ -7,6 +7,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Surface";
 import { useMotionPresets } from "@/lib/motion";
+import { registerServiceWorker } from "@/lib/pwa";
 import { cn } from "@/lib/utils";
 
 type Permission = "unsupported" | "default" | "granted" | "denied";
@@ -127,7 +128,9 @@ export function PushOptIn({ variant }: { variant: "banner" | "toast" }) {
   async function handleEnable() {
     setFlow("enabling");
     try {
-      const registration = await navigator.serviceWorker.register("/sw.js");
+      // Usually already registered by `ServiceWorkerRegistrar`; calling it
+      // again is idempotent and covers a click that beats the `load` event.
+      const registration = await registerServiceWorker();
 
       // The one call in this whole feature allowed to trigger the OS
       // dialog — and it only ever runs from here, inside a real click.
@@ -203,7 +206,9 @@ export function PushOptIn({ variant }: { variant: "banner" | "toast" }) {
           }
           className={cn(
             "flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between",
-            !isBanner && "fixed inset-x-4 bottom-4 z-50 shadow-xl sm:inset-x-auto sm:end-4 sm:w-[380px]"
+            !isBanner &&
+              // Installed app: lift it clear of the bottom tab bar (h-16 + the home-indicator inset).
+              "fixed inset-x-4 bottom-4 z-50 shadow-xl sm:inset-x-auto sm:end-4 sm:w-[380px] standalone:bottom-[calc(5rem+env(safe-area-inset-bottom))]"
           )}
         >
           <div className="flex items-center gap-3">

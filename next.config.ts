@@ -23,6 +23,23 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/events/\\[id\\]/report": ["./node_modules/@sparticuz/chromium/bin/**/*"],
   },
+  // The service worker (PLAN/DEKKA_PWA_APP.md §2), per Next's PWA guide. A
+  // browser re-checks a registered worker on navigation, but an HTTP-cached
+  // copy would let an old worker — and its caching rules — outlive the deploy
+  // that replaced it. The CSP is the guide's own: the worker only ever talks to
+  // this origin, so it is never allowed to do anything else.
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       // Uploaded images (posters + account photos) — `lib/storage.ts` writes

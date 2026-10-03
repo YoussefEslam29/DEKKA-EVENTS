@@ -1,7 +1,7 @@
 /**
  * Turns the supplied brand JPGs into web-ready assets: the trimmed logo
- * lockup, a square mark for favicons/avatars, `app/favicon.ico` itself, and
- * the banner.
+ * lockup, a square mark for favicons/avatars, `app/favicon.ico` itself, the
+ * installable-app icons in `public/icons/`, and the banner.
  *
  * The real logo ships as dark-brown-and-tan artwork on a solid white JPEG
  * background, which means it vanishes (or shows a white box) the moment it sits
@@ -20,7 +20,38 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const SRC_LOGO = path.join(ROOT, "IMGS", "DEKKA LOGO.jpg");
 const SRC_BANNER = path.join(ROOT, "IMGS", "DEKKA BANNER.jpg");
 const OUT_DIR = path.join(ROOT, "public", "brand");
+const ICON_DIR = path.join(ROOT, "public", "icons");
 const APP_DIR = path.join(ROOT, "app");
+
+/** `cream` from design-system/01-colors.md — the plate the dark-ink logo needs. */
+const CREAM = { r: 0xf3, g: 0xe6, b: 0xd8, alpha: 1 };
+
+/**
+ * Installable-app icons (PLAN/DEKKA_PWA_APP.md §2). Full-bleed cream squares,
+ * never transparent: iOS paints a transparent apple-touch-icon black, and the
+ * logo is dark ink that would vanish on it (05-brand-assets.md's one rule).
+ *
+ * `logoWidth` is the lockup's share of the square. The maskable icon gets less
+ * because launchers crop it to as little as the central circle of 80% diameter;
+ * at 0.6 the wide lockup's corners stay inside that circle.
+ */
+const APP_ICONS = [
+  { name: "icon-192.png", size: 192, logoWidth: 0.76 },
+  { name: "icon-512.png", size: 512, logoWidth: 0.76 },
+  { name: "icon-maskable-512.png", size: 512, logoWidth: 0.6 },
+  { name: "apple-touch-icon.png", size: 180, logoWidth: 0.76 },
+] as const;
+
+async function plateIcon(lockup: Buffer, size: number, logoWidth: number) {
+  const logo = await sharp(lockup)
+    .resize({ width: Math.round(size * logoWidth) })
+    .png()
+    .toBuffer();
+  return sharp({ create: { width: size, height: size, channels: 4, background: CREAM } })
+    .composite([{ input: logo, gravity: "center" }])
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
 
 /**
  * Auth hero photos (LOG_SIGN_AUTH_IN.md §3): one per mode, optional. No real
@@ -146,6 +177,12 @@ async function main() {
   const favicon = buildIco(icoFrames);
   await writeFile(path.join(APP_DIR, "favicon.ico"), favicon);
   console.log(`favicon.ico          16/32/48px  ${(favicon.length / 1024).toFixed(0)}kb`);
+
+  await mkdir(ICON_DIR, { recursive: true });
+  for (const { name, size, logoWidth } of APP_ICONS) {
+    await writeFile(path.join(ICON_DIR, name), await plateIcon(lockup.data, size, logoWidth));
+    console.log(`icons/${name}  ${size}x${size}`);
+  }
 
   await copyFile(SRC_BANNER, path.join(OUT_DIR, "dekka-banner.jpg"));
   console.log("dekka-banner.jpg    copied");

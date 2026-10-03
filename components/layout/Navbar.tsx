@@ -46,7 +46,12 @@ export async function Navbar() {
   const wide = links.length > 4;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border-dark bg-ink-black/95 backdrop-blur">
+    // In the installed app (`standalone:`) this same bar is the app's top bar —
+    // at phone width it's already just logo, language and the menu, and that
+    // menu is how Submit-a-Show, About, the door and the admin stay reachable
+    // without a fifth tab. The inset keeps it clear of a status bar that
+    // overlaps the page; it is 0 everywhere else.
+    <header className="sticky top-0 z-40 border-b border-border-dark bg-ink-black/95 backdrop-blur standalone:pt-[env(safe-area-inset-top)]">
       <div className="mx-auto grid h-16 max-w-[1180px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:px-8">
         <Link href="/" aria-label="Dekka" className="justify-self-start">
           <LogoBadge size="sm" />
@@ -54,7 +59,10 @@ export async function Navbar() {
 
         <NavLinks links={links} wide={wide} />
 
-        <div className="flex items-center gap-2 justify-self-end">
+        {/* Pinned to the third track: below the nav breakpoint the link pill is
+            `display: none`, drops out of the grid, and these controls used to
+            slide into the middle column instead of sitting at the end. */}
+        <div className="col-start-3 flex items-center gap-2 justify-self-end">
           <LocaleToggle />
           {user ? (
             <AccountMenu

@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ChevronRight, Smartphone } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { currentUser } from "@/lib/rbac";
 import { getAccountUser } from "@/lib/data";
-import { PageHeader } from "@/components/ui/Surface";
+import { Card, PageHeader } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { AccountForm } from "@/components/AccountForm";
 
@@ -24,6 +26,19 @@ export default async function AccountPage() {
         <PageHeader title={t.account.title} subtitle={t.account.subtitle} />
       </FadeUp>
       <AccountForm account={account} />
+      {/* Browser only — inside the installed app there is nothing left to get. */}
+      <Link href="/get-app" className="mt-4 block standalone:hidden">
+        <Card className="flex items-center gap-3 p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold-accent/10 text-gold-accent">
+            <Smartphone className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold">{t.app.install.getApp}</p>
+            <p className="text-sm text-text-muted">{t.app.install.body}</p>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-text-muted rtl:rotate-180" aria-hidden />
+        </Card>
+      </Link>
     </div>
   );
 }

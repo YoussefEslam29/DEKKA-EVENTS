@@ -37,7 +37,10 @@ export function CookieConsent() {
               ? { opacity: 0, transition: { duration: 0 } }
               : { opacity: 0, y: 8, transition: { duration: 0.15, ease: "easeOut" } }
           }
-          className="fixed inset-x-4 bottom-4 z-50 flex flex-col gap-3 p-4 shadow-xl sm:inset-x-auto sm:bottom-4 sm:end-4 sm:w-[420px]"
+          // `standalone:` lifts it clear of the installed app's bottom tab bar
+          // (h-16 + the home-indicator inset). The old `sm:bottom-4` repeated the
+          // base value and would have competed with that variant, so it's gone.
+          className="fixed inset-x-4 bottom-4 z-50 flex flex-col gap-3 p-4 shadow-xl sm:inset-x-auto sm:end-4 sm:w-[420px] standalone:bottom-[calc(5rem+env(safe-area-inset-bottom))]"
         >
           <div className="flex items-start gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold-accent/10 text-gold-accent">

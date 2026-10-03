@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useI18n } from "@/components/I18nProvider";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { PatternAccent } from "@/components/ui/PatternAccent";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { cn } from "@/lib/utils";
 
 /**
@@ -270,16 +271,25 @@ export function CoffeeLoader({ variant }: { variant: CoffeeLoaderVariant }) {
 
   if (variant === "compact") {
     return (
-      <div
-        role="status"
-        aria-label={t.common.loading}
-        className="dk-loader-appear flex flex-1 flex-col items-center justify-center gap-3 px-4 py-24"
-      >
-        <CoffeeCup reduced={reduced} className="h-14 w-14" />
-        <span aria-hidden lang={locale} className="text-xs font-semibold text-text-muted">
-          {t.loader.brewing}
-        </span>
-      </div>
+      <>
+        <div
+          role="status"
+          aria-label={t.common.loading}
+          className="dk-loader-appear flex flex-1 flex-col items-center justify-center gap-3 px-4 py-24 standalone:hidden"
+        >
+          <CoffeeCup reduced={reduced} className="h-14 w-14" />
+          <span aria-hidden lang={locale} className="text-xs font-semibold text-text-muted">
+            {t.loader.brewing}
+          </span>
+        </div>
+        {/* Installed app (PLAN/DEKKA_PWA_APP.md §2): navigations sketch the
+            page instead of re-showing the cup. Chosen in CSS by the
+            `standalone:` variant, so there's no detection to flash on. */}
+        <PageSkeleton
+          label={t.common.loading}
+          className="dk-loader-appear hidden standalone:block"
+        />
+      </>
     );
   }
 
