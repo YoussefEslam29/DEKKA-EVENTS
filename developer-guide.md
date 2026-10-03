@@ -429,7 +429,8 @@ Cairo, regardless of where the admin physically is.
   `/offline`. iOS push additionally needs iOS 16.4+ and the app installed, on top of the
   existing "push never verified on a device" gap below.
 - **`public/sw.js` has a hand-bumped `VERSION`.** Bump it when the *caching rules*
-  change, so the old `dekka-*` caches are dropped on activate. A normal deploy needs no
+  change *or the offline page's content does* (it's precached only at install — phase 2
+  bumped it to `v2` so already-installed devices get the remembered-menu offline page), so the old `dekka-*` caches are dropped on activate. A normal deploy needs no
   bump, because cached assets are content-hashed. Forgetting it after a rules change
   leaves entries written under the old rules in place until their ceiling evicts them.
 - **The offline page is precached once, at worker install.** It shows the locale the

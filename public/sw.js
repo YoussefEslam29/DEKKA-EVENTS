@@ -25,9 +25,13 @@
 // not content-hashed: cache-first there would serve stale code after every edit.
 const CACHING = new URL(self.location.href).searchParams.get("cache") !== "off";
 
-// Bump when the caching *rules* change. Old `dekka-*` caches are deleted on
-// activate. Asset URLs are content-hashed, so a normal deploy needs no bump.
-const VERSION = "v1";
+// Bump when the caching *rules* change, or when the offline page itself does
+// (it is precached only at install, so a changed `/offline` never reaches a
+// device that already has this worker otherwise). Old `dekka-*` caches are
+// deleted on activate. Asset URLs are content-hashed, so a normal deploy needs
+// no bump.
+//   v2 — `/offline` gained the remembered menu (DEKKA_PWA_APP.md phase 2).
+const VERSION = "v2";
 const OFFLINE_CACHE = `dekka-offline-${VERSION}`;
 const STATIC_CACHE = `dekka-static-${VERSION}`;
 const IMAGE_CACHE = `dekka-images-${VERSION}`;
