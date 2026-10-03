@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { LayoutDashboard } from "lucide-react";
+import { AdminDashIcon } from "@/components/BrandIcons";
 import { useMotionPresets } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -174,7 +174,7 @@ export function AdminShortcut({ label }: { label: string }) {
           : "border-gold-accent/40 bg-gold-accent/10 text-gold-accent hover:bg-gold-accent/20"
       )}
     >
-      <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden />
+      <AdminDashIcon className="h-4.5 w-4.5 shrink-0" />
       <span className="max-[359px]:sr-only">{label}</span>
     </MotionLink>
   );

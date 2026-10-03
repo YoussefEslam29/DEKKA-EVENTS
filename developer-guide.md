@@ -528,7 +528,11 @@ page.
   centre track is empty — the link pill is hidden — so admins get a gold "Admin" button
   there (`AdminShortcut` in `NavLinks.tsx`), lit anywhere under `/admin`, hidden from
   `lg` up where the pill already has the link. Below 360px it's icon-only so the bar
-  never wraps.
+  never wraps. The icon is the owner's own admin-dashboard mark (`IMGS/admin dash.jpg`,
+  a person beside a bar chart), redrawn as `AdminDashIcon` in `components/BrandIcons.tsx`
+  on lucide's 24px stroke grid so it tints gold. The JPEG itself is black on white and
+  would have shown as a white box on the button. Checked in the real header in both
+  languages, and icon-only at 340px.
 - **Two shared-component changes:**
   - `DataGrid` gained an optional per-row `readOnly` (a sized item's price), and Tab
     skips such cells.

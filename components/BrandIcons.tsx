@@ -92,3 +92,28 @@ export function AppleIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/**
+ * The admin-dashboard mark the owner supplied (`IMGS/admin dash.jpg`): a person
+ * beside a three-bar chart. Redrawn as strokes on lucide's 24px grid rather than
+ * used as the JPEG, so it tints with `currentColor` (gold on the header's Admin
+ * button) and matches the stroke weight of every other icon around it.
+ */
+export function AdminDashIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <circle cx="8" cy="6" r="3" />
+      <path d="M10.5 11H6a3 3 0 0 0-3 3v3h5" />
+      <path d="M11 21v-7h3.5v7M14.5 21V10h4v11M18.5 21v-5H22v5M11 21h11" />
+    </svg>
+  );
+}
