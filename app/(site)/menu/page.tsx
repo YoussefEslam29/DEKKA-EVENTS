@@ -1,22 +1,35 @@
 import Link from "next/link";
 import { Coffee } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
+import { getMenu } from "@/lib/data";
 import { EmptyState, PageHeader } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { buttonStyles } from "@/components/ui/Button";
+import { MenuBoard } from "@/components/menu/MenuBoard";
+import { MenuCacheWarmer } from "@/components/menu/MenuCacheWarmer";
+
+// Sold-out flips and price changes should show on the next load, not after a cache expires.
+export const dynamic = "force-dynamic";
 
 /**
- * Placeholder for the Menu tab until the real menu ships
- * (PLAN/DEKKA_PWA_APP.md §3). The installed app's tab bar links here from day
- * one, so it has to land somewhere warm rather than on a 404.
+ * The cafe menu (`PLAN/DEKKA_PWA_APP.md` §3) — the installed app's Menu tab.
+ * Until the admin adds a first section with an item, it says so warmly
+ * instead of showing an empty page.
  */
 export default async function MenuPage() {
   const { t } = await getI18n();
+  const categories = await getMenu();
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-4 py-10 md:px-8">
       <FadeUp>
-        <PageHeader title={t.cafeMenu.title} />
+        <PageHeader
+          title={t.cafeMenu.title}
+          subtitle={categories.length > 0 ? t.cafeMenu.subtitle : undefined}
+        />
+      </FadeUp>
+
+      {categories.length === 0 ? (
         <EmptyState>
           <Coffee className="mx-auto mb-3 h-10 w-10 text-gold-accent" aria-hidden />
           <p className="text-lg font-bold text-on-dark">{t.cafeMenu.comingSoonTitle}</p>
@@ -25,7 +38,12 @@ export default async function MenuPage() {
             {t.home.browseEvents}
           </Link>
         </EmptyState>
-      </FadeUp>
+      ) : (
+        <>
+          <MenuBoard categories={categories} />
+          <MenuCacheWarmer />
+        </>
+      )}
     </div>
   );
 }

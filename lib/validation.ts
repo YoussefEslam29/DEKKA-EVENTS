@@ -4,6 +4,7 @@ import {
   PAYMENT_METHODS,
   GENDERS,
   SUBMISSION_STATUSES,
+  MENU_TAGS,
 } from "@/lib/constants";
 
 const trimmed = (max: number) => z.string().trim().max(max);
@@ -318,6 +319,101 @@ export const submissionUpdateSchema = z
   // was the exception, found by the Before_Deployment.md §2 audit.
   .strict();
 
+// ---------------------------------------------------------------------------
+// Cafe menu (`PLAN/DEKKA_PWA_APP.md` §3)
+// ---------------------------------------------------------------------------
+
+/** A Mongo ObjectId as it arrives over JSON. Checked here so no route has to. */
+const objectId = z.string().trim().regex(/^[0-9a-f]{24}$/i, "Invalid ID");
+
+const menuPrice = z.number().min(0).max(100_000);
+
+const menuVariant = z
+  .object({
+    labelAr: trimmed(40).min(1),
+    labelEn: trimmed(40).min(1),
+    price: menuPrice,
+  })
+  .strict();
+
+const menuCategoryCore = {
+  nameAr: trimmed(80).min(1),
+  nameEn: trimmed(80).min(1),
+  isActive: z.boolean().optional().default(true),
+};
+
+/**
+ * `order` is deliberately absent from both category schemas, as it is from the
+ * item ones: position only ever changes through the `…/order` routes, which
+ * rewrite a whole sequence at once. Letting a single PATCH set it would let two
+ * rows claim the same slot.
+ */
+export const createMenuCategorySchema = z.object(menuCategoryCore).strict();
+/** Same `stripDefaults` reasoning as `updateEventSchema`: a rename must not
+ * quietly re-show a hidden section by defaulting `isActive` back to `true`. */
+export const updateMenuCategorySchema = z
+  .object(stripDefaults(menuCategoryCore))
+  .partial()
+  .strict();
+
+const menuItemCore = {
+  category: objectId,
+  nameAr: trimmed(120).min(1),
+  nameEn: trimmed(120).min(1),
+  descriptionAr: optionalText(500),
+  descriptionEn: optionalText(500),
+  price: menuPrice,
+  variants: z.array(menuVariant).max(8).optional().default([]),
+  // Only what `/api/uploads` hands back, like `updateAccountSchema.image`.
+  // Admin-only here, but a menu photo is shown to every guest, and an upload
+  // keeps `next/image` fetching from a host this site already trusts rather
+  // than any URL someone pasted (developer-guide.md §7's open-proxy note).
+  image: z
+    .string()
+    .trim()
+    .max(500)
+    .regex(UPLOAD_IMAGE_PATTERN, {
+      message: "Image must be a photo uploaded through this site, not an external URL.",
+    })
+    .optional()
+    .default(""),
+  tags: z
+    .array(z.enum(MENU_TAGS))
+    .max(MENU_TAGS.length)
+    .refine((tags) => new Set(tags).size === tags.length, "Duplicate tag")
+    .optional()
+    .default([]),
+  isFeatured: z.boolean().optional().default(false),
+  available: z.boolean().optional().default(true),
+};
+
+export const createMenuItemSchema = z.object(menuItemCore).strict();
+/**
+ * Every field optional — the admin grid saves one cell at a time. Defaults
+ * stripped for the reason spelled out on `stripDefaults`: without it, a PATCH of
+ * just `{ price }` would also write `available: true` and `isFeatured: false`,
+ * un-selling-out an item and un-featuring it on every price change.
+ */
+export const updateMenuItemSchema = z.object(stripDefaults(menuItemCore)).partial().strict();
+
+/**
+ * `PATCH /api/menu/items/:id/availability` — the one menu write staff can make.
+ * Its own schema, not a subset of `updateMenuItemSchema`, so there is no way
+ * for a staff request to carry a price or a name, however it's shaped.
+ */
+export const menuAvailabilitySchema = z.object({ available: z.boolean() }).strict();
+
+/** `…/categories/order` and `…/items/order`: the full new sequence, top first. */
+export const menuOrderSchema = z
+  .object({
+    ids: z
+      .array(objectId)
+      .min(1)
+      .max(300)
+      .refine((ids) => new Set(ids.map((id) => id.toLowerCase())).size === ids.length, "Duplicate ID"),
+  })
+  .strict();
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type MobileLoginInput = z.infer<typeof mobileLoginSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
@@ -329,3 +425,7 @@ export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type CheckInInput = z.infer<typeof checkInSchema>;
 export type UpdateCheckInInput = z.infer<typeof updateCheckInSchema>;
 export type SubmissionInput = z.infer<typeof submissionSchema>;
+export type CreateMenuCategoryInput = z.infer<typeof createMenuCategorySchema>;
+export type UpdateMenuCategoryInput = z.infer<typeof updateMenuCategorySchema>;
+export type CreateMenuItemInput = z.infer<typeof createMenuItemSchema>;
+export type UpdateMenuItemInput = z.infer<typeof updateMenuItemSchema>;

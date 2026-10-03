@@ -6,6 +6,9 @@ import { Reservation, type IReservation } from "@/models/Reservation";
 import { CheckIn } from "@/models/CheckIn";
 import { BandSubmission, type SubmissionStatus } from "@/models/BandSubmission";
 import { User } from "@/models/User";
+import { MenuCategory, type IMenuCategory } from "@/models/MenuCategory";
+import { MenuItem, type IMenuItem } from "@/models/MenuItem";
+import type { MenuTag } from "@/lib/constants";
 import { fromLocalInputValue } from "@/lib/format";
 
 /**
@@ -848,4 +851,132 @@ export async function getAccountUser(userId: string): Promise<AccountDTO | null>
     providers: doc.providers ?? [],
     hasPassword: Boolean(doc.passwordHash),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Cafe menu (`PLAN/DEKKA_PWA_APP.md` §3)
+// ---------------------------------------------------------------------------
+
+export type MenuVariantDTO = { labelAr: string; labelEn: string; price: number };
+
+export type MenuItemDTO = {
+  id: string;
+  categoryId: string;
+  nameAr: string;
+  nameEn: string;
+  descriptionAr: string;
+  descriptionEn: string;
+  /** With variants, always the cheapest one (the API keeps it so). */
+  price: number;
+  variants: MenuVariantDTO[];
+  image: string;
+  tags: MenuTag[];
+  isFeatured: boolean;
+  available: boolean;
+  order: number;
+};
+
+export type MenuCategoryDTO = {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  order: number;
+  isActive: boolean;
+  items: MenuItemDTO[];
+};
+
+export function toMenuItemDTO(i: IMenuItem): MenuItemDTO {
+  return {
+    id: String(i._id),
+    categoryId: String(i.category),
+    nameAr: i.nameAr ?? "",
+    nameEn: i.nameEn ?? "",
+    descriptionAr: i.descriptionAr ?? "",
+    descriptionEn: i.descriptionEn ?? "",
+    price: Number(i.price ?? 0),
+    variants: (i.variants ?? []).map((v) => ({
+      labelAr: v.labelAr,
+      labelEn: v.labelEn,
+      price: Number(v.price),
+    })),
+    image: i.image ?? "",
+    tags: i.tags ?? [],
+    isFeatured: i.isFeatured ?? false,
+    available: i.available ?? true,
+    order: i.order ?? 0,
+  };
+}
+
+function toMenuCategoryDTO(c: IMenuCategory, items: IMenuItem[]): MenuCategoryDTO {
+  return {
+    id: String(c._id),
+    nameAr: c.nameAr ?? "",
+    nameEn: c.nameEn ?? "",
+    order: c.order ?? 0,
+    isActive: c.isActive ?? true,
+    items: items.map(toMenuItemDTO),
+  };
+}
+
+/**
+ * The whole menu, sections in the admin's order with their items in theirs —
+ * one aggregation, no per-section query (developer-guide.md §4.3).
+ *
+ * Guests (`includeHidden: false`, the default) get active sections that have at
+ * least one item; sold-out items are *included*, because they stay on the menu
+ * marked rather than disappearing. The admin screen passes `includeHidden` to
+ * see hidden and empty sections too.
+ *
+ * This is also exactly what `GET /api/menu` returns, and the service worker
+ * caches that response for the offline page — which is why the public shape
+ * never depends on who is asking.
+ */
+export async function getMenu({
+  includeHidden = false,
+}: { includeHidden?: boolean } = {}): Promise<MenuCategoryDTO[]> {
+  await connectDB();
+  const docs = await MenuCategory.aggregate<IMenuCategory & { items: IMenuItem[] }>([
+    ...(includeHidden ? [] : [{ $match: { isActive: true } }]),
+    { $sort: { order: 1, _id: 1 } },
+    {
+      $lookup: {
+        from: MenuItem.collection.name,
+        localField: "_id",
+        foreignField: "category",
+        // Served by the `{ category: 1, order: 1 }` index.
+        pipeline: [{ $sort: { order: 1, _id: 1 } }],
+        as: "items",
+      },
+    },
+  ]);
+
+  const categories = docs.map((doc) => toMenuCategoryDTO(doc, doc.items));
+  return includeHidden ? categories : categories.filter((c) => c.items.length > 0);
+}
+
+/**
+ * The homepage's "Barista's picks" strip: featured items in visible sections,
+ * in menu order. Sold-out picks are left out here (unlike on `/menu`) — a
+ * headline recommendation you can't order tonight is a disappointment, not
+ * information.
+ */
+export async function getFeaturedMenuItems(limit = 8): Promise<MenuItemDTO[]> {
+  await connectDB();
+  const docs = await MenuItem.aggregate<IMenuItem>([
+    { $match: { isFeatured: true, available: true } },
+    {
+      $lookup: {
+        from: MenuCategory.collection.name,
+        localField: "category",
+        foreignField: "_id",
+        as: "section",
+      },
+    },
+    { $unwind: "$section" },
+    { $match: { "section.isActive": true } },
+    { $sort: { "section.order": 1, order: 1, _id: 1 } },
+    { $limit: limit },
+    { $project: { section: 0 } },
+  ]);
+  return docs.map(toMenuItemDTO);
 }

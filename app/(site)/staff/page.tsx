@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronRight, Coffee } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { getStaffEvents, eventTitle } from "@/lib/data";
 import { formatDate, formatTime } from "@/lib/format";
@@ -17,6 +18,15 @@ export default async function StaffEventPickerPage() {
       <FadeUp>
         <PageHeader title={t.staff.title} subtitle={t.staff.subtitle} />
       </FadeUp>
+
+      {/* The bar's other job: marking menu items sold out (PLAN/DEKKA_PWA_APP.md §3). */}
+      <Link href="/staff/menu" className="mb-6 block">
+        <Card className="flex items-center gap-3 p-4 transition-colors hover:border-gold">
+          <Coffee className="h-5 w-5 shrink-0 text-gold-deep" aria-hidden />
+          <span className="flex-1 font-bold">{t.cafeMenu.staff.open}</span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-ink-faint rtl:rotate-180" aria-hidden />
+        </Card>
+      </Link>
 
       {events.length === 0 ? (
         <EmptyState>{t.staff.noEvents}</EmptyState>

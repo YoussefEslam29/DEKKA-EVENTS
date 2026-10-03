@@ -48,6 +48,12 @@ export type GridColumn<Row> = {
   /** Read view. Falls back to the editor's own value, or an em dash. */
   render?: (row: Row) => React.ReactNode;
   editor?: GridEditor<Row>;
+  /**
+   * Per-row opt-out of `editor`: the cell shows its read view on rows where
+   * this returns true, and Tab skips it. For a column that is editable in
+   * general but not on every row (a menu item priced by its sizes, say).
+   */
+  readOnly?: (row: Row) => boolean;
   /** Adds a sort toggle to this header. Client-side, on the string in `sortValue`. */
   sortable?: boolean;
   /** What sorting compares. Defaults to the editor value; numbers sort numerically. */
@@ -136,9 +142,15 @@ export function DataGrid<Row>({
     );
   }
 
-  /** Next editable column, wrapping onto the next/previous row at either end. */
-  function step(from: Cursor, delta: number): Cursor {
-    if (!from) return null;
+  /** Whether this exact cell takes edits (column editor, minus a row's opt-out). */
+  function editableAt(rowIndex: number, colIndex: number): boolean {
+    const column = columns[colIndex];
+    const row = sorted[rowIndex];
+    return Boolean(column?.editor && row !== undefined && !column.readOnly?.(row));
+  }
+
+  /** One step to the next/previous editable column, wrapping onto the adjacent row. */
+  function stepOnce(from: { row: number; col: number }, delta: number): Cursor {
     const at = editableCols.indexOf(from.col);
     const next = at + delta;
     if (next >= 0 && next < editableCols.length) {
@@ -150,6 +162,17 @@ export function DataGrid<Row>({
       row,
       col: delta > 0 ? editableCols[0] : editableCols[editableCols.length - 1],
     };
+  }
+
+  /** Next editable cell in reading order, skipping any a row has opted out of. */
+  function step(from: Cursor, delta: number): Cursor {
+    let cursor = from;
+    // Bounded: at most one pass over every cell in the grid.
+    for (let guard = 0; cursor && guard <= sorted.length * editableCols.length; guard++) {
+      cursor = stepOnce(cursor, delta);
+      if (cursor && editableAt(cursor.row, cursor.col)) return cursor;
+    }
+    return null;
   }
 
   async function commit(row: Row, column: GridColumn<Row>, raw: string) {
@@ -186,8 +209,12 @@ export function DataGrid<Row>({
   return (
     <div className={className}>
       {/* The only scroll container: wide columns scroll here, the page never
-          scrolls sideways. */}
-      <div className="overflow-x-auto">
+          scrolls sideways. `relative` is load-bearing: it makes this box the
+          containing block for the `sr-only` (absolutely positioned) delete
+          header below. Without it that label resolved against the page, escaped
+          this box's clipping, and widened the whole document by the table's
+          overflow — a 390px phone scrolled 321px sideways on /admin/menu. */}
+      <div className="relative overflow-x-auto">
         <table className="w-full min-w-[40rem] border-collapse text-sm">
           <thead className="dk-thead text-xs uppercase tracking-wider">
             <tr>
@@ -246,8 +273,9 @@ export function DataGrid<Row>({
               return (
                 <tr key={id} className="dk-hairline border-t">
                   {columns.map((column, colIndex) => {
+                    const cellEditable = !!column.editor && !column.readOnly?.(row);
                     const editing =
-                      cursor?.row === rowIndex && cursor.col === colIndex && !!column.editor;
+                      cursor?.row === rowIndex && cursor.col === colIndex && cellEditable;
                     const cellKey = `${id}:${column.key}`;
 
                     return (
@@ -284,7 +312,7 @@ export function DataGrid<Row>({
                               if (raw !== null) void commit(row, column, raw);
                             }}
                           />
-                        ) : column.editor && onCommit ? (
+                        ) : cellEditable && column.editor && onCommit ? (
                           <button
                             type="button"
                             title={labels.editHint}
@@ -306,7 +334,7 @@ export function DataGrid<Row>({
                           </button>
                         ) : (
                           <div className={cn("flex min-h-11 items-center", EDGE)}>
-                            {column.render?.(row) ?? "—"}
+                            {column.render?.(row) ?? column.editor?.value(row) ?? "—"}
                           </div>
                         )}
                       </td>

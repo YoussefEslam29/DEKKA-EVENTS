@@ -443,6 +443,19 @@ Cairo, regardless of where the admin physically is.
   the manifest's `background_color` (`ink-black`) while the app boots. It needs one
   image per device size, so it was left out; add them if the blank moment ever bothers
   anyone.
+- **Menu photos share the event-poster storage and its orphan problem.** `/api/uploads`
+  keys everything as `events/<uuid>`, menu photos included (`UPLOAD_IMAGE_PATTERN`
+  depends on that shape, so a separate `menu/` prefix would have meant widening the
+  pattern for no functional gain). Replacing or deleting a menu item's photo leaves the
+  old blob behind, the same accepted gap as posters above.
+- **`next start` only serves `public/` files that existed when it started.** An upload
+  written to local disk during a `next start` run 404s until a restart. Local-disk
+  uploads therefore only really work under `next dev`. Production uses Vercel Blob, so
+  this is a local-testing trap, not a production one — it produced a broken image in the
+  menu phase's first verification run, and a restart fixed it.
+- **Admin-shortcut asymmetry:** only admins get a one-tap header button on phones. Staff
+  still reach the door through the hamburger. Adding a "Door" button the same way is a
+  one-liner in `Navbar.tsx` if the bar team wants it.
 - **`next start` on Windows can't reach Atlas.** The DNS workaround in `lib/db.ts` is
   guarded to non-production, so any database-backed page errors under a local
   production build (`querySrv ECONNREFUSED`). Verify production-only behaviour, such as
@@ -460,6 +473,127 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Installable app, phase 2 of 4: cafe menu (`PLAN/DEKKA_PWA_APP.md` §3, 2026-10-03)
+
+The menu the admin manages and every guest can browse: sections, items with optional
+sizes, photos, labels, "Barista's pick", and a sold-out switch staff can flip from
+behind the bar. It shows on `/menu` (the installed app's Menu tab), as a "Barista's
+picks" strip on the homepage, and — from the service worker's copy — on the offline
+page.
+
+- **Models:** `MenuCategory` (names, `order`, `isActive`) and `MenuItem` (names,
+  descriptions, `price`, `variants[]`, `image`, `tags[]`, `isFeatured`, `available`,
+  `order`). New collections only. The one index is `{ category: 1, order: 1 }`;
+  `category` deliberately has no `index: true` of its own (the redundancy §7 found four
+  times on the live cluster).
+- **One pricing rule, in `lib/menu.ts`:** an item with sizes is priced *by* them, and
+  `price` is kept equal to the cheapest size. The routes enforce it on every write: a
+  bare price PATCH on a sized item is `409 PRICE_SET_BY_VARIANTS`. Cards show "from X"
+  only when there are two or more sizes.
+- **Validation** (`lib/validation.ts`): every menu schema is `.strict()`; both update
+  schemas go through `stripDefaults()`. Without that, a `{ price }` PATCH parses to
+  `available: true, isFeatured: false` as well — `check:menu`'s mutation run showed
+  exactly that. `order` is in no single-item schema; position only changes through the
+  two `…/order` routes, which take the **complete** sequence and refuse a stale or
+  mixed one (`409 STALE_ORDER`, `400 MIXED_CATEGORIES`) rather than half-apply it.
+  Photos must match `UPLOAD_IMAGE_PATTERN`, so a menu image is always an upload, never
+  a pasted URL proxied through `/_next/image`.
+- **Routes:** `GET /api/menu` is deliberately unauthenticated, like `/api/health`. It
+  returns only what any guest sees, and it must never vary by caller, because the
+  service worker caches it. The admin screen reads hidden sections server-side through
+  `getMenu({ includeHidden: true })`, never through this route. Section/item
+  `POST`/`PATCH`/`DELETE` and both reorder routes are `guard("admin")`. A section with
+  items can't be deleted (`409 CATEGORY_NOT_EMPTY`): hiding it is the reversible way off
+  the menu. **`PATCH /api/menu/items/:id/availability` is the one staff write** — its
+  own route and its own `{ available: boolean }` schema, so no request shape reaches a
+  price or a name from there.
+- **Screens:**
+  - `/admin/menu` (`components/menu/admin/*`): a sections panel, then each section's
+    items in the shared `DataGrid`. Names, price and pick edit in place; sold-out is one
+    tap; order is up/down; everything else goes through the inline item form (sizes,
+    labels, photo upload via `/api/uploads`).
+  - `/staff/menu`: big switches only, linked from `/staff`.
+  - `/menu`: search across both languages, ignoring case and Arabic diacritics. A
+    sticky row of section chips follows your scroll position. Sold-out items stay
+    listed, marked in words.
+  - **Homepage:** the picks strip goes right under the hero, per `HOME_PAGE.md`'s
+    section order. Sold-out picks are left out of it.
+  - **No photo:** the card is complete as text, and the homepage strip shows the
+    tatreez texture with a cup instead.
+- **Offline menu.** `MenuCacheWarmer` fetches `/api/menu` once per `/menu` visit, only
+  when a worker controls the page, so the worker holds a copy; `OfflineMenu` on
+  `/offline` lists it ("the menu, as you last saw it").
+- **Admin shortcut in the header (your request mid-phase).** On phones the header's
+  centre track is empty — the link pill is hidden — so admins get a gold "Admin" button
+  there (`AdminShortcut` in `NavLinks.tsx`), lit anywhere under `/admin`, hidden from
+  `lg` up where the pill already has the link. Below 360px it's icon-only so the bar
+  never wraps.
+- **Two shared-component changes:**
+  - `DataGrid` gained an optional per-row `readOnly` (a sized item's price), and Tab
+    skips such cells.
+  - **A latent `DataGrid` bug, fixed.** The delete column's `sr-only` header is
+    absolutely positioned, and the scroll wrapper wasn't positioned, so the label
+    escaped the wrapper's clipping and widened the whole page by the table's overflow.
+    `/admin/menu` scrolled 321px sideways at 390px. The door table and Customers grid
+    have the same column; they only looked fine locally because the test database had
+    no check-ins. The wrapper is now `relative`.
+
+**New files:** `models/MenuCategory.ts`, `models/MenuItem.ts`, `lib/menu.ts`,
+`app/api/menu/**` (7 route files), `app/(site)/admin/menu/page.tsx`,
+`app/(site)/staff/menu/page.tsx`, `components/menu/*` (`MenuItemCard`, `MenuBoard`,
+`FeaturedMenuStrip`, `MenuCacheWarmer`, `OfflineMenu`, `StaffMenuToggles`,
+`admin/MenuManager`, `admin/MenuItemForm`, `admin/MenuSections`),
+`scripts/check-menu.ts`. `/menu` replaced its phase-1 placeholder. `MENU_TAGS` in
+`lib/constants.ts`; strings under `t.cafeMenu.*` (not `t.nav.menu`, which is the
+hamburger). **No new dependencies, no new env vars, no change to existing collections.**
+
+**Deviations from the spec:**
+- `getFeaturedMenuItems` leaves sold-out picks off the homepage, which the spec didn't
+  say. A headline recommendation you can't order tonight disappoints rather than
+  informs; `/menu` still lists them, marked.
+- Seasonal *scheduling* (date-ranged sections) stays deferred to phase 4, as the
+  brainstorm planned; hiding a section covers the manual case now.
+
+**Verification.**
+- **Checks:** typecheck, lint and build are clean; all seven `check:*` scripts pass.
+- **`check:menu`:** 62 DB-free assertions — schemas, the staff route's one-field
+  boundary, guard rank on every route read from source, upload-only photos, the
+  pricing rule and the reorder contract. Three deliberate mutations each made it fail:
+  dropping `stripDefaults`, opening availability to members, and downgrading an admin
+  DELETE to staff.
+- **End to end, 55/55:** a production build, driven by headless Chrome, against a
+  **local** MongoDB (the repo's `docker-compose` container) in a throwaway `dekka_verify`
+  database. Before any write went through the app, I proved the server was on it by
+  planting a marker there and reading it back through `GET /api/menu`.
+- **Admin rules (real writes):** sizes price an item; a bare price on a sized item is
+  refused; a price-only edit left sold-out and pick untouched; a stale order, a mixed
+  order, deleting a non-empty section and an external image URL were all refused; a
+  photo upload attached to an item.
+- **Public view:** hidden sections stay hidden, sold-out items stay listed, and the
+  admin's order holds.
+- **Staff:** can flip availability, but availability-plus-price is 400, the full item
+  PATCH is 403 and deleting a section is 403. The price was unchanged afterwards (read
+  back from the database), and the staff page's switches flip and save.
+- **Member:** 403 on availability.
+- **Admin UI:** inline price edit saves, a sized item's price cell is read-only, and the
+  add-item form saves.
+- **Header:** the admin shortcut sits centred and 44px tall on a phone, and is hidden on
+  desktop.
+- **`/menu` in Arabic and English:** chips, item count, search (Arabic and English) and
+  no sideways scroll.
+- **Homepage strip:** shows visible picks only.
+- **Offline:** `/api/menu` is cached after visiting `/menu`, and the offline page lists
+  it.
+- **Console:** no page errors.
+- **Cleanup:** `dekka_verify` was dropped, the test photo deleted and the container
+  stopped. The live cluster was never touched. Screenshots in both languages were
+  checked by eye, which is how the overflow bug and the cramped sections panel at phone
+  width were found and fixed.
+
+**Not verified:** a real phone, and the photo path through Vercel Blob. Locally,
+uploads go to disk; Blob is the same `storeUpload()` the event posters already use in
+production.
 
 ### Installable app, phase 1 of 4: PWA foundation (`PLAN/DEKKA_PWA_APP.md` §2, 2026-10-03)
 
@@ -1168,7 +1302,7 @@ is no staging environment and no test suite, so the checklists below are the gat
 - [ ] `npm run build` — succeeds locally
 - [ ] The relevant `npm run check:*` script passes if you touched what it covers
       (`check:uploads`, `check:sentry`, `check:config`, `check:ratelimit`,
-      `check:reset`, `check:mobile-auth`)
+      `check:reset`, `check:mobile-auth`, `check:menu`)
 - [ ] Manually exercise the code path you changed against a real `happened` event
       or a throwaway document — `MONGODB_URI` is the live cluster, so treat every
       write as real (`HANDOFF.md` "Standing rules")

@@ -4,6 +4,7 @@ import { WifiOff } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { ReloadButton } from "@/components/ReloadButton";
+import { OfflineMenu } from "@/components/menu/OfflineMenu";
 import { buttonStyles } from "@/components/ui/Button";
 
 export const metadata: Metadata = {
@@ -22,7 +23,8 @@ export const metadata: Metadata = {
  *   header is exactly what the worker must never store;
  * - a plain `<img>` for the logo, not `next/image`, whose `/_next/image?...`
  *   URL varies by width and wouldn't be in the cache;
- * - lucide icons render to inline SVG on the server, so they need nothing.
+ * - lucide icons render to inline SVG on the server, so they need nothing;
+ * - the menu comes from the worker's copy of `GET /api/menu` (`OfflineMenu`).
  */
 export default async function OfflinePage() {
   const { t } = await getI18n();
@@ -51,6 +53,10 @@ export default async function OfflinePage() {
           {t.app.offline.home}
         </Link>
       </div>
+
+      {/* The menu as last seen online, if the worker has a copy — the one
+          thing worth reading in a cafe with no signal. */}
+      <OfflineMenu />
 
       <PatternAccent className="absolute inset-x-0 bottom-0" />
     </main>

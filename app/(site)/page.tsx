@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { getI18n, type Locale } from "@/lib/i18n";
-import { getPublicEvents, countReservationsForEvents, eventTitle, type EventDTO } from "@/lib/data";
+import {
+  getPublicEvents,
+  countReservationsForEvents,
+  eventTitle,
+  getFeaturedMenuItems,
+  type EventDTO,
+} from "@/lib/data";
 import { dateParts, formatMoney, formatTime, monthKey } from "@/lib/format";
 import type { Dict } from "@/lib/i18n/dictionaries";
 import { EventCard } from "@/components/EventCard";
@@ -9,6 +15,7 @@ import { LogoBadge } from "@/components/ui/LogoBadge";
 import { EmptyState } from "@/components/ui/Surface";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { MonthCalendar } from "@/components/MonthCalendar";
+import { FeaturedMenuStrip } from "@/components/menu/FeaturedMenuStrip";
 import { cn } from "@/lib/utils";
 
 // The hub reflects reservation counts and admin publishes immediately.
@@ -76,9 +83,10 @@ export default async function EventsHubPage({
       ? params.filter
       : "all";
 
-  const [allUpcoming, allPast] = await Promise.all([
+  const [allUpcoming, allPast, featuredMenu] = await Promise.all([
     getPublicEvents({ when: "upcoming", limit: 100 }),
     getPublicEvents({ when: "past", limit: 6 }),
+    getFeaturedMenuItems(),
   ]);
   const upcoming = allUpcoming.filter((e) => matchesSearch(e, q) && matchesFilter(e, filter));
   const past = allPast.filter((e) => matchesSearch(e, q) && matchesFilter(e, filter));
@@ -137,6 +145,12 @@ export default async function EventsHubPage({
         </div>
         <PatternAccent />
       </section>
+
+      {/* HOME_PAGE.md's section order: hero, then the menu preview, then the
+          events. Absent entirely until the admin marks something featured. */}
+      {featuredMenu.length > 0 ? (
+        <FeaturedMenuStrip items={featuredMenu} locale={locale} t={t} />
+      ) : null}
 
       <section className="mx-auto max-w-[1180px] px-4 pt-8 md:px-8">
         <div className="flex flex-wrap justify-center gap-2">

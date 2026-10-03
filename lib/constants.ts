@@ -31,3 +31,11 @@ export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 
 export const SUBMISSION_STATUSES = ["pending", "approved", "declined"] as const;
 export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
+
+/**
+ * Labels a cafe-menu item can carry (`PLAN/DEKKA_PWA_APP.md` §3) — how it's
+ * served and who it suits. Keys double as dictionary keys under
+ * `t.cafeMenu.tags`, so add a translation alongside any new value.
+ */
+export const MENU_TAGS = ["hot", "cold", "vegan", "vegetarian", "sugarFree", "caffeineFree"] as const;
+export type MenuTag = (typeof MENU_TAGS)[number];
