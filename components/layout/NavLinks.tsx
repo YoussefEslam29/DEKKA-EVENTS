@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { LayoutDashboard } from "lucide-react";
 import { useMotionPresets } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -143,5 +144,38 @@ export function NavMenuLinks({ links }: { links: NavLinkItem[] }) {
         );
       })}
     </>
+  );
+}
+
+/**
+ * Phones only: the admin's one-tap way into the dashboard, sitting in the
+ * header's otherwise-empty centre track (`Navbar` renders it for admins only).
+ *
+ * `col-start-2` pins it to that track explicitly — the link pill that normally
+ * lives there is `display: none` at this width and so no longer occupies it.
+ * Lit while anywhere under `/admin`, like the pill's own Admin link. The label
+ * gives way to the icon alone on the narrowest phones so the bar never wraps.
+ */
+export function AdminShortcut({ label }: { label: string }) {
+  const pathname = usePathname();
+  const { pressable } = useMotionPresets();
+  const active = isActive(pathname, "/admin");
+
+  return (
+    <MotionLink
+      href="/admin"
+      aria-label={label}
+      aria-current={active ? "page" : undefined}
+      {...pressable}
+      className={cn(
+        "col-start-2 inline-flex h-11 items-center gap-1.5 justify-self-center rounded-full border px-4 text-sm font-semibold transition-colors lg:hidden",
+        active
+          ? "border-gold-accent bg-gold-accent/20 text-gold-accent"
+          : "border-gold-accent/40 bg-gold-accent/10 text-gold-accent hover:bg-gold-accent/20"
+      )}
+    >
+      <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden />
+      <span className="max-[359px]:sr-only">{label}</span>
+    </MotionLink>
   );
 }

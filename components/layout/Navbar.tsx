@@ -3,7 +3,7 @@ import { Menu } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { currentUser, hasRole } from "@/lib/rbac";
 import { LogoBadge } from "@/components/ui/LogoBadge";
-import { NavLinks, NavMenuLinks } from "@/components/layout/NavLinks";
+import { AdminShortcut, NavLinks, NavMenuLinks } from "@/components/layout/NavLinks";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { SignOutButton } from "@/components/SignOutButton";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -58,6 +58,14 @@ export async function Navbar() {
         </Link>
 
         <NavLinks links={links} wide={wide} />
+
+        {/* Admin shortcut for phones: below the nav breakpoint the centre track
+            is otherwise empty (the link pill is hidden), and the dashboard is
+            the one place an admin goes many times a day — one tap here instead
+            of hamburger → Admin. Hidden from `lg` up, where the pill already
+            carries an Admin link. An admin's row is always `wide`, so `lg` is
+            the right breakpoint unconditionally. */}
+        {hasRole(user, "admin") ? <AdminShortcut label={t.nav.admin} /> : null}
 
         {/* Pinned to the third track: below the nav breakpoint the link pill is
             `display: none`, drops out of the grid, and these controls used to
