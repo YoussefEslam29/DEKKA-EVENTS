@@ -12,7 +12,11 @@ import { EVENT_STATUSES, PAYMENT_METHODS, type PaymentMethod } from "@/lib/const
 import { site } from "@/lib/site";
 import type { EventDTO } from "@/lib/data";
 
-type Props = { event?: EventDTO };
+type Props = {
+  event?: EventDTO;
+  /** Create path only: "YYYY-MM-DD" to start on (the calendar day clicked), at 8pm. */
+  defaultDate?: string;
+};
 
 // Mirrors the server-side limit in app/api/uploads/route.ts — checked here
 // too so an oversized file fails instantly instead of after a round trip.
@@ -41,7 +45,7 @@ const blank = {
  * timezone: the admin types "20:00" and means 20:00 in Cairo regardless of where
  * they are, so values are converted on the way in and out.
  */
-export function EventForm({ event }: Props) {
+export function EventForm({ event, defaultDate }: Props) {
   const { t } = useI18n();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -79,6 +83,8 @@ export function EventForm({ event }: Props) {
           locationAr: site.addressAr,
           locationEn: site.addressEn,
           mapUrl: site.maps,
+          // From the admin calendar's empty-day link; 8pm is the usual start.
+          startsAt: defaultDate ? `${defaultDate}T20:00` : "",
         }),
   });
 

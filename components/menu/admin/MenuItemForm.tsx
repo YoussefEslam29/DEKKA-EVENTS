@@ -8,10 +8,8 @@ import { Card } from "@/components/ui/Surface";
 import { FormRow, Input, Select, Textarea } from "@/components/ui/Field";
 import { MENU_TAGS, type MenuTag } from "@/lib/constants";
 import { cheapestVariantPrice, localName } from "@/lib/menu";
+import { uploadImage } from "@/lib/upload-image";
 import type { MenuCategoryDTO, MenuItemDTO } from "@/lib/data";
-
-// Mirrors app/api/uploads/route.ts, so an oversized photo fails before the upload.
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 type VariantDraft = { labelAr: string; labelEn: string; price: string };
 
@@ -75,27 +73,21 @@ export function MenuItemForm({
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file after a failure
     if (!file) return;
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setError(t.admin.uploadTooBig);
-      return;
-    }
     setUploading(true);
     setError(null);
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error === "Unsupported image type" ? t.admin.uploadBadType : t.common.somethingWrong);
-        return;
-      }
-      setForm((f) => ({ ...f, image: json.data.url }));
-    } catch {
-      setError(t.common.somethingWrong);
-    } finally {
-      setUploading(false);
+    const result = await uploadImage(file);
+    setUploading(false);
+    if ("url" in result) {
+      setForm((f) => ({ ...f, image: result.url }));
+      return;
     }
+    setError(
+      result.error === "tooBig"
+        ? t.admin.uploadTooBig
+        : result.error === "badType"
+          ? t.admin.uploadBadType
+          : t.common.somethingWrong
+    );
   }
 
   async function onSubmit(e: React.FormEvent) {

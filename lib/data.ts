@@ -8,7 +8,8 @@ import { BandSubmission, type SubmissionStatus } from "@/models/BandSubmission";
 import { User } from "@/models/User";
 import { MenuCategory, type IMenuCategory } from "@/models/MenuCategory";
 import { MenuItem, type IMenuItem } from "@/models/MenuItem";
-import type { MenuTag } from "@/lib/constants";
+import type { MenuTag, EventTemplateKind } from "@/lib/constants";
+import { EventTemplate, type IEventTemplate } from "@/models/EventTemplate";
 import { fromLocalInputValue } from "@/lib/format";
 
 /**
@@ -979,4 +980,65 @@ export async function getFeaturedMenuItems(limit = 8): Promise<MenuItemDTO[]> {
     { $project: { section: 0 } },
   ]);
   return docs.map(toMenuItemDTO);
+}
+
+// ---------------------------------------------------------------------------
+// Event templates (`PLAN/DEKKA_PWA_APP.md` §4)
+// ---------------------------------------------------------------------------
+
+export type EventTemplateDTO = {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  kind: EventTemplateKind;
+  defaultTime: string;
+  order: number;
+  titleAr: string;
+  titleEn: string;
+  descriptionAr: string;
+  descriptionEn: string;
+  locationAr: string;
+  locationEn: string;
+  mapUrl: string;
+  coverImage: string;
+  isPoster: boolean;
+  price: number;
+  capacity: number | null;
+  paymentMethods: PaymentMethod[];
+  instapayNumber: string;
+  termsAr: string;
+  termsEn: string;
+};
+
+export function toEventTemplateDTO(t: IEventTemplate): EventTemplateDTO {
+  return {
+    id: String(t._id),
+    nameAr: t.nameAr ?? "",
+    nameEn: t.nameEn ?? "",
+    kind: t.kind ?? "night",
+    defaultTime: t.defaultTime ?? "20:00",
+    order: t.order ?? 0,
+    titleAr: t.titleAr ?? "",
+    titleEn: t.titleEn ?? "",
+    descriptionAr: t.descriptionAr ?? "",
+    descriptionEn: t.descriptionEn ?? "",
+    locationAr: t.locationAr ?? "",
+    locationEn: t.locationEn ?? "",
+    mapUrl: t.mapUrl ?? "",
+    coverImage: t.coverImage ?? "",
+    isPoster: t.isPoster ?? false,
+    price: Number(t.price ?? 0),
+    capacity: t.capacity == null ? null : Number(t.capacity),
+    paymentMethods: t.paymentMethods ?? ["cash"],
+    instapayNumber: t.instapayNumber ?? "",
+    termsAr: t.termsAr ?? "",
+    termsEn: t.termsEn ?? "",
+  };
+}
+
+/** Every template, in the admin's order — for the launcher and the manager. */
+export async function getEventTemplates(): Promise<EventTemplateDTO[]> {
+  await connectDB();
+  const docs = await EventTemplate.find().sort({ order: 1, _id: 1 }).lean();
+  return docs.map(toEventTemplateDTO);
 }

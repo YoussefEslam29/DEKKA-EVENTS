@@ -36,6 +36,22 @@ export function formatTime(date: Date | string, locale: Locale): string {
   }).format(new Date(date));
 }
 
+/**
+ * A wall-clock "HH:mm" (a template's usual start time) as "8:00 PM" / "٨:٠٠ م",
+ * matching `formatTime`. Formatted as a fixed UTC instant so no timezone can
+ * shift it — it's a time of day, not a moment.
+ */
+export function formatTimeOfDay(hhmm: string, locale: Locale): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;
+  return new Intl.DateTimeFormat(localeTag(locale), {
+    timeZone: "UTC",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(Date.UTC(2000, 0, 1, h, m)));
+}
+
 export function formatMonth(month: string, locale: Locale): string {
   // `month` is "YYYY-MM"; the 15th avoids any timezone edge at month boundaries.
   const [y, m] = month.split("-").map(Number);

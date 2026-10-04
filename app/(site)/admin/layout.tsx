@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, Coffee, Inbox, BarChart3, LayoutDashboard, Users } from "lucide-react";
+import { CalendarDays, Coffee, Inbox, BarChart3, LayoutDashboard, LayoutTemplate, Users } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { currentUser, hasRole } from "@/lib/rbac";
 
@@ -17,6 +17,7 @@ export default async function AdminLayout({
   const links = [
     { href: "/admin", label: t.admin.overview, Icon: LayoutDashboard },
     { href: "/admin/events", label: t.admin.events, Icon: CalendarDays },
+    { href: "/admin/templates", label: t.templates.navLabel, Icon: LayoutTemplate },
     { href: "/admin/customers", label: t.customers.title, Icon: Users },
     { href: "/admin/menu", label: t.cafeMenu.title, Icon: Coffee },
     { href: "/admin/submissions", label: t.admin.submissions, Icon: Inbox },

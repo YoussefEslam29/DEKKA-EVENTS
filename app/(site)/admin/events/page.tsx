@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { CalendarDays, Table2 } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
-import { getAllEvents, countReservationsForEvents, eventTitle } from "@/lib/data";
-import { formatDate, formatTime, formatMoney, monthKey } from "@/lib/format";
+import { getAllEvents, countReservationsForEvents, eventTitle, getEventTemplates } from "@/lib/data";
+import { formatDate, formatTime, formatMoney, monthKey, dayKey } from "@/lib/format";
 import { Card, PageHeader, EmptyState, Badge } from "@/components/ui/Surface";
 import { FadeUp, StaggerRow, StaggerRows } from "@/components/ui/Motion";
 import { MonthCalendar } from "@/components/MonthCalendar";
+import { TemplateLauncher } from "@/components/templates/TemplateLauncher";
 import { buttonStyles } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +42,7 @@ export default async function AdminEventsPage({
     ? (requested as string)
     : monthKey(new Date());
 
-  const events = await getAllEvents();
+  const [events, templates] = await Promise.all([getAllEvents(), getEventTemplates()]);
   const counts = await countReservationsForEvents(events.map((e) => e.id));
 
   const hrefFor = (nextView: "table" | "calendar", nextMonth = month) =>
@@ -94,6 +95,9 @@ export default async function AdminEventsPage({
           }
         />
       </FadeUp>
+
+      {/* PLAN/DEKKA_PWA_APP.md §4: a saved night → a draft on a chosen day. */}
+      <TemplateLauncher templates={templates} initialDate={dayKey(new Date())} />
 
       {calendar ? (
         <MonthCalendar

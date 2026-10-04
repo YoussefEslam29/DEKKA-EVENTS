@@ -17,7 +17,8 @@
     "check:reset": "tsx scripts/check-password-reset.ts",
     "check:mobile-auth": "tsx scripts/check-mobile-auth.ts",
     "brand:assets": "tsx scripts/prepare-brand-assets.ts",
-    "check:menu": "tsx scripts/check-menu.ts"
+    "check:menu": "tsx scripts/check-menu.ts",
+    "check:templates": "tsx scripts/check-templates.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.72.0",

@@ -13,10 +13,12 @@ bridge (`POST /api/auth/mobile-login`) stays in the codebase unused by v1.
 
 No branches, no worktrees — everything commits to `main` (`developer-guide.md` §6).
 
-**Status:** Phases 1 (§2, PWA foundation) and 2 (§3, cafe menu) shipped 2026-10-03.
-What was built, where each deviates from this spec and why, and what's still unverified
-on real phones are in `developer-guide.md` §8 ("Installable app, phase 1 of 4" and
-"phase 2 of 4"). Phases 3–4 not started.
+**Status:** Phases 1 (§2, PWA foundation), 2 (§3, cafe menu) and 3 (§4, event
+templates) shipped 2026-10-03/04. What was built, where each deviates from this spec and
+why, and what's still unverified on real phones are in `developer-guide.md` §8
+("Installable app, phase 1/2/3 of 4"). §8's open question about daytime activities was
+built as assumed: they're ordinary events, marked `activity` on the template. Phase 4
+(extras) not started.
 
 ---
 

@@ -39,3 +39,11 @@ export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
  */
 export const MENU_TAGS = ["hot", "cold", "vegan", "vegetarian", "sugarFree", "caffeineFree"] as const;
 export type MenuTag = (typeof MENU_TAGS)[number];
+
+/**
+ * What a saved event template is (`PLAN/DEKKA_PWA_APP.md` §4) — an evening show
+ * or a daytime activity. Display only: both produce the same kind of `Event`;
+ * this just picks the icon and the label on the template's button.
+ */
+export const EVENT_TEMPLATE_KINDS = ["night", "activity"] as const;
+export type EventTemplateKind = (typeof EVENT_TEMPLATE_KINDS)[number];

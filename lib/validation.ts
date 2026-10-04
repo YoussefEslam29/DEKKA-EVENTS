@@ -5,7 +5,9 @@ import {
   GENDERS,
   SUBMISSION_STATUSES,
   MENU_TAGS,
+  EVENT_TEMPLATE_KINDS,
 } from "@/lib/constants";
+import { isRealDate, TIME_OF_DAY } from "@/lib/templates";
 
 const trimmed = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) => trimmed(max).optional().default("");
@@ -414,6 +416,63 @@ export const menuOrderSchema = z
   })
   .strict();
 
+// ---------------------------------------------------------------------------
+// Event templates (`PLAN/DEKKA_PWA_APP.md` §4)
+// ---------------------------------------------------------------------------
+
+const timeOfDay = z.string().trim().regex(TIME_OF_DAY, "Use HH:mm (24-hour)");
+
+/**
+ * A template's own fields, plus the reusable event fields built from the very
+ * same Zod pieces as `eventCore` — so whatever a template holds, an event can
+ * be made from it, and a limit changed on events changes here too.
+ * `startsAt`, `status` and `doorsOpenAt` are not here at all: with `.strict()`,
+ * a template carrying any of them is rejected outright.
+ */
+const templateCore = {
+  nameAr: trimmed(80).min(1),
+  nameEn: trimmed(80).min(1),
+  kind: z.enum(EVENT_TEMPLATE_KINDS).optional().default("night"),
+  defaultTime: timeOfDay,
+  titleAr: eventCore.titleAr,
+  titleEn: eventCore.titleEn,
+  descriptionAr: eventCore.descriptionAr,
+  descriptionEn: eventCore.descriptionEn,
+  locationAr: eventCore.locationAr,
+  locationEn: eventCore.locationEn,
+  mapUrl: eventCore.mapUrl,
+  coverImage: eventCore.coverImage,
+  isPoster: eventCore.isPoster,
+  price: eventCore.price,
+  capacity: eventCore.capacity,
+  paymentMethods: eventCore.paymentMethods,
+  instapayNumber: eventCore.instapayNumber,
+  termsAr: eventCore.termsAr,
+  termsEn: eventCore.termsEn,
+};
+
+export const createEventTemplateSchema = z.object(templateCore).strict();
+/** One section of the template form at a time, defaults stripped — same
+ * reasoning as `updateEventSchema`: an omitted key means "leave it alone". */
+export const updateEventTemplateSchema = z
+  .object(stripDefaults(templateCore))
+  .partial()
+  .strict();
+
+/**
+ * `POST /api/events/from-template`: which template, which day, and optionally a
+ * time other than the template's usual one. Nothing about the event itself —
+ * the server builds every event field from the stored template, so there is no
+ * way to slip a title, a price or `status: "published"` through this route.
+ */
+export const eventFromTemplateSchema = z
+  .object({
+    templateId: objectId,
+    date: z.string().trim().refine(isRealDate, "Invalid date"),
+    time: timeOfDay.optional(),
+  })
+  .strict();
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type MobileLoginInput = z.infer<typeof mobileLoginSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
@@ -429,3 +488,5 @@ export type CreateMenuCategoryInput = z.infer<typeof createMenuCategorySchema>;
 export type UpdateMenuCategoryInput = z.infer<typeof updateMenuCategorySchema>;
 export type CreateMenuItemInput = z.infer<typeof createMenuItemSchema>;
 export type UpdateMenuItemInput = z.infer<typeof updateMenuItemSchema>;
+export type CreateEventTemplateInput = z.infer<typeof createEventTemplateSchema>;
+export type UpdateEventTemplateInput = z.infer<typeof updateEventTemplateSchema>;

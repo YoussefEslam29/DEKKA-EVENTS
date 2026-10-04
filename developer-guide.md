@@ -454,6 +454,10 @@ Cairo, regardless of where the admin physically is.
   uploads therefore only really work under `next dev`. Production uses Vercel Blob, so
   this is a local-testing trap, not a production one — it produced a broken image in the
   menu phase's first verification run, and a restart fixed it.
+- **The event page's action row is still 32px buttons.** Publish, Duplicate, the report
+  and now "Save as template" are all `size="sm"`, under the 44px touch-target rule the
+  newer screens follow. Fine with a mouse; worth enlarging together if the owner runs
+  events from a phone.
 - **Admin-shortcut asymmetry:** only admins get a one-tap header button on phones. Staff
   still reach the door through the hamburger. Adding a "Door" button the same way is a
   one-liner in `Navbar.tsx` if the bar team wants it.
@@ -474,6 +478,100 @@ Cairo, regardless of where the admin physically is.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Installable app, phase 3 of 4: event templates (`PLAN/DEKKA_PWA_APP.md` §4, 2026-10-04)
+
+The owner's ask: "if the admin wants to change the nights or put some activities in the
+day, save it so he doesn't need to fill the options again." Now any night or activity
+can be saved once and run again in two taps — pick it, pick a date — producing a draft
+with every field filled in.
+
+- **`EventTemplate` model** — the reusable half of an `Event` (titles, descriptions,
+  location, map, poster, price, capacity, payment, InstaPay, terms) plus its own
+  `nameAr`/`nameEn` (the button label), `kind` (`night` | `activity`, display only — a
+  moon or a sun), `defaultTime` (`"HH:mm"`, cafe time) and `order`. Never a date, a
+  status or `doorsOpenAt`: those belong to one occurrence. New collection only.
+- **`lib/templates.ts` is the one place the merge lives:** `TEMPLATE_EVENT_FIELDS`
+  (the exact list that crosses between an event and a template, both directions),
+  `buildEventFromTemplate` (always `status: "draft"`), `templateFieldsFromEvent`, and
+  `startsAtFor(date, time)`, which goes through `fromLocalInputValue` like `EventForm`
+  does, so 20:00 is 8pm in Cairo on either side of Egypt's DST change.
+- **`POST /api/events/from-template` takes `{ templateId, date, time? }` and nothing
+  else** (`.strict()`): the server reads the stored template and builds every event
+  field itself, so no title, price or `status` can be injected, and even a template
+  doctored straight in the database yields a draft. **Always a draft** — publishing
+  stays the single path that announces a night and sends the push. The optional `time`
+  is the one deviation from the spec's `{ templateId, date }`: the spec's own flow
+  pre-fills a time the admin can change, so the request has to carry it.
+- **Template schemas** reuse `eventCore`'s own Zod pieces for every event field, so a
+  template can always make a valid event and a limit changed on events changes here
+  too. Updates go through `stripDefaults()` — without it, renaming a template wiped its
+  description, location, map, poster and terms (`check:templates`' mutation run showed
+  exactly that). Template CRUD and the full-sequence reorder route are `guard("admin")`.
+- **Screens:**
+  - **"From a saved template"** (`components/templates/TemplateLauncher.tsx`) sits
+    under the header of `/admin/events` and `/admin/events/new`. Tap a template: the
+    date defaults to today (or the calendar day you came from) and the time to the
+    template's usual one. Create takes you to the new draft.
+  - **"Save as template"** goes at the end of an event page's action row, so its small
+    form opens below the buttons. It captures the event *as saved*, using the event's
+    start time as the usual time.
+  - **`/admin/templates`** (new sidebar link) lists, edits, reorders and deletes
+    templates, or starts one from scratch with the full form. Deleting a template
+    never touches events made from it — they were copies.
+- **A planned behaviour finally wired:** the admin calendar has linked empty days to
+  `/admin/events/new?date=YYYY-MM-DD` since `FIX_ADMIN_DASH.md` §4, but nothing read the
+  date. Now both the launcher and `EventForm` (new `defaultDate` prop, 8pm) start on it;
+  an unreal date is ignored.
+- **One upload helper:** `lib/upload-image.ts` replaces the copy-pasted upload code in
+  the new template form and the menu item form. `EventForm` still has its own copy,
+  left alone because it works and isn't this phase's to change.
+- `formatTimeOfDay()` in `lib/format.ts` shows a template's "HH:mm" as "8:00 PM" /
+  "٨:٠٠ م", matching `formatTime`.
+
+**New files:** `models/EventTemplate.ts`, `lib/templates.ts`, `lib/upload-image.ts`,
+`app/api/event-templates/route.ts`, `…/[id]/route.ts`, `…/order/route.ts`,
+`app/api/events/from-template/route.ts`, `app/(site)/admin/templates/page.tsx`,
+`components/templates/*` (`TemplateLauncher`, `SaveAsTemplateButton`, `TemplateForm`,
+`TemplateManager`), `scripts/check-templates.ts`. `EVENT_TEMPLATE_KINDS` in
+`lib/constants.ts`; strings under `t.templates.*`. **No new dependencies, no new env
+vars, no change to existing collections.**
+
+**Verification.**
+- **Checks:** typecheck, lint and build are clean; all eight `check:*` scripts pass.
+- **`check:templates`:** 55 DB-free assertions. Four deliberate mutations each made it
+  fail: a builder copying a template's status, dropping `stripDefaults`, a non-strict
+  request schema, and the route opened to staff.
+- **End to end, 41/41:** against a production build on a **local** throwaway MongoDB.
+  As in phase 2, I proved the server was on it with a marker first. The live cluster
+  was never touched.
+- **Access:** guest 401; staff 403 on from-template and on creating a template.
+- **Save as template (UI):** the template held the event's fields and a 20:00 usual time
+  taken from a 17:00Z start, with no status or date.
+- **Launcher (UI):** the time was pre-filled; the result was a draft at 2026-10-21 17:00Z
+  with every field from the template, and the source event was untouched.
+- **`?date=`:** pre-fills both the launcher and the full form; a custom 19:30 on 2 Dec
+  gave 17:30Z (winter time); an unreal date was ignored.
+- **API refusals:** an unknown template gives 404, an unreal date 400, and a request
+  carrying event fields 400.
+- **Doctored template:** one stored with `status: "published"` still made a draft.
+- **Reorder:** a partial order is refused as stale; a full order is accepted.
+- **Template edits:** a price-only edit left the rest intact (a real write).
+- **Manager (UI):** create, edit, order and delete all work, and events made from a
+  deleted template remain.
+- **Phones:** no sideways scroll on any of the four admin screens touched.
+- **Console:** no errors.
+- **Visual checks:** screenshots were checked by eye. They found the Save-as-template
+  form splitting the action row (fixed by moving it last). One full-page capture showed
+  the page shifted sideways; measured, the page was 1280 wide with nothing scrolled, and
+  a plain capture of the same state was correct, so that was a capture artifact rather
+  than a page bug.
+- **Cleanup:** the throwaway database was dropped and the container and Docker Desktop
+  were stopped.
+
+**Not verified:** the template screens on a real phone. The "Save as template" button
+matches its row's existing 32px (`size="sm"`) buttons rather than the 44px rule; that
+whole row predates the rule.
 
 ### Installable app, phase 2 of 4: cafe menu (`PLAN/DEKKA_PWA_APP.md` §3, 2026-10-03)
 
@@ -1307,7 +1405,7 @@ is no staging environment and no test suite, so the checklists below are the gat
 - [ ] `npm run build` — succeeds locally
 - [ ] The relevant `npm run check:*` script passes if you touched what it covers
       (`check:uploads`, `check:sentry`, `check:config`, `check:ratelimit`,
-      `check:reset`, `check:mobile-auth`, `check:menu`)
+      `check:reset`, `check:mobile-auth`, `check:menu`, `check:templates`)
 - [ ] Manually exercise the code path you changed against a real `happened` event
       or a throwaway document — `MONGODB_URI` is the live cluster, so treat every
       write as real (`HANDOFF.md` "Standing rules")
