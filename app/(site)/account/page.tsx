@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SessionProvider } from "next-auth/react";
 import { ChevronRight, Smartphone } from "lucide-react";
+import { auth } from "@/lib/auth";
 import { getI18n } from "@/lib/i18n";
 import { currentUser } from "@/lib/rbac";
 import { getAccountUser } from "@/lib/data";
@@ -19,13 +21,20 @@ export default async function AccountPage() {
   // The session outlived its own user document (e.g. deleted directly in the
   // database) — same dead-end-safe redirect as the signed-out case.
   if (!account) redirect("/login?next=/account");
+  const session = await auth();
 
   return (
     <div className="mx-auto max-w-[720px] px-4 py-10 md:px-8">
       <FadeUp>
         <PageHeader title={t.account.title} subtitle={t.account.subtitle} />
       </FadeUp>
-      <AccountForm account={account} />
+      {/* The one screen that needs `useSession()` (for `update()`), so the
+          provider lives here, not app-wide (see `components/Providers.tsx`).
+          Seeded with the session the server already has, so it starts ready
+          instead of fetching `/api/auth/session` on mount. */}
+      <SessionProvider session={session}>
+        <AccountForm account={account} />
+      </SessionProvider>
       {/* Browser only — inside the installed app there is nothing left to get. */}
       <Link href="/get-app" className="mt-4 block standalone:hidden">
         <Card className="flex items-center gap-3 p-4">
