@@ -1,5 +1,9 @@
 # Handoff — session ending 2026-08-26
 
+> **This is a snapshot from 2026-08-26, not the current status.** For where the project
+> stands now — what's shipped, what's next, how the owner works, and how to test safely —
+> read `developer-guide.md` §0 first (and §11 before any test that writes to a database).
+
 Summary of everything done in this working session, for whoever (or whichever
 Claude session) picks this up next. Read `developer-guide.md` for how the app
 works day-to-day; this file is just "what happened and what's left."

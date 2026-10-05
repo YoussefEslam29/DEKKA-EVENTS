@@ -6,7 +6,56 @@ Read this before writing any code on this project. It's the technical counterpar
 things that have already bitten us once and shouldn't again.
 
 If you're an AI agent picking up this codebase cold: read `PLAN/idea.md`,
-`design-system/README.md`, and this file, in that order, before touching a single line.
+`design-system/README.md`, this file (start with §0), and `PLAN/DEKKA_PWA_APP.md`, in
+that order, before touching a single line.
+
+---
+
+## 0. Start here — where the project stands (updated 2026-10-05)
+
+**What's live** (`main` auto-deploys to Vercel): the full events site — auth, events hub,
+reservations, Submit-a-Show, staff door table, admin dashboard, monthly report, PDF
+event report, legal pages, cookie consent — **plus** the three shipped phases of the
+installable-app plan below.
+
+**The active plan is `PLAN/DEKKA_PWA_APP.md`** (written with the owner after a
+brainstorm, 2026-10-03). The site *is* the app: an installable PWA, downloaded from the
+website on iPhone and Android, with no app stores. It **supersedes
+`PLAN/DEKKA_MOBILE_APP.MD`** (native Kotlin), which is parked, not deleted — only its
+mobile auth bridge was ever built, and v1 doesn't use it.
+
+| Phase | What | Status | Feature Log entry (§8) |
+|---|---|---|---|
+| 1 | PWA foundation: manifest, icons, service worker, offline page, installed-mode tab bar, install prompt, `/get-app` | ✅ shipped | "Installable app, phase 1 of 4" |
+| 2 | Cafe menu: admin-managed, `/menu`, homepage "Barista's picks", staff sold-out switches, offline menu | ✅ shipped | "phase 2 of 4" |
+| — | Phone header **Admin** shortcut, using the owner's icon (`IMGS/admin dash.jpg`) | ✅ shipped | inside "phase 2 of 4" |
+| 3 | Event templates: save a night/activity once, make a draft from it in two taps | ✅ shipped | "phase 3 of 4" |
+| 4 | Extras (each independent): add-to-calendar, "Tonight at Dekka" banner, WhatsApp share cards, "Open now", seasonal menu sections, owner stats, QR table poster, demo mode | ⏳ not started — **ask the owner which first** | — |
+
+**Open questions / things still owed to the owner:**
+- **Nothing has been tested on a real phone** — not the install, not push in the
+  installed iOS app (needs iOS 16.4+). All verification so far is headless Chrome,
+  including an emulated iPhone. See §7.
+- Daytime "activities" were built as ordinary events with `kind: "activity"` on their
+  template (sun icon instead of moon). The owner never confirmed; if activities need
+  different fields (e.g. no reservations), that's new work.
+- The menu starts empty in production until the owner adds sections and items at
+  `/admin/menu`. There is no dish photography yet; every card is designed to work
+  without a photo.
+
+**How the owner works — follow these:**
+- **Plan before code.** Non-trivial work gets a `PLAN/*.md` spec first. Build it in
+  phases, and **stop after each phase** for the owner to review.
+- **Commit straight to `main`. Never create branches or worktrees** (§6). **Don't push**
+  unless asked — the owner pushes, and a push deploys to production.
+- **Arabic first.** Every string goes in both `ar` and `en`, Arabic drafted first in the
+  café's colloquial voice (`design-system/06-tone-of-voice.md`).
+- **The dev server talks to the live database** (`.env.local`'s `MONGODB_URI` is the
+  production Atlas cluster). Read-only browsing is fine. **Anything that writes is
+  verified against a local throwaway database instead** — the routine is in §11, and
+  phases 2 and 3 were verified that way.
+- **Say plainly what was and wasn't verified.** Every Feature Log entry ends with a
+  "Verification" paragraph and a "Not verified" line. Keep doing that.
 
 ---
 
@@ -17,34 +66,53 @@ domain is small enough that one flat `models/` and `lib/` works fine).
 
 ```
 app/
+  layout.tsx         root: fonts, viewport/manifest meta, EARLY_APP_SCRIPT, ServiceWorkerRegistrar
+  manifest.ts        the PWA web app manifest (served at /manifest.webmanifest)
+  offline/           the offline fallback page the service worker serves (outside (site) on purpose)
   (auth)/            route group — /login, /signup — no navbar/footer, full-bleed split screen
-  (site)/            route group — everything else, wrapped in Navbar + Footer
-    admin/           admin dashboard (role: admin)
-    staff/           door check-in tool (role: staff or admin)
+  (site)/            route group — everything else, wrapped in Navbar + Footer (+ AppTabBar when installed)
+    admin/           admin dashboard (role: admin) — incl. menu/, templates/, customers/, events/, report/
+    staff/           door check-in tool (role: staff or admin) — incl. menu/ (sold-out switches)
     events/[id]/     public event detail
+    menu/            the public cafe menu (the installed app's Menu tab)
+    get-app/         "install Dekka on your phone" — where every Get-the-app link points
     my-events/       member's reservations
     submit-show/     public band/artist application
     about/           cafe info, socials, map
   api/               REST-ish route handlers, one folder per resource
+                     (menu/**, event-templates/**, events/from-template are the newest)
 components/
-  ui/                shared primitives: Button, TextField, Card, LogoBadge, etc.
-  layout/            Navbar, Footer
+  ui/                shared primitives: Button, TextField, Card, DataGrid, PageSkeleton, LogoBadge, etc.
+  layout/            Navbar (+ AdminShortcut via NavLinks), Footer, AppTabBar (installed app only)
   auth/              AuthScreen (the split-layout shell)
+  menu/              public menu cards/board/strip, offline menu, staff toggles
+  menu/admin/        /admin/menu: MenuManager, MenuItemForm, MenuSections
+  templates/         event templates: TemplateLauncher, SaveAsTemplateButton, TemplateForm, TemplateManager
+  BrandIcons.tsx     hand-drawn SVG icons (socials, AdminDashIcon) — lucide has no brand marks
 lib/
   auth.ts            NextAuth config + providers
   rbac.ts             currentUser() / hasRole() / guard() — the authorization layer
   db.ts              cached Mongoose connection
   api.ts             parseBody() / handle() / jsonError() — the API route helpers
-  validation.ts      every Zod schema, one place
-  constants.ts       shared enums (role, status, payment method) — NO mongoose import
-  data.ts            read-side query helpers (e.g. getEventReservations)
-  i18n/              dictionaries.ts (ar + en), locale resolution
+  validation.ts      every Zod schema, one place (incl. stripDefaults — see §2)
+  constants.ts       shared enums (role, status, payment method, MENU_TAGS, template kinds) — NO mongoose import
+  data.ts            read-side query helpers + every DTO (e.g. getMenu, getEventTemplates)
+  format.ts          dates/times/money in cafe time (Africa/Cairo), both locales
+  pwa.ts             installed-app plumbing: EARLY_APP_SCRIPT, install-prompt store, SW registration
+  menu.ts            menu pricing rule + localName helpers (pure, client-safe)
+  templates.ts       template ↔ event field list, builder, Cairo date math (pure, client-safe)
+  upload-image.ts    browser-side photo upload to /api/uploads
+  i18n/              dictionaries.ts (ar + en), locale resolution (server-only — see §6)
   site.ts            cafe-level config (socials, address, hours) — env-overridable
-models/              one Mongoose model per collection: User, Event, Reservation, CheckIn, BandSubmission
-PLAN/                idea.md (product) + one spec doc per major feature (e.g. authorization-UI.md)
+models/              one Mongoose model per collection: User, Event, Reservation, CheckIn,
+                     BandSubmission, PushSubscription, MenuCategory, MenuItem, EventTemplate
+scripts/             check-*.ts (DB-free invariant checks, `npm run check:*`), set-role, seed (NEVER on prod)
+PLAN/                idea.md (product) + one spec doc per major feature; DEKKA_PWA_APP.md is the active one
 design-system/       colors, typography, spacing, components, brand assets, tone of voice
 IMGS/                raw brand source files (before processing)
 public/brand/        processed, web-ready brand assets (regenerate via `npm run brand:assets`)
+public/icons/        PWA icons (192/512/maskable/apple-touch) — also from `npm run brand:assets`
+public/sw.js         the service worker — hand-written, served as-is (see §2)
 ```
 
 **Where a new feature's files go:** page(s) in `app/(site)/...`, API routes in
@@ -143,7 +211,91 @@ convenience, but the client never imports the model directly.
 Everything renders in `NEXT_PUBLIC_CAFE_TIMEZONE` (default `Africa/Cairo`) via helpers
 in `lib/format.ts`, not the server's local timezone or the browser's. Admin
 `datetime-local` inputs are converted both ways so typing `20:00` always means 20:00 in
-Cairo, regardless of where the admin physically is.
+Cairo, regardless of where the admin physically is. Egypt observes daylight saving
+(UTC+3 from late April to late October, UTC+2 otherwise), so never hard-code an offset —
+go through `fromLocalInputValue` / `startsAtFor` (`lib/templates.ts`). `formatTimeOfDay`
+shows a bare "HH:mm" (a template's usual time).
+
+### The installed app — one site, a `standalone:` variant
+
+There is no separate app codebase. When someone launches Dekka from their home screen,
+`EARLY_APP_SCRIPT` (`lib/pwa.ts`, an inline `<head>` script in `app/layout.tsx`) sets
+`data-app="standalone"` on `<html>` **before first paint**. `app/globals.css` defines a
+Tailwind variant on that attribute:
+
+```html
+<nav class="hidden standalone:block">…</nav>   <!-- AppTabBar: only in the installed app -->
+<div class="standalone:hidden">…</div>          <!-- footer columns: only in the browser -->
+```
+
+- **Rule: the browser site must look exactly as it did.** Anything app-only goes behind
+  `standalone:`, never behind client-side detection (that would flash on every launch).
+- The installed app keeps the normal `Navbar` as its top bar. On phones it's already
+  just logo, language and menu, and its menu is how Submit-a-Show, About, the door and
+  the admin stay reachable. The bottom `AppTabBar` has four tabs (Home, Menu, My
+  Events, Account) — no fifth tab.
+- **Anything fixed to the bottom of the screen must lift above the tab bar in the app:**
+  `standalone:bottom-[calc(5rem+env(safe-area-inset-bottom))]` (see `CookieConsent`,
+  `PushOptIn`). The `(site)` layout already pads page content.
+- iPhone notch / home bar: `viewport-fit=cover` + `env(safe-area-inset-*)`. Body side
+  padding is in `globals.css`; the tab bar pads its own bottom.
+
+### Service worker — `public/sw.js`
+
+Hand-written plain JS, served as-is, registered for every visitor by
+`ServiceWorkerRegistrar` (and idempotently by `PushOptIn`). It does push (unchanged) and
+caching, under **one rule: nothing user- or role-specific is ever cached.**
+
+| Request | Strategy |
+|---|---|
+| Page navigations | Always the network; if that fails, the precached `/offline` page. **Page HTML is never cached** — every page is per-user (who's signed in, spots left). |
+| `/_next/static/*` | Cache-first (content-hashed, safe) |
+| Images (`/_next/image`, `/brand/`, `/icons/`, `/uploads/`) | Cache-first, capped at 120 entries |
+| `GET /api/menu` | Stale-while-revalidate — feeds the offline page's "menu as you last saw it" |
+| Every other `/api/*`, everything under `/admin` and `/staff` | Never touched |
+
+- **Bump `VERSION` in `sw.js`** when the caching rules change **or the offline page's
+  content changes** (it's precached only when the worker installs, so otherwise
+  already-installed phones keep the old one). Currently `v2`.
+- `next dev` registers `/sw.js?cache=off`, which turns caching off — Turbopack's dev
+  chunks aren't content-hashed, so a caching worker would serve stale code.
+- `next.config.ts` serves `/sw.js` with `no-cache` (and `npm run check:config` asserts
+  that survives the Sentry wrapper).
+
+### Updates are strict and default-free — `stripDefaults()`
+
+Every `$set`-feeding update schema is built as
+`z.object(stripDefaults(core)).partial().strict()` (`lib/validation.ts`). In Zod v4,
+`.partial()` does **not** stop `.default()` from firing on an absent key. Without
+`stripDefaults`, a one-field PATCH silently writes every defaulted field back to its
+create-time value. That once blanked events on Publish. The menu and template check
+scripts' mutation runs showed it would also re-show sold-out items on a price change and
+wipe a template's description on a rename. **Any new update schema must use it.**
+
+### Reordering takes the whole sequence
+
+Menu sections, menu items (per section) and templates are reordered with
+`PATCH …/order` and body `{ ids }`: the **complete** new sequence, written as `order = index`
+in one `bulkWrite`. A list that doesn't match what's stored (someone added or deleted a
+row meanwhile) is refused with `409 STALE_ORDER`, and the screen re-fetches. `order` is
+never settable through a single-row PATCH, so two rows can't claim one slot.
+
+### Narrow routes for narrow roles
+
+When a lower role needs one power over a resource, it gets its **own route with its own
+one-field schema** — not a role check inside the general route. The example is
+`PATCH /api/menu/items/:id/availability` (`guard("staff")`, body `{ available }` only):
+staff can mark an item sold out, and there's no way to shape that request so it reaches
+a price or a name. Everything else on menu items is `guard("admin")`.
+
+### Shared field lists, not copied ones
+
+When two directions must agree, write the list once. `TEMPLATE_EVENT_FIELDS`
+(`lib/templates.ts`) is both what "Save as template" copies out of an event and what
+`buildEventFromTemplate` copies back in. The template schema reuses `eventCore`'s own
+Zod pieces, so a template can always make a valid event. The menu's pricing rule
+(sizes set the price) lives once in `lib/menu.ts`, and the API, cards, admin grid and
+offline menu all call it.
 
 ---
 
@@ -188,10 +340,20 @@ Cairo, regardless of where the admin physically is.
    everyone out of signing in. The consequence worth remembering: **a deploy missing
    `UPSTASH_REDIS_REST_*` is unprotected while looking perfectly healthy.** It warns on
    every boot and reports to Sentry in production — don't ignore that warning.
-9. **`/api/health` is the one intentionally unauthenticated route.** An uptime monitor
-   can't hold a session. It's bought by leaking nothing: no data, no counts, no build
-   id, and a fixed `"unhealthy"` string on failure rather than the error text (a
-   Mongoose failure can carry `MONGODB_URI` with its credentials).
+9. **Two routes are intentionally unauthenticated, and both leak nothing.**
+   `/api/health`: an uptime monitor can't hold a session. It returns no data, no counts
+   and no build id, and a fixed `"unhealthy"` string on failure rather than the error
+   text (a Mongoose failure can carry `MONGODB_URI` with its credentials).
+   `GET /api/menu`: the menu is public by nature and returns only what any guest sees.
+   It **must never vary by caller**, because the service worker caches it on the device.
+   That's why the admin screen reads hidden sections server-side
+   (`getMenu({ includeHidden: true })`), never through this route. Any other new route
+   without a check is a bug.
+10. **Make-from-template only ever makes drafts.** `POST /api/events/from-template`
+    takes `{ templateId, date, time? }`, nothing more. The server builds every event
+    field from the stored template and sets `status: "draft"`. Publishing (the `PATCH`
+    draft → published transition) stays the **single** path that announces a night and
+    fans out push notifications. Don't add a "create and publish" shortcut anywhere.
 
 ---
 
@@ -212,6 +374,10 @@ Cairo, regardless of where the admin physically is.
    `events/[id]/reservations/route.ts`). This is a known, accepted tradeoff at cafe
    scale — don't "fix" it with a transaction unless the scale assumption changes;
    simplicity here was a conscious choice, documented in the code.
+5. **No `index: true` on a field that already leads a compound index.** Mongoose builds
+   both, and the single-field one only costs writes. §7 lists four on the live cluster
+   created exactly this way. `MenuItem` declares only `{ category: 1, order: 1 }`; follow
+   that.
 
 ---
 
@@ -254,13 +420,49 @@ Cairo, regardless of where the admin physically is.
   the shared primitives flip to the cream theme automatically.
 - Don't translate bilingual labels literally — see `design-system/06-tone-of-voice.md`;
   match the feeling, not the words, when writing new Arabic/English copy pairs.
+- Don't import runtime code from `@/lib/i18n` in a component that can render on the
+  client. `lib/i18n/index.ts` reads cookies (`next/headers`), so `fill()` is
+  server-only. Client components import only types from it (`import type { Locale }`)
+  and do placeholder substitution inline. See `menuHeadline` in
+  `components/menu/MenuItemCard.tsx`.
+- Don't reuse `t.nav.menu` for food — it means the hamburger menu. Cafe-menu strings
+  live under `t.cafeMenu.*`.
+- Don't detect "installed app" in JavaScript to change layout; use the `standalone:`
+  variant (§2). Don't change how the browser site looks while doing app work.
+- Don't put an absolutely positioned element (including Tailwind's `sr-only`) inside a
+  horizontal scroller unless the scroller is `relative`. Otherwise its containing block
+  is the page, and it widens the whole document. That is exactly the bug that made
+  every `DataGrid` with rows scroll sideways on phones until phase 2 (the wrapper is now
+  `relative`).
+- Don't show the raw `IMGS/` JPEGs as icons. They're black on white. Redraw as an SVG
+  on the 24px stroke grid in `components/BrandIcons.tsx`, so they tint with
+  `currentColor` (see `AdminDashIcon`).
+
+**Service worker / PWA**
+- Don't cache page HTML, a user- or role-specific API response, or anything under
+  `/admin` or `/staff` in `public/sw.js`. Offline pages get `/offline`, nothing else
+  (§2).
+- Don't change `/offline` (or what it imports) without bumping `VERSION` in `sw.js`, or
+  installed phones keep the old copy.
+- Don't make `GET /api/menu` depend on who's asking (§3 rule 9).
+- Don't use `next/image` on `/offline`. Its `/_next/image?…` URL varies by width and
+  won't be in the cache; that page uses a plain `<img>` on purpose.
 
 **Backend**
 - Don't import `@/models/*` from a client component — it pulls Mongoose into the
   browser bundle. Import shared enums from `lib/constants.ts` instead.
 - Don't skip `guard()`/`currentUser()` on a new API route "because it's simple" — every
   route gets a check, even read-only ones that only need to hide drafts from the
-  public.
+  public. (The two deliberate exceptions are listed in §3 rule 9.)
+- Don't build an update schema without `stripDefaults()` + `.partial()` + `.strict()`
+  (§2), and don't let a single-row PATCH set `order` (§2, "Reordering").
+- Don't give a lower role a power by adding a role check inside a general route. Give it
+  its own narrow route (§2, "Narrow routes").
+- Don't let a cafe-menu photo be a pasted URL. Menu `image` must match
+  `UPLOAD_IMAGE_PATTERN` (uploads only), so `/_next/image` only fetches from hosts this
+  site already trusts.
+- Don't delete a menu section that still has items (`409 CATEGORY_NOT_EMPTY`). Hiding
+  (`isActive: false`) is the reversible way off the menu.
 - Don't read `request.json()` fields directly — always through `parseBody()` + a
   Zod schema.
 - Don't add a new role check inline — extend `RANK`/`hasRole()` in `lib/rbac.ts` if the
@@ -269,6 +471,18 @@ Cairo, regardless of where the admin physically is.
   any HTTPS host, because cover images are admin-typed URLs) without first considering
   narrowing it to a specific image host — it's flagged as a known gap already, not a
   green light to loosen it more.
+
+**Testing**
+- **Don't write-test against the dev server.** `npm run dev` uses `.env.local`, whose
+  `MONGODB_URI` is the live production cluster. Use the local throwaway database in
+  §11, and prove the server is on it before the first write.
+- Don't run `scripts/seed.ts` against anything but a local database.
+- Don't upload test files through a local server and leave them behind.
+  `public/uploads/events/` also holds the owner's real files from August. Delete only
+  the ones your run created.
+- Don't trust a full-page puppeteer screenshot alone for "the page scrolls sideways".
+  Measure `document.documentElement.scrollWidth` (phase 3 found a capture artifact that
+  looked like a bug).
 
 ---
 
@@ -1465,15 +1679,110 @@ there's no pressure, so the first real one isn't learned live.
 
 ## 10. Quick Reference — adding a typical CRUD feature
 
-1. Model: add/extend a schema in `models/`, exporting types + re-exported constants.
-2. Validation: add a Zod schema to `lib/validation.ts`.
-3. API route(s): `app/api/<resource>/route.ts` (+ `[id]/route.ts` if needed) — always
-   `handle()` wrapping `guard()`/`currentUser()` then `parseBody()`.
-4. Read helper: if the screen needs more than a single `findById`, add it to
-   `lib/data.ts`.
-5. Page: `app/(site)/<route>/page.tsx`, built from `PageHeader` + `Card` + shared
-   `ui/` primitives; wrap in `.dk-workspace` only if it's a staff/admin screen.
-6. i18n: add both `ar` and `en` keys to `lib/i18n/dictionaries.ts` — the type-check
-   will fail if you only add one.
-7. Update this file's Known Gaps section (or the root README) with anything notable
-   you decided along the way.
+The menu (`app/api/menu/**`, `components/menu/`) and templates (`app/api/event-templates/**`,
+`components/templates/`) are the most recent complete examples of this recipe — copy
+their shape.
+
+1. **Model:** add a schema in `models/` (new collections over changing existing ones —
+   §9's rollback rule), exporting types + re-exported constants. Enums go in
+   `lib/constants.ts`. Only index real query shapes (§4).
+2. **Validation:** in `lib/validation.ts`, a `core` object of field schemas;
+   `create = z.object(core).strict()`;
+   `update = z.object(stripDefaults(core)).partial().strict()` (§2). Never put `order`,
+   `status` or ownership fields in a schema a client can send unless they're meant to
+   be set.
+3. **API route(s):** `app/api/<resource>/route.ts` (+ `[id]/route.ts`, + `order/route.ts`
+   if it's reorderable). Always `handle()` wrapping `guard()`/`currentUser()`, then
+   `parseBody()`; `{ data }` / `{ error }`; machine-readable error codes
+   (`STALE_ORDER`, `CATEGORY_NOT_EMPTY`) where the UI must react differently.
+4. **Read helper + DTO** in `lib/data.ts` if the screen needs more than one
+   `findById`. One aggregation, no N+1.
+5. **Pages:** `app/(site)/<route>/page.tsx` (server) handing data to one client
+   "manager" component; built from `PageHeader` + `Card` + `ui/` primitives (`DataGrid`
+   for spreadsheet-style editing); `.dk-workspace` for staff/admin; admin pages get a
+   sidebar link in `app/(site)/admin/layout.tsx`.
+6. **i18n:** both `ar` and `en` keys in `lib/i18n/dictionaries.ts`, in a namespace of
+   the feature's own. The type-check fails if you only add one.
+7. **A DB-free check script**, `scripts/check-<feature>.ts` + `npm run check:<feature>`:
+   schema edges, the strict/default-free updates, and guard rank read from the route
+   sources. Then **deliberately break** what it guards (drop `stripDefaults`, downgrade
+   a guard) and confirm it fails — then restore.
+8. **Verify for real** against a local throwaway database (§11): typecheck, lint, build,
+   the checks, an end-to-end run, and screenshots in both languages at phone and desktop
+   width, **looked at**.
+9. **Write it down:** a Feature Log entry (§8) with files, deviations from the spec and
+   why, and a plain "Verification" / "Not verified" paragraph; Known Gaps (§7) for
+   anything deferred; and §0's status table.
+
+---
+
+## 11. Verifying changes locally (without touching live data)
+
+`npm run dev` and `.env.local` point at the **production** Atlas cluster, so any test
+that writes needs a different database. This is the routine phases 2 and 3 used. Every
+step was safe to repeat.
+
+**1. A local MongoDB.** The repo's `docker-compose.yml` defines `dekka-mongo` (`mongo:7`,
+port 27017). The container already exists on the owner's machine with their own local
+`dekka` database in it — **leave that alone**; use a separate throwaway database,
+`dekka_verify`. Docker Desktop is usually *not* running: start it, wait for
+`docker version --format '{{.Server.Version}}'` to print a version, then
+`docker start dekka-mongo`. (Docker Desktop may also auto-start another project's
+container, `incarnatrun-postgres` — not ours, don't touch it.)
+
+**2. A production build pointed at it.** Environment variables set on the command line
+override `.env.local`:
+
+```bash
+npm run build
+MONGODB_URI='mongodb://127.0.0.1:27017/dekka_verify' AUTH_URL='http://localhost:3100' \
+  node node_modules/next/dist/bin/next start -p 3100
+```
+
+`AUTH_URL` must match the port, or sign-in redirects to the wrong one. `.env.local`
+configures no Blob, Upstash, Sentry or email keys, so uploads go to local disk and
+nothing reaches a live service.
+
+**3. Prove the server is on the throwaway database before the first write.** Insert a
+marker with `mongosh` (e.g. a `menucategories` + `menuitems` pair named `VERIFY-MARKER`)
+directly into `dekka_verify`, then `curl http://localhost:3100/api/menu`. It may only
+proceed if the marker comes back. Remove the marker afterwards.
+
+**4. Accounts.** Register throwaway users through `POST /api/register`
+(`…@dekka-verify.test`), then set roles directly in `dekka_verify` with `mongosh`
+(`db.users.updateOne({email}, {$set: {role: "admin"}})`). Sign in through the real
+`/login` page in the browser.
+
+**5. Drive it with headless Chrome.** `puppeteer-core` is a dependency, and Chrome is at
+`C:/Program Files/Google/Chrome/Application/chrome.exe` (forward slashes — backslashes
+get mangled in shell heredocs). Write the scripts in the session scratchpad, not the
+repo, loading puppeteer with
+`createRequire("D:/4) projects/Websites/DEKKA-EVENTS/package.json")`. Chrome only
+launches from a non-sandboxed shell. Make API calls with `page.evaluate(fetch…)` so the
+session cookie rides along. Set React-controlled inputs with the native value setter
+plus an `input` event. Accept the cookie banner before screenshots. Read Mongo results
+with `EJSON.stringify(…, {relaxed: true})` and unwrap `$oid`/`$date`.
+
+**6. Things that look like bugs but aren't:**
+- A photo uploaded during a `next start` run 404s until the server restarts. `next
+  start` only serves `public/` files that existed at boot; production uses Vercel Blob.
+- A full-page screenshot can show the RTL page shifted sideways after a smooth
+  `scrollIntoView`. Measure `scrollWidth` and take a plain capture before believing it.
+
+**7. Production mode without step 1:** `next start` *with* `.env.local` can't reach Atlas
+on this Windows machine (the DNS workaround in `lib/db.ts` is dev-only), so
+database-backed pages error. For browser-only checks (service worker, layout) use
+`/about`, `/menu` or `/get-app`.
+
+**8. Clean up, every time:**
+- Stop the server. Stopping a background `next start` can orphan the `node` process
+  holding the port, so check `Get-NetTCPConnection -LocalPort 3100` and confirm the
+  command line before `Stop-Process`.
+- `db.dropDatabase()` on `dekka_verify`, then confirm the remaining databases are still
+  `admin, config, dekka, local`.
+- Delete only the upload files your run created.
+- `docker stop dekka-mongo`, and `docker desktop stop` if you started Docker Desktop.
+
+If a commit then fails with "Another git process seems to be running", there's a stale
+`.git/index.lock` (it has happened twice). Confirm no `git.exe` is running and that
+the lock is old and empty before deleting it.
