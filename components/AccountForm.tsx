@@ -62,7 +62,12 @@ function initials(name: string): string {
 export function AccountForm({ account }: Props) {
   const { t, bi } = useI18n();
   const router = useRouter();
-  const { update: updateSession } = useSession();
+  const { update } = useSession();
+  // `update()` with no argument only re-reads the session (a GET), so the jwt
+  // callback in lib/auth.ts never sees `trigger: "update"` and the cookie keeps
+  // the old name and photo. Any argument makes it the POST that does. The
+  // callback reloads the user from the database itself, so the payload is empty.
+  const updateSession = () => update({});
   const { fadeUp, reduced } = useMotionPresets();
 
   // --- Photo ---------------------------------------------------------
