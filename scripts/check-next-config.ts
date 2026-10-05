@@ -9,7 +9,9 @@
  * that passes. This asserts the invariant instead of trusting it.
  *
  * It also asserts the `/sw.js` no-cache header (PLAN/DEKKA_PWA_APP.md §2) survives the
- * wrapper, for the same reason: a stale-cached service worker fails silently.
+ * wrapper, for the same reason: a stale-cached service worker fails silently. And that
+ * the `compiler.define` flags stripping Sentry's tracing and debug code survive too:
+ * losing them just quietly puts that code back into every phone's first download.
  *
  * Note what it does *not* assert: that the list is unchanged. Sentry legitimately
  * *appends* the packages it instruments (mongoose, mongodb, redis, ...). Ours surviving
@@ -50,6 +52,15 @@ async function main() {
       }
     }
 
+    // Sentry's wrapper rewrites `compiler` (it installs runAfterProductionCompile),
+    // and these flags are what keep the SDK's tracing out of every phone's download.
+    const define = (config.compiler as { define?: Record<string, unknown> })?.define;
+    for (const flag of ["__SENTRY_DEBUG__", "__SENTRY_TRACING__"]) {
+      if (define?.[flag] !== false) {
+        failures.push(`${label}: compiler.define lost ${flag}: false`);
+      }
+    }
+
     const patterns = (config.images as { remotePatterns?: unknown[] })?.remotePatterns;
     if (!Array.isArray(patterns) || patterns.length < 2) {
       failures.push(`${label}: images.remotePatterns did not survive`);
@@ -87,7 +98,7 @@ async function main() {
   console.log(
     `next.config: OK — ${REQUIRED.join(", ")} present in both configs ` +
       `(Sentry appends ${wrappedPkgs.length - REQUIRED.length} more); ` +
-      `remotePatterns intact; /sw.js served no-cache; ` +
+      `remotePatterns intact; /sw.js served no-cache; Sentry tree-shaking flags kept; ` +
       `unwrapped config untouched without SENTRY_ORG/PROJECT.`
   );
 }

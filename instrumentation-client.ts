@@ -17,6 +17,10 @@ if (dsn) {
     enableLogs: false,
     sendDefaultPii: false,
     beforeSend: scrubEvent,
+    // One release-health session per app launch. The default (`"route"`) ends and
+    // starts a session on every client navigation, which costs two requests to
+    // Sentry per tab tap in the installed app.
+    integrations: [Sentry.browserSessionIntegration({ lifecycle: "page" })],
   });
 }
 

@@ -2,6 +2,20 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  // Sentry's own tree-shaking flags (what `withSentryConfig`'s webpack
+  // `treeshake` options below set), applied here because this project builds
+  // with Turbopack, where those options do nothing. We run `tracesSampleRate: 0`
+  // everywhere, so the SDK's tracing half was dead weight in every phone's
+  // first download; debug logging is never on in production. Set at this level,
+  // not inside the Sentry branch, so a build without Sentry credentials is
+  // trimmed the same way. `npm run check:config` asserts they survive the
+  // wrapper.
+  compiler: {
+    define: {
+      __SENTRY_DEBUG__: false,
+      __SENTRY_TRACING__: false,
+    },
+  },
   // The event-report route (`/api/events/:id/report`) drives headless Chromium
   // for PDF generation. These ship a native binary / do their own `fs` work and
   // must not be traced into the bundle. (Next already auto-externalises both,
@@ -84,8 +98,9 @@ export default sentryConfigured
           removeDebugLogging: true,
           // We run `tracesSampleRate: 0` everywhere, so the tracing half of the SDK is
           // dead weight — strip it rather than ship it. (These are webpack-side
-          // options; this project builds with Turbopack, where they are a harmless
-          // no-op, but they apply the moment a webpack build is used.)
+          // options; under Turbopack, which this project builds with, they do
+          // nothing — `compiler.define` at the top of this file is what actually
+          // strips them there.)
           removeTracing: true,
         },
       },
