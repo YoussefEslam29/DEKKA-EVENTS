@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cairo, Plus_Jakarta_Sans } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getI18n, dictFor } from "@/lib/i18n";
 import { getCookieConsent } from "@/lib/cookie-consent";
 import { EARLY_APP_SCRIPT } from "@/lib/pwa";
@@ -86,6 +87,9 @@ export default async function RootLayout({
           {children}
         </Providers>
         <ServiceWorkerRegistrar />
+        {/* Real-user Core Web Vitals for Vercel's Speed Insights tab. Cookieless,
+            and it only reports from a Vercel deploy, never from `npm run dev`. */}
+        <SpeedInsights />
       </body>
     </html>
   );
