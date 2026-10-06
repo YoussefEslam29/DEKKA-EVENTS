@@ -46,9 +46,19 @@ const BUCKETS = {
 
 export type Bucket = keyof typeof BUCKETS;
 
-const configured = Boolean(
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-);
+/**
+ * Accepts exactly what `Redis.fromEnv()` accepts, resolving URL and token independently.
+ * Vercel's Upstash integration injects `KV_REST_API_*` rather than `UPSTASH_REDIS_REST_*`,
+ * so checking only the latter leaves a correctly connected deploy unthrottled.
+ */
+export function upstashConfigured(env: Record<string, string | undefined>): boolean {
+  return Boolean(
+    (env.UPSTASH_REDIS_REST_URL || env.KV_REST_API_URL) &&
+      (env.UPSTASH_REDIS_REST_TOKEN || env.KV_REST_API_TOKEN)
+  );
+}
+
+const configured = upstashConfigured(process.env);
 
 /**
  * Shared across limiters and kept module-level so it survives between invocations on a
@@ -99,7 +109,8 @@ function warnUnconfiguredOnce() {
   if (warnedUnconfigured) return;
   warnedUnconfigured = true;
   const message =
-    "UPSTASH_REDIS_REST_URL/TOKEN are not set — rate limiting is INACTIVE. " +
+    "Neither UPSTASH_REDIS_REST_URL/TOKEN nor KV_REST_API_URL/TOKEN is set — " +
+    "rate limiting is INACTIVE. " +
     "Every limited endpoint accepts unlimited requests.";
   console.warn(`[ratelimit] ${message}`);
   if (process.env.NODE_ENV === "production") {

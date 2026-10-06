@@ -218,10 +218,11 @@ than in a file. Three behave differently than they do locally:
   authorized redirect — otherwise sign-in completes and returns to `localhost`.
 - `BLOB_READ_WRITE_TOKEN` must be set. Vercel's filesystem is read-only, so without it
   poster uploads take the `public/uploads/` branch of `lib/storage.ts` and fail.
-- `UPSTASH_REDIS_REST_URL` / `_TOKEN` back the rate limiter. It **fails open** by
-  design (`lib/ratelimit.ts`), so a deploy missing them accepts unlimited requests on
-  every limited endpoint while looking perfectly healthy — it warns to Sentry rather
-  than erroring.
+- `UPSTASH_REDIS_REST_URL` / `_TOKEN` back the rate limiter. Vercel's Upstash
+  integration injects them as `KV_REST_API_URL` / `_TOKEN`; either pair works. It
+  **fails open** by design (`lib/ratelimit.ts`), so a deploy missing them accepts
+  unlimited requests on every limited endpoint while looking perfectly healthy — it
+  warns to Sentry rather than erroring.
 
 `GET /api/health` returns `{ "data": { "status": "ok" } }` — point an uptime monitor
 there rather than at `/`.

@@ -16,6 +16,7 @@ import {
   consumeRateLimit,
   peekRateLimit,
   rateLimit,
+  upstashConfigured,
   type Bucket,
 } from "../lib/ratelimit";
 
@@ -78,13 +79,42 @@ for (const [headers, expected, label] of ipCases) {
   if (got !== expected) fail(`clientIp — ${label}: expected ${expected}, got ${got}`);
 }
 
-// --- 3. Unconfigured must fail OPEN ---------------------------------------------
+// --- 3. "Configured" means what Redis.fromEnv() accepts --------------------------
+// Vercel's Upstash integration injects KV_REST_API_*, not UPSTASH_REDIS_REST_*. A guard
+// that only knew the second pair left a correctly connected deploy unthrottled.
+const envCases: Array<[Record<string, string>, boolean, string]> = [
+  [{}, false, "nothing set"],
+  [
+    { UPSTASH_REDIS_REST_URL: "https://u.example", UPSTASH_REDIS_REST_TOKEN: "t" },
+    true,
+    "UPSTASH_REDIS_REST_* pair",
+  ],
+  [
+    { KV_REST_API_URL: "https://u.example", KV_REST_API_TOKEN: "t" },
+    true,
+    "KV_REST_API_* pair (Vercel integration)",
+  ],
+  [
+    { UPSTASH_REDIS_REST_URL: "https://u.example", KV_REST_API_TOKEN: "t" },
+    true,
+    "mixed pair, as fromEnv() resolves each independently",
+  ],
+  [{ KV_REST_API_URL: "https://u.example" }, false, "URL without a token"],
+  [{ UPSTASH_REDIS_REST_TOKEN: "t" }, false, "token without a URL"],
+  [{ UPSTASH_REDIS_REST_URL: "", UPSTASH_REDIS_REST_TOKEN: "" }, false, "empty strings"],
+];
+for (const [env, expected, label] of envCases) {
+  const got = upstashConfigured(env);
+  if (got !== expected) fail(`upstashConfigured — ${label}: expected ${expected}, got ${got}`);
+}
+
+// --- 4. Unconfigured must fail OPEN ---------------------------------------------
 // The whole point: a limiter that turns a missing env var into a total auth outage is
 // worse than the abuse it prevents. This asserts the documented tradeoff really holds.
 async function main() {
   if (__configured) {
     console.log(
-      "note: UPSTASH_REDIS_REST_* are set in this environment, so the fail-open " +
+      "note: Upstash credentials are set in this environment, so the fail-open " +
         "assertions below are skipped (they only apply to an unconfigured install)."
     );
   } else {
@@ -106,7 +136,8 @@ async function main() {
   }
   console.log(
     `ratelimit: all checks pass — ${EXPECTED.length} buckets valid, ` +
-      `${ipCases.length} IP cases correct, unconfigured install fails open.`
+      `${ipCases.length} IP cases correct, ${envCases.length} env cases correct, ` +
+      `unconfigured install fails open.`
   );
 }
 

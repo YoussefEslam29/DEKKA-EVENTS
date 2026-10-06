@@ -342,7 +342,10 @@ offline menu all call it.
    Upstash allows the request rather than blocking it, so a third-party blip can't lock
    everyone out of signing in. The consequence worth remembering: **a deploy missing
    `UPSTASH_REDIS_REST_*` is unprotected while looking perfectly healthy.** It warns on
-   every boot and reports to Sentry in production — don't ignore that warning.
+   every boot and reports to Sentry in production — don't ignore that warning. The
+   `KV_REST_API_*` names that Vercel's Upstash integration injects count too:
+   `upstashConfigured()` accepts exactly what `Redis.fromEnv()` does, and
+   `check:ratelimit` pins that.
 9. **Two routes are intentionally unauthenticated, and both leak nothing.**
    `/api/health`: an uptime monitor can't hold a session. It returns no data, no counts
    and no build id, and a fixed `"unhealthy"` string on failure rather than the error

@@ -165,5 +165,8 @@ correctly.
    - `UPSTASH_REDIS_REST_URL`
    - `UPSTASH_REDIS_REST_TOKEN`
 
+   The Marketplace integration injects them as `KV_REST_API_URL` / `KV_REST_API_TOKEN`
+   instead. Both pairs are accepted, matching `Redis.fromEnv()`.
+
 Leave them unset and the app runs exactly as it does today, unthrottled, with a warning
 in the logs.
