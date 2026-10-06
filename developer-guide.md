@@ -39,6 +39,9 @@ mobile auth bridge was ever built, and v1 doesn't use it.
 - Daytime "activities" were built as ordinary events with `kind: "activity"` on their
   template (sun icon instead of moon). The owner never confirmed; if activities need
   different fields (e.g. no reservations), that's new work.
+- **The speed pass's region move (2026-10-06) only takes effect on the next deploy.**
+  After the push, confirm `x-vercel-id` reads `fra1::fra1::…` (§4 rule 6), then rerun
+  the phone timings in the Feature Log entry to get the real before/after.
 - The menu starts empty in production until the owner adds sections and items at
   `/admin/menu`. There is no dish photography yet; every card is designed to work
   without a photo.
@@ -378,6 +381,29 @@ offline menu all call it.
    both, and the single-field one only costs writes. §7 lists four on the live cluster
    created exactly this way. `MenuItem` declares only `{ category: 1, order: 1 }`; follow
    that.
+6. **Server functions run in Frankfurt, next to the database** (`vercel.json`:
+   `"regions": ["fra1"]`). The Atlas cluster is in Frankfurt (measured: same latency as
+   AWS eu-central-1, half that of us-east-1), and Vercel's default region is Washington
+   (`iad1`). Until 2026-10-06 every page and API call ran there, so each request crossed
+   the Atlantic once for the request, again for every database round trip, and many
+   times during a cold start's Mongo handshake. If the database ever moves, move
+   `regions` with it. Any service the server calls on a hot path (Upstash, once it
+   exists) belongs in Frankfurt too. To check which region a request ran in:
+   `curl -sI https://dekka-events.vercel.app/ | grep -i x-vercel-id`. The second segment
+   is the function's region and should read `fra1`.
+7. **No app-wide `SessionProvider`.** Mounted in the root layout, it fetched
+   `/api/auth/session` on every page load and every time the installed app came back to
+   the foreground. Server components read the user with `currentUser()`, and `signIn` /
+   `signOut` from `next-auth/react` work without a provider. A client screen that really
+   needs `useSession()` mounts its own, seeded with the server's session
+   (`session={await auth()}`) so it doesn't fetch on mount. `/account` is the one example.
+8. **Every tab tap is one server round trip, on purpose.** Every page is dynamic (the
+   root layout reads the locale cookie), and Next keeps dynamic pages in its client cache
+   for 0 seconds by default (`staleTimes.dynamic`), so spot counts and sold-out switches
+   are never stale. That is why rule 6 matters so much. Raising
+   `experimental.staleTimes.dynamic` would make going back to a recently seen tab instant,
+   at the cost of showing data up to that many seconds old (spot counts, the menu, the door
+   list). That's the owner's call, not a default to flip quietly.
 
 ---
 
@@ -680,6 +706,18 @@ offline menu all call it.
   production build (`querySrv ECONNREFUSED`). Verify production-only behaviour, such as
   the service worker, on pages that don't query the database (`/about`, `/menu`,
   `/get-app`), or on a real deploy.
+- **A phone still downloads ~230 KB of JavaScript (brotli) on its first visit.** After
+  the 2026-10-06 speed pass, most of it is React and the Next.js runtime, which is a
+  fixed cost. The biggest optional pieces are the Sentry SDK and framer-motion (~41 KB).
+  framer-motion's shared `layoutId` tab indicators need its full layout features, so
+  `LazyMotion` would save little. Both complete dictionaries also ride in every hard
+  load's HTML (about half of the home page's 171 KB uncompressed), because `bi()`
+  labels need both languages on the client. Splitting that is real work: the client
+  would need only the keys it renders.
+- **The favicon is the 85 KB `public/brand/dekka-logo-square.png`** (`metadata.icons`
+  in `app/layout.tsx`). Browsers fetch it after the page loads, so it's not on the
+  critical path, but a 32–48 px export from `npm run brand:assets` would do the same job
+  in a few KB.
 - **`stripDefaults()` in `lib/validation.ts` touches Zod internals**
   (`instanceof z.ZodDefault`, `.removeDefault()`). It's the structural guard that
   stops `updateEventSchema` re-introducing the default-leak bug described in §8,
@@ -692,6 +730,76 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Mobile speed pass (2026-10-06)
+
+The owner's report: "the mobile application is too slow." I measured the live site
+before changing anything. The setup was headless Chrome emulating a Pixel 7 in
+installed-app mode, on Lighthouse's mobile profile (slow 4G: 150 ms latency, 1.6 Mbps;
+4× CPU slowdown), from the owner's machine.
+
+**What the measurements showed (live, before):**
+- **Server functions were running in Washington.** Every response carried
+  `x-vercel-id: fra1::iad1`: it entered Vercel in Frankfurt but ran in `iad1`, while the
+  Atlas cluster is in Frankfurt. A static file answered in ~70 ms, but any dynamic page
+  took ~250 ms even with no database work. Pages with queries added ~100–170 ms more,
+  because each query also crossed the Atlantic. Cold starts were 2.5–4.5 s.
+- **Tab taps:** Menu and About ~650 ms each; My Events (as a guest) ~330–400 ms.
+- **First load:** ~300 KB of brotli JavaScript, first paint ~1.3–1.6 s, load ~3 s,
+  190–310 ms of main-thread blocking.
+- **Background chatter:** `/api/auth/session` on every launch and every time the app
+  returned to the foreground (root `SessionProvider`), plus two Sentry "session"
+  requests on every tab tap.
+
+**Changes:**
+- **`vercel.json` → `"regions": ["fra1"]`** (§4 rule 6). This is the big one. It
+  removes the transatlantic hop from every request and from every database round trip.
+- **`SessionProvider` moved from the root to `/account`** (§4 rule 7), seeded with the
+  server's session so it doesn't fetch on mount.
+- **Fixed while there: renaming yourself on `/account` never reached the navbar.**
+  `useSession().update()` with no argument is a plain GET, so the `jwt` callback never
+  saw `trigger: "update"` and the cookie kept the old name until the next sign-in. This
+  predates the speed pass. `AccountForm` now calls `update({})`, which is the POST that
+  re-reads the user (same for the photo).
+- **Sentry, client:** `browserSessionIntegration({ lifecycle: "page" })`, which gives one
+  release-health session per app launch instead of one per screen. That's two fewer
+  requests per tab tap.
+- **Sentry, bundle:** `compiler.define` sets `__SENTRY_DEBUG__` and
+  `__SENTRY_TRACING__` to `false`. The existing `webpack.treeshake` options were meant to
+  do this, but they don't run under Turbopack. It applies to server bundles too, which
+  is the intent: we run `tracesSampleRate: 0` everywhere. `check:config` now asserts both
+  flags survive the Sentry wrapper.
+
+**Verification.**
+- **Checks:** typecheck, lint and build are clean; `check:config` passes with the new
+  assertion.
+- **Bundle:** per-page JavaScript went from 245 KB to 230 KB brotli (local production
+  builds, same pages: `/get-app`, `/about`, `/login`).
+- **Sentry still reports, with tracing stripped.** I built and ran with a fake DSN
+  pointing at a local catcher, against an unreachable database. A page render error
+  (`onRequestError`), an API error (`handle()`) and a thrown browser error each arrived
+  as an `event` envelope. There were no Sentry requests on client navigations.
+- **Signed-in flow, end to end:** against a production build on the **local** throwaway
+  `dekka_verify` database (marker proof first; the live cluster was never written to).
+  - Sign-in through `/login` works without the root provider.
+  - Browsing three screens and a simulated return to the foreground made **0**
+    `/api/auth/session` calls.
+  - `/account` mounts without fetching the session.
+  - Before the rename fix, saving a new name sent a `GET` and the navbar kept the old
+    name, even after a full reload. After it, a `POST`, and the navbar showed the new
+    name immediately and after a reload.
+  - Sign-out works.
+- **Installed-app smoke run:** cold load, warm reload and four tab taps work on the local
+  build. Locally, where the server sits next to its database, a tab tap took ~380 ms
+  under the same emulation, against ~650 ms live. That's a preview of what the region
+  move should give, not a measurement of it.
+- **Cleanup:** the throwaway database was dropped (remaining: `admin, config, dekka,
+  local`); the container and Docker Desktop were stopped. The run created no upload
+  files.
+
+**Not verified:** the region change itself, which only takes effect on deploy (§0 says
+how to check it). The photo-upload path of the session fix wasn't exercised; it uses the
+same `updateSession()` call as the name. Nothing was run on a real phone.
 
 ### Installable app, phase 3 of 4: event templates (`PLAN/DEKKA_PWA_APP.md` §4, 2026-10-04)
 
