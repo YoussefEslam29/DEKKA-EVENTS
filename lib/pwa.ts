@@ -57,11 +57,14 @@ export type AppPlatform = "standalone" | "ios" | "other";
 
 export function readPlatform(): AppPlatform {
   if (document.documentElement.dataset.app === "standalone") return "standalone";
+  return isIOS() ? "ios" : "other";
+}
+
+/** iPhone, iPad or iPod, installed or not. */
+export function isIOS(): boolean {
   const ua = navigator.userAgent;
   // iPadOS reports itself as a Mac; touch support is what gives it away.
-  const ios =
-    /iPad|iPhone|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
-  return ios ? "ios" : "other";
+  return /iPad|iPhone|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
 }
 
 /**

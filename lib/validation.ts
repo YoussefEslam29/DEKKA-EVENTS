@@ -399,10 +399,23 @@ const menuVariant = z
   })
   .strict();
 
+/** A Cairo calendar day, "YYYY-MM-DD", that exists: no 31 February. */
+export const seasonDay = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+  .refine((day) => {
+    const date = new Date(`${day}T00:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === day;
+  }, "Not a real day");
+
 const menuCategoryCore = {
   nameAr: trimmed(80).min(1),
   nameEn: trimmed(80).min(1),
   isActive: z.boolean().optional().default(true),
+  // A season (`PLAN/DEKKA_PWA_APP.md` §5.3, 4b.4); `null` clears it on an update. Whether
+  // the end comes after the start is the routes' check, against the stored other end.
+  startsOn: seasonDay.nullable().optional(),
+  endsOn: seasonDay.nullable().optional(),
 };
 
 /**

@@ -6,6 +6,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { useCookieConsent } from "@/components/CookieConsentProvider";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { DirectionsLink } from "@/components/DirectionsLink";
 
 /**
  * The Google Maps embed, behind consent.
@@ -32,7 +33,8 @@ export function MapEmbed({
   src: string;
   title: string;
   className?: string;
-  directionsHref: string;
+  /** An event's own place link; omitted at the cafe, which gets one-tap directions. */
+  directionsHref?: string;
 }) {
   const { t } = useI18n();
   const { mapsAllowed } = useCookieConsent();
@@ -66,15 +68,22 @@ export function MapEmbed({
         <Button type="button" size="sm" onClick={() => setClickedThrough(true)}>
           {t.legal.mapPlaceholder.loadButton}
         </Button>
-        <a
-          href={directionsHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-gold-accent hover:underline"
-        >
-          <ExternalLink className="h-4 w-4" aria-hidden />
-          {t.event.directions}
-        </a>
+        {directionsHref ? (
+          <a
+            href={directionsHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gold-accent hover:underline"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden />
+            {t.event.directions}
+          </a>
+        ) : (
+          <DirectionsLink className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gold-accent hover:underline">
+            <ExternalLink className="h-4 w-4" aria-hidden />
+            {t.event.directions}
+          </DirectionsLink>
+        )}
       </div>
     </div>
   );

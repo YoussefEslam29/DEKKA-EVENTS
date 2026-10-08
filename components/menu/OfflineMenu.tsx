@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/components/I18nProvider";
 import { menuHeadline } from "@/components/menu/MenuItemCard";
-import { localName } from "@/lib/menu";
+import { isInSeason, localName } from "@/lib/menu";
+import { dayKey } from "@/lib/format";
 import type { MenuCategoryDTO } from "@/lib/data";
 
 /**
@@ -24,7 +25,11 @@ export function OfflineMenu() {
     fetch("/api/menu")
       .then((res) => (res.ok ? res.json() : null))
       .then((body: { data?: MenuCategoryDTO[] } | null) => {
-        if (!cancelled && body?.data?.length) setCategories(body.data);
+        // The copy may be days old: a seasonal section that has ended since is dropped
+        // here too, against today's Cairo date (`PLAN/DEKKA_PWA_APP.md` §5.3, 4b.4).
+        const today = dayKey(new Date());
+        const current = body?.data?.filter((c) => isInSeason(c, today)) ?? [];
+        if (!cancelled && current.length) setCategories(current);
       })
       .catch(() => {});
     return () => {

@@ -12,7 +12,8 @@ import { MenuItem, type IMenuItem } from "@/models/MenuItem";
 import type { MenuTag, EventTemplateKind, CheckInAuditAction } from "@/lib/constants";
 import { CheckInAudit } from "@/models/CheckInAudit";
 import { EventTemplate, type IEventTemplate } from "@/models/EventTemplate";
-import { fromLocalInputValue } from "@/lib/format";
+import { dayKey, fromLocalInputValue } from "@/lib/format";
+import { seasonFilter } from "@/lib/menu";
 import { cafeNightBounds, hasEnded } from "@/lib/staff";
 
 /**
@@ -988,6 +989,9 @@ export type MenuCategoryDTO = {
   nameEn: string;
   order: number;
   isActive: boolean;
+  /** The section's season, Cairo days "YYYY-MM-DD"; `null` = no limit that side. */
+  startsOn: string | null;
+  endsOn: string | null;
   items: MenuItemDTO[];
 };
 
@@ -1020,6 +1024,8 @@ function toMenuCategoryDTO(c: IMenuCategory, items: IMenuItem[]): MenuCategoryDT
     nameEn: c.nameEn ?? "",
     order: c.order ?? 0,
     isActive: c.isActive ?? true,
+    startsOn: c.startsOn ?? null,
+    endsOn: c.endsOn ?? null,
     items: items.map(toMenuItemDTO),
   };
 }
@@ -1028,8 +1034,8 @@ function toMenuCategoryDTO(c: IMenuCategory, items: IMenuItem[]): MenuCategoryDT
  * The whole menu, sections in the admin's order with their items in theirs —
  * one aggregation, no per-section query (developer-guide.md §4.3).
  *
- * Guests (`includeHidden: false`, the default) get active sections that have at
- * least one item; sold-out items are *included*, because they stay on the menu
+ * Guests (`includeHidden: false`, the default) get active sections in season today
+ * (`isInSeason`, Cairo day) that have at least one item; sold-out items are *included*, because they stay on the menu
  * marked rather than disappearing. The admin screen passes `includeHidden` to
  * see hidden and empty sections too.
  *
@@ -1042,7 +1048,7 @@ export async function getMenu({
 }: { includeHidden?: boolean } = {}): Promise<MenuCategoryDTO[]> {
   await connectDB();
   const docs = await MenuCategory.aggregate<IMenuCategory & { items: IMenuItem[] }>([
-    ...(includeHidden ? [] : [{ $match: { isActive: true } }]),
+    ...(includeHidden ? [] : [{ $match: seasonFilter(dayKey(new Date())) }]),
     { $sort: { order: 1, _id: 1 } },
     {
       $lookup: {
@@ -1079,7 +1085,7 @@ export async function getFeaturedMenuItems(limit = 8): Promise<MenuItemDTO[]> {
       },
     },
     { $unwind: "$section" },
-    { $match: { "section.isActive": true } },
+    { $match: seasonFilter(dayKey(new Date()), "section.") },
     { $sort: { "section.order": 1, order: 1, _id: 1 } },
     { $limit: limit },
     { $project: { section: 0 } },

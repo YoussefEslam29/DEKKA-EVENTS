@@ -1,4 +1,4 @@
-// PATCH  /api/menu/categories/:id — rename / show / hide a section (admin)
+// PATCH  /api/menu/categories/:id — rename / show / hide / set the season of a section (admin)
 // DELETE /api/menu/categories/:id — remove an *empty* section (admin)
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
@@ -7,6 +7,7 @@ import { MenuItem } from "@/models/MenuItem";
 import { handle, isValidId, jsonError, parseBody } from "@/lib/api";
 import { updateMenuCategorySchema } from "@/lib/validation";
 import { guard } from "@/lib/rbac";
+import { seasonRangeOk } from "@/lib/menu";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -22,10 +23,31 @@ export async function PATCH(request: Request, { params }: Params) {
     if ("response" in parsed) return parsed.response;
     if (Object.keys(parsed.data).length === 0) return jsonError("Nothing to update", 400);
 
+    // A season end sent as `null` is cleared ($unset), not stored as null.
+    const { startsOn, endsOn, ...fields } = parsed.data;
+    const set: Record<string, unknown> = { ...fields };
+    const unset: Record<string, 1> = {};
+    for (const [key, value] of [["startsOn", startsOn], ["endsOn", endsOn]] as const) {
+      if (value === null) unset[key] = 1;
+      else if (value !== undefined) set[key] = value;
+    }
+
     await connectDB();
+    if (startsOn !== undefined || endsOn !== undefined) {
+      // Only one end sent: check it against the end already stored.
+      const current = await MenuCategory.findById(id).select("startsOn endsOn").lean();
+      if (!current) return jsonError("Not found", 404);
+      const from = startsOn === undefined ? current.startsOn : startsOn;
+      const until = endsOn === undefined ? current.endsOn : endsOn;
+      if (!seasonRangeOk(from, until)) return jsonError("SEASON_RANGE", 400);
+    }
+
     const doc = await MenuCategory.findByIdAndUpdate(
       id,
-      { $set: parsed.data },
+      {
+        ...(Object.keys(set).length ? { $set: set } : {}),
+        ...(Object.keys(unset).length ? { $unset: unset } : {}),
+      },
       { returnDocument: "after", runValidators: true }
     ).lean();
     if (!doc) return jsonError("Not found", 404);
@@ -37,6 +59,8 @@ export async function PATCH(request: Request, { params }: Params) {
         nameEn: doc.nameEn,
         order: doc.order,
         isActive: doc.isActive,
+        startsOn: doc.startsOn ?? null,
+        endsOn: doc.endsOn ?? null,
       },
     });
   });

@@ -1,3 +1,11 @@
+import { parseOpeningHours } from "@/lib/hours";
+
+/** "lat,lng" of the cafe: the point the embedded map already shows. */
+const DEFAULT_COORDS = "31.2067034,29.9258693";
+const coords = /^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/.test(process.env.NEXT_PUBLIC_CAFE_COORDS ?? "")
+  ? process.env.NEXT_PUBLIC_CAFE_COORDS!
+  : DEFAULT_COORDS;
+
 /**
  * Cafe-level details that belong to Dekka rather than to any one event.
  * Defaults are the real accounts/location; env vars only need to be set if
@@ -31,6 +39,17 @@ export const site = {
   email: process.env.NEXT_PUBLIC_CAFE_EMAIL || "yousef.islam.hussein@gmail.com",
   hoursAr: process.env.NEXT_PUBLIC_HOURS_AR || "يومياً من 10 ص حتى 1 ص",
   hoursEn: process.env.NEXT_PUBLIC_HOURS_EN || "Daily, 10am – 1am",
+  /**
+   * The same hours, structured, for "Open now" (`lib/hours.ts`; `NEXT_PUBLIC_OPENING_HOURS`).
+   * The two text lines above stay the display copy: change both together.
+   */
+  openingHours: parseOpeningHours(process.env.NEXT_PUBLIC_OPENING_HOURS),
+  /**
+   * One-tap directions (`components/DirectionsLink.tsx`): turn-by-turn straight away, not
+   * the place page and a second tap like `maps`. Built from `NEXT_PUBLIC_CAFE_COORDS`.
+   */
+  directionsGoogle: `https://www.google.com/maps/dir/?api=1&destination=${coords}`,
+  directionsApple: `https://maps.apple.com/?daddr=${coords}`,
   // Legal identity, shown in the business-info block on /privacy. Dekka trades
   // under its own name with no separate registered company, so both stay blank
   // and their rows simply don't render — deliberately not filled with a

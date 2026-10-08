@@ -22,6 +22,7 @@ import type { Metadata } from "next";
 import { NextNightCard } from "@/components/NextNightCard";
 import { TonightBanner } from "@/components/TonightBanner";
 import { VisitSection } from "@/components/VisitSection";
+import { VisitRow } from "@/components/VisitRow";
 import { JsonLd } from "@/components/JsonLd";
 import { cafeJsonLd } from "@/lib/seo";
 import { cafeNightKey } from "@/lib/staff";
@@ -266,7 +267,9 @@ export default async function EventsHubPage({
         )}
       </section>
 
-      <VisitSection locale={locale} t={t} />
+      <VisitSection locale={locale} t={t}>
+        <VisitRow t={t} directions={false} className="mt-4" />
+      </VisitSection>
 
       {past.length > 0 ? (
         <section className="mx-auto max-w-[1180px] px-4 pb-16 md:px-8">

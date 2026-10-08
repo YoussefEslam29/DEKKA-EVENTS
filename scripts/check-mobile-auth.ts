@@ -146,8 +146,13 @@ async function main() {
   if (await verifyMobileToken(noSub)) fail("a token with no `sub` verified");
 
   // --- 6. Tampering and junk -----------------------------------------------------
+  // Flip the first character of the ciphertext segment. Not the token's *last* character:
+  // in base64url that one also carries padding bits, so some flips decode to the very
+  // same bytes and the "tampered" token is really unchanged (it failed ~1 run in 7).
   const flip = (c: string) => (c === "a" ? "b" : "a");
-  const tampered = token.slice(0, -1) + flip(token.slice(-1));
+  const segments = token.split(".");
+  segments[3] = flip(segments[3][0]) + segments[3].slice(1);
+  const tampered = segments.join(".");
   if (await verifyMobileToken(tampered)) fail("a tampered token verified");
 
   // Swapping the JWE ciphertext segment between two tokens must not verify —

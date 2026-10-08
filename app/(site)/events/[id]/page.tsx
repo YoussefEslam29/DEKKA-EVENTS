@@ -271,7 +271,6 @@ export default async function EventDetailPage({
                     src={site.mapsEmbed}
                     title="Dekka on Google Maps"
                     className="h-48 w-full"
-                    directionsHref={mapUrl}
                   />
                 </div>
               ) : (

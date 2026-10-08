@@ -31,7 +31,8 @@ const CACHING = new URL(self.location.href).searchParams.get("cache") !== "off";
 // deleted on activate. Asset URLs are content-hashed, so a normal deploy needs
 // no bump.
 //   v2 — `/offline` gained the remembered menu (DEKKA_PWA_APP.md phase 2).
-const VERSION = "v2";
+//   v3 — the offline menu drops seasonal sections that have ended (§5.3, 4b.4).
+const VERSION = "v3";
 const OFFLINE_CACHE = `dekka-offline-${VERSION}`;
 const STATIC_CACHE = `dekka-static-${VERSION}`;
 const IMAGE_CACHE = `dekka-images-${VERSION}`;

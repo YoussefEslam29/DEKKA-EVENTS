@@ -7,6 +7,7 @@ import { FadeUp } from "@/components/ui/Motion";
 import { buttonStyles } from "@/components/ui/Button";
 import { MenuBoard } from "@/components/menu/MenuBoard";
 import { MenuCacheWarmer } from "@/components/menu/MenuCacheWarmer";
+import { VisitRow } from "@/components/VisitRow";
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 
@@ -35,6 +36,7 @@ export default async function MenuPage() {
           title={t.cafeMenu.title}
           subtitle={categories.length > 0 ? t.cafeMenu.subtitle : undefined}
         />
+        <VisitRow t={t} className="-mt-2 mb-6" />
       </FadeUp>
 
       {categories.length === 0 ? (

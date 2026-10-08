@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/Surface";
 import { MenuItemCard } from "@/components/menu/MenuItemCard";
 import { localName } from "@/lib/menu";
 import type { MenuCategoryDTO, MenuItemDTO } from "@/lib/data";
+import { formatDayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const sectionId = (id: string) => `menu-${id}`;
@@ -155,6 +156,11 @@ export function MenuBoard({ categories }: { categories: MenuCategoryDTO[] }) {
               >
                 {localName(category, locale)}
               </h2>
+              {category.endsOn ? (
+                <p className="-mt-2 mb-3 text-sm text-text-muted">
+                  {t.cafeMenu.limitedUntil.replace("{date}", formatDayKey(category.endsOn, locale))}
+                </p>
+              ) : null}
               <div className="grid gap-3 md:grid-cols-2">
                 {category.items.map((item) => (
                   <MenuItemCard key={item.id} item={item} locale={locale} t={t} />

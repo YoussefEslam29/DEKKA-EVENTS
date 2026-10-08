@@ -74,6 +74,7 @@ export function MenuManager({ initial }: { initial: MenuCategoryDTO[] }) {
     if (error === "CATEGORY_NOT_EMPTY") return a.categoryNotEmpty;
     if (error === "STALE_ORDER") return a.staleOrder;
     if (error === "PRICE_SET_BY_VARIANTS") return a.priceSetBySizes;
+    if (error === "SEASON_RANGE") return a.seasonRangeError;
     return t.common.somethingWrong;
   }
 
@@ -383,7 +384,7 @@ export function MenuManager({ initial }: { initial: MenuCategoryDTO[] }) {
       <MenuSections
         categories={categories}
         onAdd={addSection}
-        onRename={(category, names) => patchSection(category, names)}
+        onSave={(category, patch) => patchSection(category, patch)}
         onToggle={(category) => void patchSection(category, { isActive: !category.isActive })}
         onMove={(index, delta) => void moveSection(index, delta)}
         onDelete={(category) => void deleteSection(category)}

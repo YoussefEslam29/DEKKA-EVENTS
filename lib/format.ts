@@ -50,6 +50,16 @@ export function formatWhen(date: Date | string, locale: Locale): string {
   return `${formatDate(date, locale)}${locale === "ar" ? "، " : " · "}${formatTime(date, locale)}`;
 }
 
+/**
+ * A calendar day stored as "YYYY-MM-DD" (a menu section's season), as "1 Dec". It is a
+ * day, not an instant, so it's formatted at UTC noon: no timezone can move it.
+ */
+export function formatDayKey(day: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(localeTag(locale), { timeZone: "UTC", day: "numeric", month: "short" }).format(
+    new Date(`${day}T12:00:00Z`)
+  );
+}
+
 export function formatTimeOfDay(hhmm: string, locale: Locale): string {
   const [h, m] = hhmm.split(":").map(Number);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;

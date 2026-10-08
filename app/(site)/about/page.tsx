@@ -6,6 +6,8 @@ import { LogoBadge } from "@/components/ui/LogoBadge";
 import { Card } from "@/components/ui/Surface";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { MapEmbed } from "@/components/MapEmbed";
+import { VisitRow } from "@/components/VisitRow";
+import { DirectionsLink } from "@/components/DirectionsLink";
 import type { Metadata } from "next";
 import { cafeJsonLd, pageMetadata } from "@/lib/seo";
 import { JsonLd } from "@/components/JsonLd";
@@ -56,6 +58,7 @@ export default async function AboutPage() {
             <Clock className="mt-0.5 h-5 w-5 shrink-0 text-gold-accent" />
             {hours}
           </p>
+          <VisitRow t={t} directions={false} className="mt-3" />
           {site.phone ? (
             <p className="mt-3 flex items-start gap-2 text-text-muted">
               <Phone className="mt-0.5 h-5 w-5 shrink-0 text-gold-accent" />
@@ -72,14 +75,9 @@ export default async function AboutPage() {
               </a>
             </p>
           ) : null}
-          <a
-            href={site.maps}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-5 inline-block font-semibold text-gold-accent underline"
-          >
+          <DirectionsLink className="mt-5 inline-flex min-h-11 items-center font-semibold text-gold-accent underline">
             {t.event.directions}
-          </a>
+          </DirectionsLink>
         </Card>
 
         <Card className="p-6">
@@ -109,7 +107,6 @@ export default async function AboutPage() {
               src={site.mapsEmbed}
               title="Dekka on Google Maps"
               className="h-80 w-full rounded-xl border border-border-dark"
-              directionsHref={site.maps}
             />
           </div>
         ) : null}

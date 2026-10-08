@@ -31,7 +31,8 @@ mobile auth bridge was ever built, and v1 doesn't use it.
 | — | Phone header **Admin** shortcut, using the owner's icon (`IMGS/admin dash.jpg`) | ✅ shipped | inside "phase 2 of 4" |
 | 3 | Event templates: save a night/activity once, make a draft from it in two taps | ✅ shipped | "phase 3 of 4" |
 | 4a | Event night: add-to-calendar, "Tonight at Dekka" banner, WhatsApp share cards, full-screen door code | ✅ built (Roadmap P5) | "Roadmap P5" |
-| 4b, 4c | "Open now", seasonal menu sections; owner stats, QR table poster, demo mode | ⏳ Roadmap P6, P7 | — |
+| 4b | Cafe life: "Open now", one-tap directions, seasonal menu sections | ✅ built (Roadmap P6) | "Roadmap P6" |
+| 4c | Owner tools: stats, QR table poster, demo mode | ⏳ Roadmap P7 | — |
 
 **Open questions / things still owed to the owner:**
 - **Nothing has been tested on a real phone** — not the install, not push in the
@@ -785,6 +786,87 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Roadmap P6 — cafe life: open now, one-tap directions, seasonal menu sections (2026-10-08)
+
+PWA phase 4b (`PLAN/DEKKA_PWA_APP.md` §5.3).
+- **"Open now · until 1 am"** (`OpenStatus`, in `VisitRow`):
+  - **Where:** on the homepage's visit card, under `/menu`'s header and under `/about`'s
+    hours line. Not on `/offline`, which is precached and would show a frozen status.
+  - **Hours:** structured in `lib/site.ts` as `openingHours`, from
+    `NEXT_PUBLIC_OPENING_HOURS`. That's one range for every day (default `10:00-01:00`), or
+    seven ranges or `closed`, Sunday first. Malformed values fall back to the default.
+    `hoursAr/En` stay the display copy, so change both together.
+  - **Logic** (`lib/hours.ts`, pure): Cairo wall clock through `Intl`. Yesterday's window
+    is counted after midnight (00:30 Saturday is still Friday's night). "Closing soon"
+    applies within 60 minutes. A closed day says "opens tomorrow" or "opens Wednesday".
+  - **Rendering:** the server renders the first state. The browser recomputes on each
+    minute, so a page left open across closing time catches up.
+- **One-tap directions** (`DirectionsLink`) go straight to turn-by-turn, where `site.maps`
+  opens the place page first.
+  - Google Maps by default. Apple Maps on an iPhone, swapped in after hydration through
+    `isIOS()`, split out of `readPlatform()`, which says "standalone" for an installed app.
+  - The point comes from `NEXT_PUBLIC_CAFE_COORDS` (default: the cafe).
+  - **Where:** the homepage visit card, `/about`, and the map placeholder on `/about` and
+    on a cafe-hosted event. An event with its own `mapUrl` keeps that link. The footer's
+    "Google Maps" stays the place page.
+- **Seasonal menu sections:**
+  - **Model:** optional `MenuCategory.startsOn` / `endsOn`, Cairo days `YYYY-MM-DD`, both
+    inclusive. One rule, `isInSeason()` in `lib/menu.ts`, plus `seasonFilter()`, the same
+    rule as a MongoDB filter.
+  - **Guests:** `getMenu()` (so `GET /api/menu`) and the homepage picks use the filter.
+    The admin sees everything.
+  - **Validation:** a real day only, so 31 February is refused (400, not a 500). `null`
+    clears a date with `$unset`. An end before the start is `400 SEASON_RANGE`, checked
+    against the stored other end when an edit sends only one.
+  - **Admin:** "Show from / Until" and "Clear dates" in the section's edit form, the range
+    error shown in place, and a row badge: "Seasonal: 1 Dec – 28 Feb", "Shows from …" or
+    "Season ended …".
+  - **Guests see** "Limited time · until …" under a section with an end date.
+  - **Offline:** the offline menu re-applies `isInSeason` to its saved copy, so a season
+    that ended since disappears there too. `sw.js` → `v3`.
+- **Barista's pick badge:** already on every menu card (§5.0). Nothing built.
+- **`npm run check:cafe-life`:** 76 assertions:
+  - hours parsing and fallback;
+  - open, closing soon and closed at 09:59, 10:00, 00:00, 00:15, 00:30, 00:59 and 01:00,
+    in summer, and on both 2026 clock-change nights;
+  - closed days, and the words in both languages;
+  - both direction URLs, and where they're used;
+  - seasons: inclusive ends, and the Cairo day at 22:30 UTC on 31 December;
+  - the database filter matching `isInSeason` on every sample, run through a small
+    matcher;
+  - the schemas: real days, strictness, no default leak, `null` clears;
+  - the sources.
+
+  12/12 mutations caught.
+- **Also fixed:** `check:mobile-auth` failed about 1 run in 7. It "tampered" with a
+  token by flipping its last base64url character, which also carries padding bits, so
+  some flips decoded to the same bytes. It now flips a ciphertext character: 0 failures
+  in 25 runs.
+
+**Verification.**
+- **Checks:** typecheck, lint, build and `check:all` (15 scripts) are clean.
+- **End to end, 35/35:** on a production build against `dekka_verify`:
+  - **Seeding:** three sections, ended, current and coming;
+  - **Guests:** `/api/menu`, `/menu` and the homepage picks show only the current one,
+    with "Limited time · until …";
+  - **API rules:** a reversed create and a one-sided edit return `SEASON_RANGE`, 31
+    February is refused, `null` clears with `$unset`, a rename keeps the season, and a
+    guest is refused;
+  - **Admin UI in Chrome:** the three badges; a reversed range explained in the form and
+    not saved; dates saved through the form; Clear dates.
+  - **Offline:** a saved menu with an already-ended section, planted in the `v3` cache.
+    With the network off, `/offline` showed the current section and not the ended one.
+  - **Clock:** with the browser's clock moved to 00:30 and 01:30 Cairo, the pill turned
+    to "Closing soon · 1:00 am" and "Closed now · opens at 10:00 am" on the minute;
+  - **Directions:** an Android UA got Google directions and an iPhone UA Apple Maps.
+- **Screens:** `/`, `/menu`, `/about` and `/admin/menu` in both languages at 390px and
+  1280px, with no overflow. The Arabic pill's time was measured in the browser: "١:٠٠"
+  reads in order.
+
+**Not verified:** the directions links opening the Maps apps on a real phone. The
+structured hours are the default "10:00–01:00 daily", assumed from the text line
+(decision Q5); if real hours differ by day, set `NEXT_PUBLIC_OPENING_HOURS`.
 
 ### Roadmap P5 — event night: calendar, Tonight banner, share cards, door code, cancel, reminders (2026-10-08)
 

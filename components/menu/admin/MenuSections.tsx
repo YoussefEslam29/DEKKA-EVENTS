@@ -7,15 +7,21 @@ import { Button } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui/Surface";
 import { Input } from "@/components/ui/Field";
 import type { MenuCategoryDTO } from "@/lib/data";
+import { seasonRangeOk, seasonState } from "@/lib/menu";
+import { dayKey, formatDayKey } from "@/lib/format";
 
 type Names = { nameAr: string; nameEn: string };
+/** What the edit form saves: the names and the season (`null` clears a date). */
+export type SectionPatch = Names & { startsOn: string | null; endsOn: string | null };
+type EditDraft = Names & { startsOn: string; endsOn: string };
 
 const ICON_BTN =
   "dk-icon-btn inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[4px] disabled:pointer-events-none disabled:opacity-40";
 
 /**
  * The sections list on `/admin/menu` (`PLAN/DEKKA_PWA_APP.md` §3): add, rename,
- * show/hide, reorder, delete. Every action is a callback — `MenuManager` owns
+ * show/hide, reorder, delete, and a season (§5.3, 4b.4) with a badge saying why a
+ * section isn't on `/menu` right now. Every action is a callback — `MenuManager` owns
  * the requests and the state, this only lays the rows out.
  *
  * Delete stays enabled even for a section with items; the server refuses it
@@ -25,14 +31,14 @@ const ICON_BTN =
 export function MenuSections({
   categories,
   onAdd,
-  onRename,
+  onSave,
   onToggle,
   onMove,
   onDelete,
 }: {
   categories: MenuCategoryDTO[];
   onAdd: (names: Names) => Promise<boolean>;
-  onRename: (category: MenuCategoryDTO, names: Names) => Promise<boolean>;
+  onSave: (category: MenuCategoryDTO, patch: SectionPatch) => Promise<boolean>;
   onToggle: (category: MenuCategoryDTO) => void;
   onMove: (index: number, delta: -1 | 1) => void;
   onDelete: (category: MenuCategoryDTO) => void;
@@ -42,7 +48,24 @@ export function MenuSections({
   const [draft, setDraft] = useState<Names>({ nameAr: "", nameEn: "" });
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<Names>({ nameAr: "", nameEn: "" });
+  const [editDraft, setEditDraft] = useState<EditDraft>({ nameAr: "", nameEn: "", startsOn: "", endsOn: "" });
+  const [rangeError, setRangeError] = useState(false);
+  const today = dayKey(new Date());
+
+  /** Why the section is or isn't on `/menu` today; nothing for an all-year one. */
+  function seasonBadge(category: MenuCategoryDTO): string | null {
+    const day = (d: string | null) => (d ? formatDayKey(d, locale) : "…");
+    switch (seasonState(category, today)) {
+      case "upcoming":
+        return a.seasonUpcoming.replace("{date}", day(category.startsOn));
+      case "ended":
+        return a.seasonEnded.replace("{date}", day(category.endsOn));
+      case "current":
+        return a.seasonBadge.replace("{from}", day(category.startsOn)).replace("{until}", day(category.endsOn));
+      default:
+        return null;
+    }
+  }
 
   async function submitNew(e: React.FormEvent) {
     e.preventDefault();
@@ -52,11 +75,21 @@ export function MenuSections({
     if (ok) setDraft({ nameAr: "", nameEn: "" });
   }
 
-  async function submitRename(e: React.FormEvent, category: MenuCategoryDTO) {
+  async function submitEdit(e: React.FormEvent, category: MenuCategoryDTO) {
     e.preventDefault();
-    const ok = await onRename(category, {
+    const startsOn = editDraft.startsOn || null;
+    const endsOn = editDraft.endsOn || null;
+    // The server refuses it too (SEASON_RANGE); saying so here saves a round trip.
+    if (!seasonRangeOk(startsOn, endsOn)) {
+      setRangeError(true);
+      return;
+    }
+    setRangeError(false);
+    const ok = await onSave(category, {
       nameAr: editDraft.nameAr.trim(),
       nameEn: editDraft.nameEn.trim(),
+      startsOn,
+      endsOn,
     });
     if (ok) setEditingId(null);
   }
@@ -73,7 +106,7 @@ export function MenuSections({
             <li key={category.id} className="flex flex-wrap items-center gap-2 py-2">
               {editingId === category.id ? (
                 <form
-                  onSubmit={(e) => submitRename(e, category)}
+                  onSubmit={(e) => submitEdit(e, category)}
                   className="flex flex-1 flex-wrap items-center gap-2"
                 >
                   <Input
@@ -94,6 +127,43 @@ export function MenuSections({
                     maxLength={80}
                     className="min-w-0 flex-1 basis-40"
                   />
+                  <fieldset className="flex w-full flex-wrap items-end gap-2">
+                    <legend className="sr-only">{a.seasonHint}</legend>
+                    <label className="grid min-w-0 flex-1 basis-36 gap-1 text-xs font-semibold">
+                      {a.seasonFrom}
+                      <Input
+                        type="date"
+                        value={editDraft.startsOn}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, startsOn: e.target.value }))}
+                      />
+                    </label>
+                    <label className="grid min-w-0 flex-1 basis-36 gap-1 text-xs font-semibold">
+                      {a.seasonUntil}
+                      <Input
+                        type="date"
+                        value={editDraft.endsOn}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, endsOn: e.target.value }))}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="lightGhost"
+                      size="sm"
+                      className="h-11"
+                      disabled={!editDraft.startsOn && !editDraft.endsOn}
+                      onClick={() => setEditDraft((d) => ({ ...d, startsOn: "", endsOn: "" }))}
+                    >
+                      {a.seasonClear}
+                    </Button>
+                    <p className="dk-muted w-full text-xs" aria-hidden>
+                      {a.seasonHint}
+                    </p>
+                    {rangeError ? (
+                      <p role="alert" className="w-full text-xs font-semibold text-bad">
+                        {a.seasonRangeError}
+                      </p>
+                    ) : null}
+                  </fieldset>
                   <Button type="submit" variant="lightPrimary" size="sm" className="h-11">
                     {t.common.save}
                   </Button>
@@ -102,7 +172,10 @@ export function MenuSections({
                     variant="lightGhost"
                     size="sm"
                     className="h-11"
-                    onClick={() => setEditingId(null)}
+                    onClick={() => {
+                      setEditingId(null);
+                      setRangeError(false);
+                    }}
                   >
                     {t.common.cancel}
                   </Button>
@@ -126,6 +199,11 @@ export function MenuSections({
                   <Badge tone={category.isActive ? "good" : "neutral"}>
                     {category.isActive ? a.visible : a.hidden}
                   </Badge>
+                  {seasonBadge(category) ? (
+                    <Badge tone={seasonState(category, today) === "current" ? "gold" : "neutral"}>
+                      {seasonBadge(category)}
+                    </Badge>
+                  ) : null}
                   <div className="ms-auto flex items-center">
                     <button
                       type="button"
@@ -167,7 +245,13 @@ export function MenuSections({
                       title={t.common.edit}
                       onClick={() => {
                         setEditingId(category.id);
-                        setEditDraft({ nameAr: category.nameAr, nameEn: category.nameEn });
+                        setRangeError(false);
+                        setEditDraft({
+                          nameAr: category.nameAr,
+                          nameEn: category.nameEn,
+                          startsOn: category.startsOn ?? "",
+                          endsOn: category.endsOn ?? "",
+                        });
                       }}
                     >
                       <Pencil className="h-4 w-4" aria-hidden />

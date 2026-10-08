@@ -17,6 +17,13 @@ export interface IMenuCategory {
   nameEn: string;
   order: number;
   isActive: boolean;
+  /**
+   * An optional season, Cairo calendar days "YYYY-MM-DD", both inclusive
+   * (`PLAN/DEKKA_PWA_APP.md` §5.3, 4b.4): guests see the section only from `startsOn`
+   * through `endsOn`. Unset means no limit on that side.
+   */
+  startsOn?: string;
+  endsOn?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +34,8 @@ const MenuCategorySchema = new Schema<IMenuCategory>(
     nameEn: { type: String, required: true, trim: true, maxlength: 80 },
     order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
+    startsOn: { type: String, match: /^\d{4}-\d{2}-\d{2}$/ },
+    endsOn: { type: String, match: /^\d{4}-\d{2}-\d{2}$/ },
   },
   { timestamps: true }
 );
