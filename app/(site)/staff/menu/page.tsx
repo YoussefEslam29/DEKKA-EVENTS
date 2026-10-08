@@ -4,6 +4,7 @@ import { EmptyState, PageHeader } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { BackButton } from "@/components/ui/BackButton";
 import { StaffMenuToggles } from "@/components/menu/StaffMenuToggles";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ export const dynamic = "force-dynamic";
  * it — hidden sections aren't on the menu, so there's nothing there to mark.
  */
 export default async function StaffMenuPage() {
+  // First, before any read: see requireRole() for why the layout's check isn't enough.
+  await requireRole("staff", "/staff/menu");
   const { t } = await getI18n();
   const categories = await getMenu();
 

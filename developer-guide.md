@@ -145,10 +145,16 @@ hasRole(user, min)  // → boolean, role-rank check (member=0, staff=1, admin=2)
 guard(min)          // → { user } | { response }  — for API routes specifically
 ```
 
-**Server layouts** (`app/(site)/admin/layout.tsx`, `.../staff/layout.tsx`) call
-`currentUser()` + `hasRole()` directly and `redirect()` if the check fails — this is
-the *only* gate for page access. There is no middleware doing this; if you add a new
-protected route group, you must add the same check to its layout.
+**Every protected page calls `requireRole(min, next)` as its first `await`**, before it
+reads anything. The layouts (`app/(site)/admin/layout.tsx`, `.../staff/layout.tsx`) keep
+their own check for the sidebar and the redirect, but **a layout check alone leaks**: a
+layout and its page render in parallel and stream in one response, so a page that
+fetched before the layout's `redirect()` landed sends its data in the RSC payload of the
+same response. A browser follows the redirect; `curl` reads every name and phone number.
+That was live until 2026-10-08 (Feature Log, "Security fix"). `npm run check:integrity`
+fails if any `page.tsx` under `/admin` or `/staff` doesn't start with
+`await requireRole(...)`. There is no middleware doing this; a new protected route group
+needs both the layout check and the page call.
 
 **API routes** call `guard("staff")` (or `"admin"`) at the top of the handler and
 early-return its `response` if present:
@@ -488,6 +494,9 @@ offline menu all call it.
 **Backend**
 - Don't import `@/models/*` from a client component — it pulls Mongoose into the
   browser bundle. Import shared enums from `lib/constants.ts` instead.
+- Don't rely on a layout to protect a page. Start every protected `page.tsx` with
+  `await requireRole(...)` before reading anything (§2); the layout's check runs in
+  parallel with the page and cannot stop the page's data from streaming out.
 - Don't skip `guard()`/`currentUser()` on a new API route "because it's simple" — every
   route gets a check, even read-only ones that only need to hide drafts from the
   public. (The two deliberate exceptions are listed in §3 rule 9.)
@@ -747,6 +756,37 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Security fix: admin and staff pages leaked their data to signed-out requests (2026-10-08)
+
+Roadmap finding S2, which the roadmap rated "documented by Next, not exploited". It was
+exploitable with a plain `curl`. Admin and staff pages relied on their layout's role check
+alone. In a streamed render the page runs alongside the layout, so its data was already in
+the response when the layout's `redirect()` took effect. Proven against a local production
+build on the throwaway database, with probe rows planted. Signed-out `GET` requests
+returned:
+
+- `/admin` (and its `?tab=` views): every confirmed reservation (name, phone, door code)
+  and every pending pitch (contact name, email, phone);
+- `/admin/customers`: every door record (name, phone, method, amount);
+- `/admin/events/<id>` and `/staff/events/<id>`: that night's reservations and door list.
+  Event ids are public, in every event URL;
+- `/admin/submissions`: every pitch with its email and phone.
+
+No special headers were needed. The pages without probe-able personal data (events list,
+report, menu, templates) were exposed the same way.
+
+**Fix:** `requireRole(min, next)` in `lib/rbac.ts`, called as the first `await` of all 12
+pages under `/admin` and `/staff`, so the redirect is thrown before any read starts. The
+layouts are unchanged. **Verification:** the same 14 URLs, signed out, return only the
+redirect, with zero probe strings. New `npm run check:integrity` asserts that every
+`page.tsx` under those trees begins with `await requireRole("<role>", …)`. Two
+mutations (gate removed; staff page downgraded to `member`) each made it fail.
+
+**Not verified:** production was not probed, because that would mean reading real
+customers' data. The code there was identical, so it should be treated as exposed until
+this deploy. Whether anyone actually fetched these pages can only be judged from
+Vercel's request logs, which keep about an hour on Hobby.
 
 ### Roadmap P0 — safe base (`PLAN/SITE_ROADMAP.md`, 2026-10-08)
 

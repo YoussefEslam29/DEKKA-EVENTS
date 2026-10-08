@@ -16,6 +16,7 @@ import {
   AdminOverviewTabs,
   type OverviewTab,
 } from "@/components/AdminOverviewTabs";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,8 @@ export default async function AdminOverviewPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
+  // First, before any read: see requireRole() for why the layout's check isn't enough.
+  await requireRole("admin", "/admin");
   const { t } = await getI18n();
   const { tab } = await searchParams;
   const active: OverviewTab = TABS.includes(tab as OverviewTab)

@@ -5,10 +5,13 @@ import { getStaffEvents, eventTitle } from "@/lib/data";
 import { formatDate, formatTime } from "@/lib/format";
 import { Card, EmptyState, PageHeader, Badge } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
 export default async function StaffEventPickerPage() {
+  // First, before any read: see requireRole() for why the layout's check isn't enough.
+  await requireRole("staff", "/staff");
   const { locale, t } = await getI18n();
   const events = await getStaffEvents();
   const today = new Date().toDateString();

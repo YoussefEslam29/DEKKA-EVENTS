@@ -7,6 +7,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { FadeUp } from "@/components/ui/Motion";
 import { EventForm } from "@/components/EventForm";
 import { TemplateLauncher } from "@/components/templates/TemplateLauncher";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,8 @@ export default async function NewEventPage({
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
+  // First, before any read: see requireRole() for why the layout's check isn't enough.
+  await requireRole("admin", "/admin/events/new");
   const { t } = await getI18n();
   const { date: requested } = await searchParams;
   const date = requested && isRealDate(requested) ? requested : undefined;

@@ -2,6 +2,7 @@ import { getEventTemplates } from "@/lib/data";
 import { FadeUp } from "@/components/ui/Motion";
 import { BackButton } from "@/components/ui/BackButton";
 import { TemplateManager } from "@/components/templates/TemplateManager";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
  * `app/(site)/admin/layout.tsx`, the one gate for this route group.
  */
 export default async function AdminTemplatesPage() {
+  // First, before any read: see requireRole() for why the layout's check isn't enough.
+  await requireRole("admin", "/admin/templates");
   const templates = await getEventTemplates();
 
   return (

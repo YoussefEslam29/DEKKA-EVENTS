@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/Surface";
 import { BackButton } from "@/components/ui/BackButton";
 import { FadeUp } from "@/components/ui/Motion";
 import { DoorTable } from "@/components/DoorTable";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ export default async function DoorCheckInPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // First, before any read: see requireRole() for why the layout's check isn't enough.
+  await requireRole("staff", "/staff");
   const { id } = await params;
   const { locale } = await getI18n();
 

@@ -11,6 +11,7 @@
     "set-role": "tsx --env-file=.env.local scripts/set-role.ts",
     "typecheck": "tsc --noEmit",
     "check:all": "node scripts/check-all.mjs",
+    "check:integrity": "tsx scripts/check-integrity.ts",
     "check:uploads": "tsx scripts/check-upload-pattern.ts",
     "check:sentry": "tsx scripts/check-sentry-scrub.ts",
     "check:config": "tsx scripts/check-next-config.ts",

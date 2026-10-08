@@ -9,6 +9,7 @@ import { MonthCalendar } from "@/components/MonthCalendar";
 import { TemplateLauncher } from "@/components/templates/TemplateLauncher";
 import { buttonStyles } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,8 @@ export default async function AdminEventsPage({
 }: {
   searchParams: Promise<{ view?: string; month?: string }>;
 }) {
+  // First, before any read: see requireRole() for why the layout's check isn't enough.
+  await requireRole("admin", "/admin/events");
   const { locale, t } = await getI18n();
   const { view, month: requested } = await searchParams;
 

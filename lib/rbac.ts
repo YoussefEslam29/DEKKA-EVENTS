@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import type { UserRole } from "@/lib/constants";
 import { readBearerToken, verifyMobileToken } from "@/lib/mobile-token";
@@ -83,6 +84,26 @@ const RANK: Record<UserRole, number> = { member: 0, staff: 1, admin: 2 };
 export function hasRole(user: SessionUser | null, min: UserRole): boolean {
   if (!user) return false;
   return RANK[user.role] >= RANK[min];
+}
+
+/**
+ * The page-level gate: call it **first** in every `page.tsx` under `/admin` and `/staff`,
+ * before any data is read. Redirects a guest to sign in and a lower role home.
+ *
+ * Why the layouts' identical check is not enough (found 2026-10-08, roadmap S2): a layout
+ * and its page render in parallel and stream together. When the layout redirects, the
+ * page has usually already fetched its data, and that data rides along in the RSC payload
+ * of the same response. A browser follows the redirect and never shows it; `curl` reads
+ * every name and phone number. Next's docs say the same thing in general terms
+ * (`node_modules/next/dist/docs/01-app/02-guides/authentication.md`, "Layouts and auth
+ * checks"). Throwing the redirect from the page itself stops the fetch from ever starting.
+ * `npm run check:integrity` fails if a page under those trees doesn't call this.
+ */
+export async function requireRole(min: UserRole, next: string): Promise<SessionUser> {
+  const user = await currentUser();
+  if (!user) redirect(`/login?next=${encodeURIComponent(next)}`);
+  if (!hasRole(user, min)) redirect("/");
+  return user;
 }
 
 /**

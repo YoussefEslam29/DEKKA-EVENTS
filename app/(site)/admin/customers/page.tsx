@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { BackButton } from "@/components/ui/BackButton";
 import { CustomersGrid } from "@/components/CustomersGrid";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export default async function AdminCustomersPage({
 }: {
   searchParams: Promise<{ eventId?: string; q?: string }>;
 }) {
+  // First, before any read: see requireRole() for why the layout's check isn't enough.
+  await requireRole("admin", "/admin/customers");
   const { locale, t } = await getI18n();
   const { eventId = "", q = "" } = await searchParams;
 
