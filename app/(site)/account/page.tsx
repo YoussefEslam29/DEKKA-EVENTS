@@ -12,6 +12,14 @@ import { AccountForm } from "@/components/AccountForm";
 import { AccountDataSection } from "@/components/AccountDataSection";
 import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
 import { emailEnabled } from "@/lib/email";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+/** Its own title and canonical URL (PLAN/SITE_ROADMAP.md D1); the visitor's language. */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return pageMetadata({ title: t.account.title, path: "/account", noindex: true });
+}
 
 export const dynamic = "force-dynamic";
 

@@ -6,6 +6,15 @@ import { LogoBadge } from "@/components/ui/LogoBadge";
 import { Card } from "@/components/ui/Surface";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { MapEmbed } from "@/components/MapEmbed";
+import type { Metadata } from "next";
+import { cafeJsonLd, pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/JsonLd";
+
+/** Its own title and canonical URL (PLAN/SITE_ROADMAP.md D1); the visitor's language. */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return pageMetadata({ title: t.about.title, description: t.home.heroLine, path: "/about" });
+}
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +31,7 @@ export default async function AboutPage() {
 
   return (
     <div>
+      <JsonLd data={cafeJsonLd()} />
       {/* Same framed-collage header as the events hub. */}
       <section className="border-b border-border-dark bg-surface-dark">
         <PatternAccent />

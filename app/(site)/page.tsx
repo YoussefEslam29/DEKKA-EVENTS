@@ -17,6 +17,15 @@ import { PatternAccent } from "@/components/ui/PatternAccent";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { FeaturedMenuStrip } from "@/components/menu/FeaturedMenuStrip";
 import { cn } from "@/lib/utils";
+import type { Metadata } from "next";
+import { NextNightCard } from "@/components/NextNightCard";
+import { VisitSection } from "@/components/VisitSection";
+import { JsonLd } from "@/components/JsonLd";
+import { cafeJsonLd } from "@/lib/seo";
+import { cafeNightKey } from "@/lib/staff";
+
+/** The site default title, plus a canonical URL so filtered/search variants don't compete. */
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 // The hub reflects reservation counts and admin publishes immediately.
 export const dynamic = "force-dynamic";
@@ -91,7 +100,16 @@ export default async function EventsHubPage({
   const upcoming = allUpcoming.filter((e) => matchesSearch(e, q) && matchesFilter(e, filter));
   const past = allPast.filter((e) => matchesSearch(e, q) && matchesFilter(e, filter));
 
-  const counts = await countReservationsForEvents(upcoming.map((e) => e.id));
+  // The next night after tonight (tonight belongs to the Tonight banner), for the big
+  // card under the hero (PLAN/SITE_ROADMAP.md X1). Ignores the filters on purpose: it
+  // answers "what's next at Dekka", not "what matches my search".
+  const tonightKey = cafeNightKey(new Date());
+  const nextNight =
+    allUpcoming.find((e) => e.status === "published" && cafeNightKey(e.startsAt) !== tonightKey) ?? null;
+
+  const counts = await countReservationsForEvents([
+    ...new Set([...upcoming.map((e) => e.id), ...(nextNight ? [nextNight.id] : [])]),
+  ]);
 
   const buildHref = (overrides: { month?: string; filter?: Filter }) => {
     const nextMonth = overrides.month ?? month;
@@ -113,6 +131,7 @@ export default async function EventsHubPage({
 
   return (
     <div>
+      <JsonLd data={cafeJsonLd()} />
       {/* Framed-collage header, echoing the banner treatment in the brand assets. */}
       <section className="border-b border-border-dark bg-surface-dark">
         <PatternAccent />
@@ -145,6 +164,10 @@ export default async function EventsHubPage({
         </div>
         <PatternAccent />
       </section>
+
+      {nextNight ? (
+        <NextNightCard event={nextNight} reserved={counts[nextNight.id] ?? 0} locale={locale} t={t} />
+      ) : null}
 
       {/* HOME_PAGE.md's section order: hero, then the menu preview, then the
           events. Absent entirely until the admin marks something featured. */}
@@ -236,6 +259,8 @@ export default async function EventsHubPage({
           </div>
         )}
       </section>
+
+      <VisitSection locale={locale} t={t} />
 
       {past.length > 0 ? (
         <section className="mx-auto max-w-[1180px] px-4 pb-16 md:px-8">

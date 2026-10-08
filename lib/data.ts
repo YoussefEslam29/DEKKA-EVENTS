@@ -1,3 +1,4 @@
+import { cache } from "react";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { Event, type IEvent, type EventStatus, type PaymentMethod } from "@/models/Event";
@@ -160,12 +161,16 @@ export async function getAllEvents(): Promise<EventDTO[]> {
   return docs.map((d) => toEventDTO(d));
 }
 
-export async function getEvent(id: string): Promise<EventDTO | null> {
+/**
+ * One event by id. Wrapped in React's `cache()` so an event page's `generateMetadata` and
+ * the page itself share one database read per request (Next's metadata guide).
+ */
+export const getEvent = cache(async (id: string): Promise<EventDTO | null> => {
   if (!mongoose.Types.ObjectId.isValid(id)) return null;
   await connectDB();
   const doc = await Event.findById(id).lean();
   return doc ? toEventDTO(doc) : null;
-}
+});
 
 /** Confirmed reservations only — cancelled ones free their spot back up. */
 export async function countReservations(eventId: string): Promise<number> {

@@ -4,6 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getI18n, dictFor } from "@/lib/i18n";
 import { getCookieConsent } from "@/lib/cookie-consent";
 import { EARLY_APP_SCRIPT } from "@/lib/pwa";
+import { site } from "@/lib/site";
 import { Providers } from "@/components/Providers";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
@@ -23,8 +24,24 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "دكة — Dekka",
+  // Absolute URLs for share cards, canonical links and the sitemap (PLAN/SITE_ROADMAP.md D1).
+  metadataBase: new URL(site.url),
+  // Every page sets its own title; the template adds the brand. Pages with none get the
+  // default.
+  title: { default: "دكة — Dekka", template: "%s · دكة Dekka" },
   description: "قهوة وموسيقى حيّة — احجز مكانك في حفلات دكة القادمة.",
+  // The default share card: what WhatsApp or Instagram shows for any link without its
+  // own (an event page brings its own image).
+  openGraph: {
+    type: "website",
+    siteName: "دكة · Dekka",
+    locale: "ar_EG",
+    alternateLocale: ["en_GB"],
+    title: "دكة — Dekka",
+    description: "قهوة وموسيقى حيّة في الإسكندرية — احجز مكانك. Coffee and live music in Alexandria.",
+    images: [{ url: "/brand/dekka-banner.jpg", width: 1280, height: 471, alt: "دكة · Dekka" }],
+  },
+  twitter: { card: "summary_large_image" },
   icons: {
     icon: "/brand/dekka-logo-square.png",
     // Opaque cream plate: iOS paints a transparent touch icon black.

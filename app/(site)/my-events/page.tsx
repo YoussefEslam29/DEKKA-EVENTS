@@ -6,6 +6,14 @@ import { getMyReservations, eventTitle } from "@/lib/data";
 import { formatDate, formatTime, formatMoney } from "@/lib/format";
 import { Card, EmptyState, PageHeader, Badge } from "@/components/ui/Surface";
 import { buttonStyles } from "@/components/ui/Button";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+/** Its own title and canonical URL (PLAN/SITE_ROADMAP.md D1); the visitor's language. */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return pageMetadata({ title: t.myEvents.title, path: "/my-events", noindex: true });
+}
 
 export const dynamic = "force-dynamic";
 

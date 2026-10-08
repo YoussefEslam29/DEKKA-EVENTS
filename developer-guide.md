@@ -723,6 +723,10 @@ offline menu all call it.
   the manifest's `background_color` (`ink-black`) while the app boots. It needs one
   image per device size, so it was left out; add them if the blank moment ever bothers
   anyone.
+- **Missing pages are soft 404s.** Under `app/(site)` every page streams behind
+  `loading.tsx`, so `notFound()` renders the not-found screen with status **200**, not
+  404. The pages carry `noindex`, which is Next's documented remedy. A true 404 would
+  need the lookup in a `proxy.ts` before streaming starts.
 - **The CSP only reports.** `lib/csp.ts` ships `Content-Security-Policy-Report-Only`
   (reports go to Sentry when the DSN is set). Enforcing it with no `'unsafe-inline'`
   scripts needs per-request nonces from a `proxy.ts`, per Next's CSP guide. The other
@@ -780,6 +784,55 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Roadmap P4 — found and shared: titles, sitemap, structured data, home sections (2026-10-08)
+
+- **Every page has its own title and canonical URL**: `generateMetadata` in the visitor's
+  language, through `pageMetadata()` (`lib/seo.ts`). The root sets `metadataBase`
+  (`site.url`, overridable with `NEXT_PUBLIC_SITE_URL` once there's a domain), a title
+  template "… · دكة Dekka", and a default share card (the banner). An event page's
+  title is the night and its description "date · time · price · first line". Drafts and
+  unknown ids get the default and `noindex`. `getEvent` is wrapped in React `cache()`,
+  so metadata and page share one read.
+- **Private pages stay out of search:** `/robots.txt` (`app/robots.ts`, one
+  `PRIVATE_PATHS` list), `noindex` metadata on personal and one-time pages, the admin
+  and staff layouts, and P2's `X-Robots-Tag`.
+- **`/sitemap.xml`** (`app/sitemap.ts`): the public pages plus every public night. It is
+  `force-dynamic`, because the build (and CI) has no database and a stale list would
+  hide new nights.
+- **Structured data** (`components/JsonLd.tsx`, escaped per Next's JSON-LD guide):
+  `CafeOrCoffeeShop` on `/` and `/about`, and an `Event` with an EGP offer and
+  start/end on public event pages. `EVENT_DEFAULT_DURATION_MIN = 180` in
+  `lib/constants.ts` is now the one event length.
+- **Homepage (X1, HOME_PAGE.md §5):**
+  - `NextNightCard` under the hero shows the next published night after tonight
+    (tonight is the Tonight banner's), big, with Hold your spot.
+  - `VisitSection` above past nights shows address, hours, directions, About, and a
+    "Follow us on Instagram" link-out (not an embedded feed).
+  - The gallery waits for real photos.
+- **`npm run check:seo`:** 47 assertions over all 17 public pages. Mutations caught:
+  `/admin` crawlable, JSON-LD unescaped, a page without metadata.
+
+**Verification.**
+- **Checks:** typecheck, lint, build and `check:all` are clean.
+- **End to end, 23/23:** on a production build:
+  - **Crawl files:** `robots.txt` and `sitemap.xml` (the published night listed, the
+    draft not);
+  - **Titles:** "Menu · دكة Dekka" / "المنيو · دكة Dekka", a canonical link, the home
+    page's default card;
+  - **Event page:** title, description and `og:title` in `<head>` for WhatsApp's user
+    agent, and Event data;
+  - **Cafe data:** on `/` and `/about`;
+  - **Homepage:** both new sections.
+- **Screens:** the homepage in both languages at 390px and 1280px, looked at, with no
+  overflow.
+
+**Found, and recorded rather than changed:** a missing or draft event answers **200,
+not 404** (a soft 404). `(site)/loading.tsx` wraps every page in a Suspense boundary,
+so the response is already streaming when `notFound()` runs. Next's docs describe
+exactly this and recommend `noindex`, which those pages carry, and the not-found screen
+shows with none of the draft's content. A real 404 would need the check moved into a
+`proxy.ts`. It predates this phase (the loader is from `HOME_PAGE.md` §1). See §7.
 
 ### Roadmap P3 — door night: offline queue, tonight first (2026-10-08)
 

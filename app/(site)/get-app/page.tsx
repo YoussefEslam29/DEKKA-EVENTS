@@ -2,6 +2,14 @@ import { getI18n } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { InstallPanel } from "@/components/InstallPanel";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+/** Its own title and canonical URL (PLAN/SITE_ROADMAP.md D1); the visitor's language. */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return pageMetadata({ title: t.app.install.getApp, description: t.app.install.body, path: "/get-app" });
+}
 
 /**
  * "Get the app" (PLAN/DEKKA_PWA_APP.md §2) — where the footer link, the

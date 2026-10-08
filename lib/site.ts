@@ -4,6 +4,12 @@
  * these ever change without a code deploy.
  */
 export const site = {
+  /**
+   * The public origin, for anything that needs an absolute URL: share cards, the sitemap,
+   * structured data, calendar entries, the QR poster (`PLAN/SITE_ROADMAP.md` D1). Set
+   * `NEXT_PUBLIC_SITE_URL` once Dekka has its own domain; no trailing slash.
+   */
+  url: (process.env.NEXT_PUBLIC_SITE_URL || "https://dekka-events.vercel.app").replace(/\/+$/, ""),
   instagram:
     process.env.NEXT_PUBLIC_INSTAGRAM_URL || "https://www.instagram.com/dekkacafe/",
   facebook:

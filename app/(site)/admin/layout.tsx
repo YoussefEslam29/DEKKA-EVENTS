@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CalendarDays, Coffee, Inbox, BarChart3, LayoutDashboard, LayoutTemplate, Users } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { currentUser, hasRole } from "@/lib/rbac";
+
+/** Never indexed (also X-Robots-Tag in next.config.ts and Disallow in robots.ts). */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function AdminLayout({
   children,

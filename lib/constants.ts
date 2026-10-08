@@ -45,6 +45,13 @@ export function canTransition(from: EventStatus, to: EventStatus): boolean {
   return from === to || EVENT_TRANSITIONS[from].includes(to);
 }
 
+/**
+ * How long a night lasts, for anything that needs an end: events store only a start.
+ * The calendar entry's end, the "on now" window and the structured data's `endDate`
+ * all read this one number (`PLAN/DEKKA_PWA_APP.md` §5.1, owner question Q3).
+ */
+export const EVENT_DEFAULT_DURATION_MIN = 180;
+
 /** What the door log records (`CheckInAudit.action`). */
 export const CHECKIN_AUDIT_ACTIONS = ["create", "update", "void"] as const;
 export type CheckInAuditAction = (typeof CHECKIN_AUDIT_ACTIONS)[number];

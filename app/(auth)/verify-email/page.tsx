@@ -2,6 +2,15 @@ import { redirect } from "next/navigation";
 import { emailEnabled } from "@/lib/email";
 import { AuthScreen } from "@/components/auth/AuthScreen";
 import { VerifyEmailForm } from "@/components/VerifyEmailForm";
+import type { Metadata } from "next";
+import { getI18n } from "@/lib/i18n";
+import { pageMetadata } from "@/lib/seo";
+
+/** Its own title and canonical URL (PLAN/SITE_ROADMAP.md D1); the visitor's language. */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return pageMetadata({ title: t.authUi.verifyTitle, path: "/verify-email", noindex: true });
+}
 
 export const dynamic = "force-dynamic";
 

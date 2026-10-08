@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Wallet, ExternalLink } from "lucide-react";
@@ -8,6 +9,7 @@ import {
   countReservations,
   getMyReservation,
   eventText,
+  eventTitle,
 } from "@/lib/data";
 import { formatDate, formatTime, formatMoney, formatNumber } from "@/lib/format";
 import { Card, Badge } from "@/components/ui/Surface";
@@ -15,6 +17,32 @@ import { PatternAccent } from "@/components/ui/PatternAccent";
 import { ReserveButton } from "@/components/ReserveButton";
 import { site } from "@/lib/site";
 import { MapEmbed } from "@/components/MapEmbed";
+import { JsonLd } from "@/components/JsonLd";
+import { eventJsonLd, pageMetadata } from "@/lib/seo";
+
+/**
+ * The night's own title and description (PLAN/SITE_ROADMAP.md D1): what a search result or a
+ * shared link shows. Only for public nights; a draft or an unknown id gets the site default
+ * and is kept out of the index, so the response never depends on who's asking.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const { locale, t } = await getI18n();
+  const event = await getEvent(id);
+  if (!event || event.status === "draft") return { robots: { index: false, follow: false } };
+  const when = `${formatDate(event.startsAt, locale)} · ${formatTime(event.startsAt, locale)}`;
+  const price = event.price > 0 ? `${formatMoney(event.price, locale)} ${t.common.egp}` : t.common.free;
+  const first = eventText(event, locale, "description").split(/\r?\n/)[0]?.slice(0, 160) ?? "";
+  return pageMetadata({
+    title: eventTitle(event, locale),
+    description: [when, price, first].filter(Boolean).join(" · "),
+    path: `/events/${event.id}`,
+  });
+}
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +130,7 @@ export default async function EventDetailPage({
 
   return (
     <article>
+      {event.status !== "draft" ? <JsonLd data={eventJsonLd(event, spotsLeft)} /> : null}
       {/*
        * §8: the event hero gets the same treatment as the auth left panel —
        * dark image, gradient, bold English headline with the Arabic beneath —

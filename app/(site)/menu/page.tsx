@@ -7,6 +7,14 @@ import { FadeUp } from "@/components/ui/Motion";
 import { buttonStyles } from "@/components/ui/Button";
 import { MenuBoard } from "@/components/menu/MenuBoard";
 import { MenuCacheWarmer } from "@/components/menu/MenuCacheWarmer";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+/** Its own title and canonical URL (PLAN/SITE_ROADMAP.md D1); the visitor's language. */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return pageMetadata({ title: t.cafeMenu.title, description: t.cafeMenu.subtitle, path: "/menu" });
+}
 
 // Sold-out flips and price changes should show on the next load, not after a cache expires.
 export const dynamic = "force-dynamic";

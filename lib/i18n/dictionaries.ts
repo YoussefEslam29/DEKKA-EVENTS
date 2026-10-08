@@ -89,6 +89,19 @@ export const ar = {
     filterOpenMic: "أوبن مايك",
     upcomingSoonest: "القادمة، الأقرب الأول",
     seeAll: "شوف الكل",
+    nextNight: {
+      eyebrow: "الحفلة الجاية",
+      reserve: "احجز مكانك",
+      details: "شوف التفاصيل",
+    },
+    visit: {
+      title: "تعالى زورنا",
+      body: "قهوة طول اليوم، وموسيقى حيّة بالليل.",
+      directions: "خد الطريق",
+      about: "اعرف أكتر عن دكة",
+      follow: "تابعنا على إنستجرام",
+      followBody: "صور الليالي اللي فاتت، والحفلات الجاية أول بأول.",
+    },
     searchEmpty: "مفيش حفلات مطابقة للبحث ده.",
   },
   event: {
@@ -792,6 +805,19 @@ export const en: DeepMutable<Dict> = {
     filterOpenMic: "Open mic",
     upcomingSoonest: "Upcoming, soonest first",
     seeAll: "See all",
+    nextNight: {
+      eyebrow: "Next up",
+      reserve: "Hold your spot",
+      details: "See the night",
+    },
+    visit: {
+      title: "Come by",
+      body: "Coffee all day, live music at night.",
+      directions: "Get directions",
+      about: "More about Dekka",
+      follow: "Follow us on Instagram",
+      followBody: "Photos from past nights, and what's coming up, first.",
+    },
     searchEmpty: "No nights match that search.",
   },
   event: {
