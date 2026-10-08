@@ -34,7 +34,7 @@ const optionalText = (max: number) => trimmed(max).optional().default("");
  * not a fetch of an origin of their choosing, which is the hole that matters
  * here. `scripts/check-upload-pattern.ts` holds the adversarial cases.
  *
- * Keep in sync with `lib/storage.ts`'s `EXT_BY_TYPE` and its `events/<uuid>`
+ * Keep in sync with `lib/image-processing.ts`'s `EXT_FOR` and `lib/storage.ts`'s `events/<uuid>`
  * key if either changes.
  */
 const UPLOAD_KEY = "events/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\\.(?:jpg|png|webp|gif)";
@@ -185,7 +185,18 @@ const eventCore = {
   locationAr: optionalText(240),
   locationEn: optionalText(240),
   mapUrl: z.string().trim().max(800).optional().default(""),
-  coverImage: z.string().trim().max(800).optional().default(""),
+  // Upload-only, like menu photos and account pictures (PLAN/SITE_ROADMAP.md S7): a
+  // pasted URL needed `next.config.ts` to proxy images from any HTTPS host. Templates
+  // reuse this exact field, so they're upload-only too.
+  coverImage: z
+    .string()
+    .trim()
+    .max(800)
+    .regex(UPLOAD_IMAGE_PATTERN, {
+      message: "Image must be a photo uploaded through this site, not an external URL.",
+    })
+    .optional()
+    .default(""),
   isPoster: z.boolean().optional().default(false),
   startsAt: z.string().datetime({ offset: true }),
   doorsOpenAt: z.string().datetime({ offset: true }).nullish(),
@@ -279,6 +290,31 @@ export const updateCheckInSchema = z
   .partial()
   .strict();
 
+const LINK_MESSAGE = "Links must be web addresses (SoundCloud, Instagram, YouTube…).";
+
+/**
+ * One link from a band's pitch (`PLAN/SITE_ROADMAP.md` S10): a web address and nothing
+ * else, since the admin inbox renders it as a clickable link. A bare domain
+ * ("instagram.com/band") gets `https://`, which is what bands actually type; any other
+ * scheme (`javascript:`, `data:`, `ftp://`) is refused. React already refuses to run a
+ * `javascript:` href, so this is defence in depth plus a cleaner inbox.
+ */
+export const bandLink = z
+  .string()
+  .trim()
+  .max(400)
+  .refine((v) => !/^(javascript|data|vbscript|file|blob):/i.test(v), LINK_MESSAGE)
+  .refine((v) => !/^[a-z][a-z0-9+.-]*:\/\//i.test(v) || /^https?:\/\//i.test(v), LINK_MESSAGE)
+  .transform((v) => (v === "" || /^https?:\/\//i.test(v) ? v : `https://${v}`))
+  .refine((v) => {
+    if (v === "") return true;
+    try {
+      return new URL(v).hostname.includes(".");
+    } catch {
+      return false;
+    }
+  }, LINK_MESSAGE);
+
 export const submissionSchema = z.object({
   /**
    * The agree-to-the-terms checkbox on `SubmitShowForm`, enforced here too —
@@ -300,7 +336,7 @@ export const submissionSchema = z.object({
   contactName: trimmed(120).min(1),
   email: z.string().trim().toLowerCase().email().max(200),
   phone: optionalText(30),
-  links: z.array(z.string().trim().max(400)).max(10).optional().default([]),
+  links: z.array(bandLink).max(10).optional().default([]),
   preferredDates: optionalText(300),
   pitch: optionalText(3000),
 })

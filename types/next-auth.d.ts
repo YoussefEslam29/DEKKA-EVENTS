@@ -20,5 +20,9 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: UserRole;
     phone?: string;
+    /** The account's `sessionVersion` when this session was issued (lib/session-check.ts). */
+    sv?: number;
+    /** When this session was last checked against the database (ms since epoch). */
+    checkedAt?: number;
   }
 }

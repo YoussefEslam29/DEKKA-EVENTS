@@ -8,6 +8,7 @@ import { handle, jsonError, parseBody } from "@/lib/api";
 import { resetPasswordSchema } from "@/lib/validation";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { hashResetToken, resetTokenMatches } from "@/lib/password-reset";
+import { forgetSessionAccount } from "@/lib/session-check";
 
 export async function POST(request: Request) {
   return handle("POST /api/auth/reset-password", async () => {
@@ -65,10 +66,14 @@ export async function POST(request: Request) {
         // listed — an OAuth-only account that later sets a password this way would
         // otherwise keep claiming it has no password login.
         $addToSet: { providers: "credentials" },
+        // Ends every session the account already had (lib/session-check.ts): a reset is
+        // exactly what someone does when they think another person got in.
+        $inc: { sessionVersion: 1 },
       }
     );
 
     if (result.modifiedCount === 0) return invalid();
+    forgetSessionAccount(String(user._id));
 
     return NextResponse.json({ data: { reset: true } }, { status: 200 });
   });

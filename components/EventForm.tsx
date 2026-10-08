@@ -233,15 +233,16 @@ export function EventForm({ event, defaultDate }: Props) {
           <FormRow label={t.admin.fields.mapUrl} htmlFor="mapUrl" hint={t.common.optional}>
             <Input id="mapUrl" dir="ltr" value={form.mapUrl} onChange={set("mapUrl")} />
           </FormRow>
-          <FormRow label={t.admin.fields.coverImage} htmlFor="coverImage" hint={t.common.optional}>
-            <Input id="coverImage" dir="ltr" value={form.coverImage} onChange={set("coverImage")} />
-            {/* next.config.ts allows an image URL on any host by design, so
-                nothing technical checks who owns what gets pasted here. */}
-            <p className="dk-muted mt-1 text-xs">{t.admin.fields.coverImageRightsHint}</p>
-          </FormRow>
         </div>
 
+        {/* Upload-only since 2026-10-08 (PLAN/SITE_ROADMAP.md S7): a pasted URL needed
+            next.config.ts to proxy images from any host on the internet. */}
         <div className="mb-4">
+          <p className="dk-label mb-1.5 text-sm font-semibold">
+            {t.admin.fields.coverImage}{" "}
+            <span className="dk-muted font-normal">({t.common.optional})</span>
+          </p>
+          <p className="dk-muted mb-2 text-xs">{t.admin.fields.coverImageRightsHint}</p>
           {form.coverImage ? (
             // eslint-disable-next-line @next/next/no-img-element -- small admin-only preview, not the site's rendered cover art
             <img

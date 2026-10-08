@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { securityHeaders } from "./lib/csp";
 
 const nextConfig: NextConfig = {
   // Sentry's own tree-shaking flags (what `withSentryConfig`'s webpack
@@ -42,8 +43,18 @@ const nextConfig: NextConfig = {
   // copy would let an old worker — and its caching rules — outlive the deploy
   // that replaced it. The CSP is the guide's own: the worker only ever talks to
   // this origin, so it is never allowed to do anything else.
+  // No `X-Powered-By: Next.js` on every response (PLAN/SITE_ROADMAP.md S6).
+  poweredByHeader: false,
   async headers() {
     return [
+      // Security headers on every route (lib/csp.ts). The CSP only reports for now.
+      { source: "/(.*)", headers: securityHeaders(process.env.NEXT_PUBLIC_SENTRY_DSN) },
+      // Back-office and personal pages never belong in a search index; the header
+      // covers what `robots.txt` can only ask nicely about.
+      ...["/admin/:path*", "/staff/:path*", "/account", "/my-events"].map((source) => ({
+        source,
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      })),
       {
         source: "/sw.js",
         headers: [
@@ -59,14 +70,13 @@ const nextConfig: NextConfig = {
       // Uploaded images (posters + account photos) — `lib/storage.ts` writes
       // these to Vercel Blob whenever BLOB_READ_WRITE_TOKEN is set, and
       // UPLOAD_IMAGE_PATTERN in lib/validation.ts pins them to this host.
+      // The only remote host: every image the app shows is an upload. The `**`
+      // wildcard that used to sit here (for admin-pasted cover URLs) made
+      // /_next/image an open image proxy on this domain; it went on 2026-10-08,
+      // once cover images became upload-only (UPLOAD_IMAGE_PATTERN) and a
+      // read-only check found no event, template, menu item or account photo in
+      // production pointing anywhere else (PLAN/SITE_ROADMAP.md S7).
       { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
-      // Event cover images can *also* be an external URL the admin pastes into
-      // the field by hand (EventForm.tsx), so the host isn't knowable ahead of
-      // time. That is what keeps this wildcard here, and the wildcard is what
-      // makes /_next/image an open image proxy on this domain. Deleting this
-      // one line closes that; do it once admins are content to always upload
-      // the poster rather than paste a link.
-      { protocol: "https", hostname: "**" },
     ],
   },
 };

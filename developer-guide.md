@@ -356,9 +356,10 @@ offline menu all call it.
    adding an email to a list promotes an existing account next time it signs in with
    a provider; the credentials path checks only once, at signup. Either way, roles
    live in the database from then on — to change an existing account's role, run
-   `scripts/set-role.ts <email> <role>` (the person must sign out and back in;
-   sessions are JWTs). Don't re-introduce env-based role checks anywhere else in the
-   app.
+   `scripts/set-role.ts <email> <role>`. The new role reaches the person's open session
+   within about five minutes, with no re-login: the session re-checks the account every
+   few minutes (`lib/session-check.ts`, §3 rule 11). Don't re-introduce env-based role
+   checks anywhere else in the app.
 7. **No CORS headers are set anywhere, deliberately.** The app is same-origin only —
    one Next.js app, the browser talking to `/api/*` on the origin it was served from.
    Next doesn't send `Access-Control-Allow-Origin` unless you add it, so the browser's
@@ -389,6 +390,13 @@ offline menu all call it.
     field from the stored template and sets `status: "draft"`. Publishing (the `PATCH`
     draft → published transition) stays the **single** path that announces a night and
     fans out push notifications. Don't add a "create and publish" shortcut anywhere.
+11. **Sessions are revocable through `User.sessionVersion`** (`lib/session-check.ts`).
+    Every session (and mobile token) carries the version it was issued under; the
+    `jwt` callback re-checks it, with the role and name, every 5 minutes and on every
+    `update()`. Bump the version to end every session an account has: the reset and
+    password-change routes do. `update()` re-checks *before* it refreshes, so a stolen
+    session can't use it to adopt the new version. Changing your own password signs
+    this device back in with the new password (`AccountForm`).
 
 ---
 
@@ -530,10 +538,16 @@ offline menu all call it.
   Zod schema.
 - Don't add a new role check inline — extend `RANK`/`hasRole()` in `lib/rbac.ts` if the
   role model itself needs to change.
-- Don't widen `next.config.ts`'s `remotePatterns` further than it already is (currently
-  any HTTPS host, because cover images are admin-typed URLs) without first considering
-  narrowing it to a specific image host — it's flagged as a known gap already, not a
-  green light to loosen it more.
+- Don't add a host to `next.config.ts`'s `remotePatterns`, and never a wildcard. Every
+  image the app shows is an upload (`UPLOAD_IMAGE_PATTERN` on cover images, menu photos
+  and account pictures), served from Vercel Blob. A pasted URL needed the old `**`
+  pattern, which made `/_next/image` an open proxy; `check:config` fails if one comes
+  back.
+- Don't store an uploaded file without `processImage()` (`lib/image-processing.ts`). It
+  decides the type from the bytes and strips metadata, including a phone photo's GPS.
+- Don't send push to a stored endpoint without `isAllowedPushEndpoint()`, and don't
+  await a fan-out inside a request; use `sendToSubscriptions()` inside `after()`
+  (`lib/push.ts`).
 
 **Testing**
 - **Don't write-test against the dev server.** `npm run dev` uses `.env.local`, whose
@@ -552,42 +566,25 @@ offline menu all call it.
 ## 7. Known Gaps (carried over from README — keep this list current)
 
 - Capacity is checked read-then-write, not atomically (§4.4 — accepted tradeoff).
-- `next.config.ts` still allows images from any HTTPS host, which makes
-  `/_next/image` an **open image proxy on this domain**. It stayed after the Blob
-  migration for one concrete reason: `coverImage` can be an external URL an admin
-  pastes into the field by hand (`EventForm.tsx` offers both a paste box and an
-  upload button), so the host isn't knowable ahead of time. Deleting the
-  `hostname: "**"` entry closes the proxy and costs only the paste path — the
-  `*.public.blob.vercel-storage.com` entry above it already covers everything
-  `/api/uploads` produces. Worth doing once admins always upload the poster.
+- ~~Open image proxy~~ — **fixed 2026-10-08** (roadmap S7): cover images are upload-only
+  and the `**` remote pattern is gone (Feature Log, "Roadmap P2").
 - ~~Uploads written to local disk~~ — **fixed**, see `lib/storage.ts`. Uploads go to
   Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set and to `public/uploads/events/`
-  otherwise, so `next dev` still needs no Blob store. What remains: there's no
-  cleanup of orphaned blobs when a poster is replaced or an event is deleted —
-  accepted for now, same spirit as the capacity tradeoff above. Vercel Blob has no
-  TTL, so those accumulate and bill; `del()` from `@vercel/blob` is the fix when it
-  matters. Also note the two backends are **not** a migration path for each other:
+  otherwise, so `next dev` still needs no Blob store. Orphaned blobs are now cleaned up
+  (`releaseUploads()`, roadmap S9): a replaced or deleted poster, menu photo, template
+  cover or account picture is deleted from Blob once no event, template, menu item or
+  account still points at it. That check only runs when Blob is configured, so it has
+  never run against a real Blob store. Also note the two backends are **not** a migration path for each other:
   rows already holding `/uploads/events/...` keep working (the regex accepts both
   shapes) but those files do not exist on a Vercel deploy, so any poster uploaded
   before the switch renders broken and has to be re-uploaded once.
-- **Password reset does not invalidate already-issued session JWTs.** Sessions are
-  self-contained tokens (`session: { strategy: "jwt" }`), so resetting a password stops
-  an attacker obtaining a *new* session but does not evict one they already hold — it
-  stays valid until it expires. Same limitation as the role-change note above. This
-  matters precisely in the case a reset is most urgently used ("someone got into my
-  account"), so it is recorded rather than glossed. Real revocation means database
-  sessions or a session-version stamp checked per request — deliberately out of scope.
-- **Mobile bearer tokens inherit that, over a longer window.** `lib/mobile-token.ts`
-  issues the same kind of self-contained JWT for 30 days, so a password reset, a
-  `set-role.ts` demotion, and even deleting the account do not revoke a token already on
-  a phone. The live run confirmed the last one specifically: after the throwaway user was
-  deleted, its token still resolved to an identity through `currentUser()` and only failed
-  at the database lookup inside the route (`404`). It is the same property the web session
-  has, but a phone holds its credential for longer and more passively than a browser tab,
-  so it is worth stating separately. **The mass-revocation lever is
-  `MOBILE_TOKEN_SALT`** — changing that one string invalidates every issued mobile token
-  at once, at the cost of every app user signing in again. Per-user revocation would need
-  the same session-version stamp the note above rules out.
+- ~~Password reset does not invalidate already-issued sessions; mobile tokens outlive
+  a reset, a demotion and the account~~ — **fixed 2026-10-08** (roadmap S8, Feature Log
+  "Roadmap P2"). Sessions and mobile tokens carry the account's `sessionVersion`, re-checked
+  every 5 minutes. A reset or a password change bumps it, and a deleted account fails the
+  check. What remains: a revoked session lives on for up to **5 minutes** (the re-check
+  interval) plus the per-instance cache's 60 seconds. `MOBILE_TOKEN_SALT` is still the
+  lever to invalidate every mobile token at once.
 - **No refresh token in the mobile bridge.** At 30 days the app asks for the password
   again; there is no silent renewal. Deliberate for v1 — a refresh token is a second
   credential with its own storage and rotation rules, and it buys convenience rather than
@@ -721,7 +718,12 @@ offline menu all call it.
   the manifest's `background_color` (`ink-black`) while the app boots. It needs one
   image per device size, so it was left out; add them if the blank moment ever bothers
   anyone.
-- **Menu photos share the event-poster storage and its orphan problem.** `/api/uploads`
+- **The CSP only reports.** `lib/csp.ts` ships `Content-Security-Policy-Report-Only`
+  (reports go to Sentry when the DSN is set). Enforcing it with no `'unsafe-inline'`
+  scripts needs per-request nonces from a `proxy.ts`, per Next's CSP guide. The other
+  headers (`nosniff`, `X-Frame-Options: DENY`, Referrer- and Permissions-Policy) are
+  enforced now.
+- **Menu photos share the event-poster storage** (orphans now cleaned up, see above). `/api/uploads`
   keys everything as `events/<uuid>`, menu photos included (`UPLOAD_IMAGE_PATTERN`
   depends on that shape, so a separate `menu/` prefix would have meant widening the
   pattern for no functional gain). Replacing or deleting a menu item's photo leaves the
@@ -773,6 +775,70 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Roadmap P2 — hardening: push, headers, images, revocable sessions, uploads (2026-10-08)
+
+- **Push (S5), `lib/push.ts`.** A subscription's endpoint must be a real push service
+  (`isAllowedPushEndpoint`: FCM, Mozilla, Windows, Apple; HTTPS, no port or userinfo).
+  Before, any HTTPS URL a member named was POSTed to on every publish.
+  `POST /api/push/subscribe` is rate-limited per user (`push-subscribe`) and keeps 10
+  devices per account. The publish fan-out runs in `after()`, so Publish answers at once
+  however many devices there are. It sends in batches of 50 and drops dead or
+  pre-allowlist rows. `sendToSubscriptions()` is now the one sender.
+- **Headers (S6), `lib/csp.ts`.** On every route: `nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy`, `Permissions-Policy` (Wake Lock allowed for the door code), and a
+  **report-only** CSP whose reports go to Sentry's security endpoint (derived from the
+  DSN). `X-Robots-Tag: noindex` on `/admin`, `/staff`, `/account` and `/my-events`.
+  `poweredByHeader: false`. `check:config` asserts all of it survives the Sentry wrapper.
+- **Image proxy closed (S7).** `coverImage` (events and templates) must match
+  `UPLOAD_IMAGE_PATTERN`; the paste box is gone from both forms; the `**` remote pattern
+  is deleted. A read-only query of production found all 4 events, the 1 template and
+  both account photos already using uploads, so nothing broke.
+- **Revocable sessions (S8), `lib/session-check.ts`.** New optional
+  `User.sessionVersion`. It is stamped into each session at sign-in and re-checked (with
+  role, name and phone) every 5 minutes and on every `update()`. A per-instance 60-second
+  cache keeps that to about one read per account per minute; server components can't
+  rewrite the cookie, so an old cookie re-checks on every request. Bumped by a password
+  reset and a password change. `AccountForm` signs the changing device straight back
+  in, and `update()` re-checks before refreshing so a stolen session can't follow
+  along. Mobile bearer tokens carry and check the same version. Role changes now reach
+  an open session without a re-login.
+- **Uploads (S9).** `lib/image-processing.ts` decides the type from the file's bytes
+  (the declared MIME type is ignored) and re-encodes with `sharp`. That applies the
+  EXIF rotation, then drops all metadata (GPS included) and fits the image inside
+  2000px. `sharp` moved to `dependencies`. `releaseUploads()` deletes a replaced or
+  deleted image from Blob once no event, template, menu item or account points at it.
+  It runs in `after()` from the five routes that replace images.
+- **Small ones (S10, R2).** Door codes come from `crypto.randomInt` and are unique
+  among the night's confirmed reservations (`uniqueReservationCode`). Band links are
+  web addresses only, with `https://` added to a bare domain (`bandLink`). New
+  `password-change` bucket. Mongo `maxPoolSize: 10`, `serverSelectionTimeoutMS: 10000`.
+- **`npm run check:hardening`:** 82 assertions, including a real `sharp` round trip
+  (EXIF in, none out). Mutations caught: any HTTPS push host allowed, `update()`
+  skipping the check, EXIF kept, and both link-safety layers removed. Removing only the
+  `javascript:` rule is *not* caught, because the URL check still refuses it; the two
+  layers overlap on purpose.
+
+**Verification.**
+- **Checks:** typecheck, lint, build and `check:all` (10 scripts) are clean.
+- **End to end:** 29/29 on a production build against `dekka_verify`. Covered:
+  - real response headers, including no `X-Powered-By`;
+  - `/_next/image` refusing an outside host (400) while still serving our own images;
+  - a pasted cover URL refused;
+  - a non-push endpoint refused, and the 10-device cap;
+  - Publish answering in 43 ms with 313 subscriptions in the database (300 junk FCM
+    rows, 3 pre-allowlist rows, which the fan-out then deleted);
+  - a 2600×1400 JPEG carrying EXIF stored at 2000px with no EXIF;
+  - HTML posted as `image/png` refused, and a PNG posted as `image/jpeg` stored as `.png`;
+  - band links refused or normalised;
+  - a second device's session gone after the first device changed the password, even
+    when it called `update()`, with the first device signed back in and
+    `sessionVersion` at 1.
+- **Cleanup:** this run's upload files were deleted.
+- **Timed revocation:** see the line below.
+
+**Not verified:** `releaseUploads()` against a real Blob store (it no-ops without
+`BLOB_READ_WRITE_TOKEN`); a real push delivery; the CSP reports arriving in Sentry.
 
 ### Roadmap P1 — integrity: lifecycle rules, voided door rows, the door log (2026-10-08)
 
@@ -1707,8 +1773,8 @@ Two bugs found along the way were *not* in the plan — see the end.
   promotes them next time they use Google), while the credentials path applies it
   only at account creation. `lib/auth.ts`'s old comment claimed "first sign-in
   only" for both, which was never true. Changing a role on an existing account is
-  `scripts/set-role.ts <email> <role>` — and the person must sign out and back in,
-  because sessions are JWTs carrying the role.
+  `scripts/set-role.ts <email> <role>` — and (since 2026-10-08) the change reaches their
+  open session within about five minutes, through the session re-check.
 - **`updateEventSchema` silently blanked event content on every Publish click.**
   In Zod v4 — unlike v3 — `.partial()` does *not* suppress `.default(...)` on an
   absent key. `eventCore` has ten defaulted fields, so parsing

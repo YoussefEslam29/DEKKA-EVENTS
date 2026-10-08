@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import { User, type UserRole } from "@/models/User";
 import { bootstrapRole } from "@/lib/roles";
+import { loadSessionAccount, needsRecheck, sessionStillValid } from "@/lib/session-check";
 import {
   clientIp,
   consumeRateLimit,
@@ -142,21 +143,41 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
 
     async jwt({ token, user, trigger }) {
-      // Refresh identity on sign-in and whenever the client calls update().
-      if (user?.email || trigger === "update") {
-        const email = (user?.email ?? token.email)?.toLowerCase();
-        if (email) {
-          await connectDB();
-          const dbUser = await User.findOne({ email }).lean();
-          if (dbUser) {
-            token.sub = String(dbUser._id);
-            token.name = dbUser.name;
-            token.email = dbUser.email;
-            token.picture = dbUser.image;
-            token.role = dbUser.role;
-            token.phone = dbUser.phone ?? "";
-          }
+      const now = Date.now();
+
+      // Sign-in: stamp the session with the account's identity and its current
+      // sessionVersion (lib/session-check.ts).
+      if (user?.email) {
+        await connectDB();
+        const dbUser = await User.findOne({ email: user.email.toLowerCase() }).lean();
+        if (dbUser) {
+          token.sub = String(dbUser._id);
+          token.name = dbUser.name;
+          token.email = dbUser.email;
+          token.picture = dbUser.image;
+          token.role = dbUser.role;
+          token.phone = dbUser.phone ?? "";
+          token.sv = dbUser.sessionVersion ?? 0;
+          token.checkedAt = now;
         }
+        return token;
+      }
+
+      // Every few minutes, and on every explicit update(): is this session still
+      // wanted? A deleted account or a bumped sessionVersion (password reset/change)
+      // ends it here, and a role or name change reaches it without a re-login.
+      // `update()` re-checks *before* refreshing, so a stolen session can't call it
+      // to adopt the new version and survive a reset (PLAN/SITE_ROADMAP.md S8).
+      if (trigger === "update" || needsRecheck(token.checkedAt, now)) {
+        if (!token.sub) return null;
+        const account = await loadSessionAccount(token.sub, { fresh: trigger === "update" });
+        if (!account || !sessionStillValid(token.sv, account)) return null;
+        token.name = account.name;
+        token.email = account.email;
+        token.picture = account.image;
+        token.role = account.role;
+        token.phone = account.phone;
+        token.checkedAt = now;
       }
       return token;
     },

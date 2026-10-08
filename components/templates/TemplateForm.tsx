@@ -188,12 +188,13 @@ export function TemplateForm({
           <FormRow label={f.mapUrl} htmlFor="tf-map" hint={t.common.optional}>
             <Input id="tf-map" dir="ltr" value={form.mapUrl} onChange={set("mapUrl")} />
           </FormRow>
-          <FormRow label={f.coverImage} htmlFor="tf-cover" hint={t.common.optional}>
-            <Input id="tf-cover" dir="ltr" value={form.coverImage} onChange={set("coverImage")} />
-          </FormRow>
         </div>
 
+        {/* Upload-only, like events (PLAN/SITE_ROADMAP.md S7). */}
         <div className="mb-4">
+          <p className="dk-label mb-1.5 text-sm font-semibold">
+            {f.coverImage} <span className="dk-muted font-normal">({t.common.optional})</span>
+          </p>
           {form.coverImage ? (
             // eslint-disable-next-line @next/next/no-img-element -- small admin-only preview, same as EventForm
             <img src={form.coverImage} alt="" className="mb-3 h-32 w-auto max-w-xs rounded-[4px] border border-line object-cover" />

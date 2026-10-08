@@ -39,6 +39,12 @@ const BUCKETS = {
   // IP-keyed limit would make one guest throttle everyone else.
   reserve: { limit: 10, window: "1 h" },
   upload: { limit: 20, window: "1 h" },
+  // Per user (PLAN/SITE_ROADMAP.md S5/S10). A browser subscribes once per device and
+  // re-subscribes rarely; a script registering fake endpoints hits this fast.
+  "push-subscribe": { limit: 20, window: "1 h" },
+  // Checking the current password is a bcrypt compare: a stolen session must not get
+  // unlimited guesses at the real one.
+  "password-change": { limit: 10, window: "10 m" },
   // Public, unauthenticated, and touches the database. The uptime monitor uses one
   // request per 5 minutes, so this is generous by two orders of magnitude.
   health: { limit: 60, window: "1 m" },

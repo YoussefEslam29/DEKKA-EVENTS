@@ -36,7 +36,16 @@ export async function connectDB(): Promise<typeof mongoose> {
   }
   if (cached.conn) return cached.conn;
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, { bufferCommands: false });
+    cached.promise = mongoose.connect(MONGODB_URI, {
+      bufferCommands: false,
+      // Every serverless instance holds its own pool, and Mongoose's default (100)
+      // times a handful of warm instances runs into Atlas's connection cap (500 on the
+      // free M0). One request uses a few connections at most (PLAN/SITE_ROADMAP.md R2).
+      maxPoolSize: 10,
+      // Fail a request in 10s rather than Mongoose's default 30s when the cluster is
+      // unreachable; /api/health caps its own check lower still.
+      serverSelectionTimeoutMS: 10_000,
+    });
   }
   try {
     cached.conn = await cached.promise;

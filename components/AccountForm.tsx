@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Mail, Lock, User as UserIcon, Phone, Check } from "lucide-react";
@@ -242,9 +242,23 @@ export function AccountForm({ account }: Props) {
         );
         return;
       }
+      // Changing the password ends every session, this one included
+      // (lib/session-check.ts), so anyone else signed in to this account is out. Sign
+      // this device straight back in with the password that was just set, so the
+      // person changing it stays where they are.
+      const again = await signIn("credentials", {
+        email: account.email,
+        password: pw.newPassword,
+        redirect: false,
+      });
+      if (!again || again.error) {
+        router.push("/login?next=/account");
+        return;
+      }
       setHasPassword(true);
       setPw({ currentPassword: "", newPassword: "", confirmPassword: "" });
       setPwSaved(true);
+      router.refresh();
     } catch {
       setPwError(t.common.somethingWrong);
     } finally {

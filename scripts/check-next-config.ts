@@ -61,9 +61,21 @@ async function main() {
       }
     }
 
-    const patterns = (config.images as { remotePatterns?: unknown[] })?.remotePatterns;
-    if (!Array.isArray(patterns) || patterns.length < 2) {
+    const patterns = (config.images as { remotePatterns?: { hostname?: string }[] })
+      ?.remotePatterns;
+    if (!Array.isArray(patterns) || patterns.length < 1) {
       failures.push(`${label}: images.remotePatterns did not survive`);
+    } else {
+      // The open-proxy wildcard is gone for good (PLAN/SITE_ROADMAP.md S7): every image
+      // is an upload, served from Vercel Blob.
+      for (const p of patterns) {
+        if (!p.hostname || p.hostname.includes("**") || p.hostname === "*") {
+          failures.push(`${label}: images.remotePatterns allows any host (${p.hostname})`);
+        }
+      }
+    }
+    if (config.poweredByHeader !== false) {
+      failures.push(`${label}: poweredByHeader must be false`);
     }
 
     // The service worker must be served uncached (PLAN/DEKKA_PWA_APP.md §2):
@@ -80,6 +92,31 @@ async function main() {
       const cacheControl = sw?.headers.find((h) => h.key.toLowerCase() === "cache-control");
       if (!cacheControl || !/no-cache/.test(cacheControl.value)) {
         failures.push(`${label}: /sw.js lost its no-cache header`);
+      }
+
+      // Security headers on every route (PLAN/SITE_ROADMAP.md S6).
+      const all = rules.find((r) => r.source === "/(.*)");
+      const header = (key: string) =>
+        all?.headers.find((h) => h.key.toLowerCase() === key.toLowerCase())?.value ?? "";
+      if (header("X-Content-Type-Options") !== "nosniff") {
+        failures.push(`${label}: X-Content-Type-Options nosniff missing on /(.*)`);
+      }
+      if (header("X-Frame-Options") !== "DENY") {
+        failures.push(`${label}: X-Frame-Options DENY missing on /(.*)`);
+      }
+      if (!header("Referrer-Policy")) failures.push(`${label}: Referrer-Policy missing`);
+      if (!header("Permissions-Policy")) failures.push(`${label}: Permissions-Policy missing`);
+      const csp = header("Content-Security-Policy-Report-Only");
+      for (const directive of ["frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'"]) {
+        if (!csp.includes(directive)) {
+          failures.push(`${label}: CSP lost "${directive}"`);
+        }
+      }
+      for (const privatePath of ["/admin/:path*", "/staff/:path*"]) {
+        const rule = rules.find((r) => r.source === privatePath);
+        if (!rule?.headers.some((h) => h.key === "X-Robots-Tag" && /noindex/.test(h.value))) {
+          failures.push(`${label}: ${privatePath} lost X-Robots-Tag noindex`);
+        }
       }
     }
   }
@@ -98,7 +135,8 @@ async function main() {
   console.log(
     `next.config: OK — ${REQUIRED.join(", ")} present in both configs ` +
       `(Sentry appends ${wrappedPkgs.length - REQUIRED.length} more); ` +
-      `remotePatterns intact; /sw.js served no-cache; Sentry tree-shaking flags kept; ` +
+      `remotePatterns upload-only (no wildcard); /sw.js served no-cache; security headers + ` +
+      `report-only CSP on every route, noindex on /admin and /staff; Sentry tree-shaking flags kept; ` +
       `unwrapped config untouched without SENTRY_ORG/PROJECT.`
   );
 }

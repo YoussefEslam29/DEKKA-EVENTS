@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import mongoose, { Schema, model, models } from "mongoose";
 
 import { RESERVATION_STATUSES, type ReservationStatus } from "@/lib/constants";
@@ -49,12 +50,32 @@ export const Reservation =
   (models.Reservation as mongoose.Model<IReservation>) ||
   model<IReservation>("Reservation", ReservationSchema);
 
-/** Generates a 6-character door code with no easily-confused characters. */
+/** The door-code alphabet: no 0/O, 1/I/L, 2/Z, B/8 or S/5 to misread in a dim room. */
+export const RESERVATION_CODE_ALPHABET = "ACDEFGHJKLMNPQRTUVWXY3456789";
+
+/**
+ * A 6-character door code from a cryptographic source (`PLAN/SITE_ROADMAP.md` S10).
+ * `Math.random()` is predictable enough that codes could be guessed in sequence. Use
+ * `uniqueReservationCode()` to also rule out a clash with another guest that night.
+ */
 export function generateReservationCode(): string {
-  const alphabet = "ACDEFGHJKLMNPQRTUVWXY3456789";
   let code = "";
   for (let i = 0; i < 6; i++) {
-    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    code += RESERVATION_CODE_ALPHABET[randomInt(RESERVATION_CODE_ALPHABET.length)];
   }
   return code;
+}
+
+/**
+ * A door code no confirmed reservation for the same night already holds. With ~480M
+ * codes a clash is vanishingly rare, but two guests showing the door the same code would
+ * be a real mess, and checking costs one indexed query.
+ */
+export async function uniqueReservationCode(eventId: string): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateReservationCode();
+    const taken = await Reservation.exists({ event: eventId, code, status: "confirmed" });
+    if (!taken) return code;
+  }
+  return generateReservationCode();
 }

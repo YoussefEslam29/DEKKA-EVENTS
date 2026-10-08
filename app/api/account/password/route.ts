@@ -9,11 +9,18 @@ import { User } from "@/models/User";
 import { handle, jsonError, parseBody } from "@/lib/api";
 import { guard } from "@/lib/rbac";
 import { setPasswordSchema } from "@/lib/validation";
+import { rateLimit } from "@/lib/ratelimit";
+import { forgetSessionAccount } from "@/lib/session-check";
 
 export async function PATCH(request: Request) {
   return handle("PATCH /api/account/password", async () => {
     const auth = await guard("member");
     if ("response" in auth) return auth.response;
+
+    // The current-password check below is a bcrypt compare; a stolen session must not
+    // get unlimited guesses at the real password (PLAN/SITE_ROADMAP.md S10).
+    const rl = await rateLimit("password-change", auth.user.id);
+    if ("response" in rl) return rl.response;
 
     const parsed = await parseBody(request, setPasswordSchema);
     if ("response" in parsed) return parsed.response;
@@ -45,7 +52,12 @@ export async function PATCH(request: Request) {
     if (!user.providers.includes("credentials")) {
       user.providers.push("credentials");
     }
+    // Ends every session on every device, this one included (lib/session-check.ts).
+    // AccountForm signs this device straight back in with the password just typed, so
+    // the person changing it barely notices, and anyone else holding a session is out.
+    user.sessionVersion = (user.sessionVersion ?? 0) + 1;
     await user.save();
+    forgetSessionAccount(String(user._id));
 
     return NextResponse.json({ data: { ok: true } });
   });

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import type { UserRole } from "@/lib/constants";
 import { readBearerToken, verifyMobileToken } from "@/lib/mobile-token";
+import { loadSessionAccount, sessionStillValid } from "@/lib/session-check";
 
 export type SessionUser = {
   id: string;
@@ -38,14 +39,20 @@ async function bearerUser(): Promise<SessionUser | null> {
   const claims = await verifyMobileToken(token);
   if (!claims) return null;
 
+  // Revocation (PLAN/SITE_ROADMAP.md S8): a 30-day token used to outlive a password
+  // reset, a demotion and even the account itself. Same check as the web session's,
+  // from the same short per-instance cache, and the role comes from the database.
+  const account = await loadSessionAccount(claims.sub);
+  if (!account || !sessionStillValid(claims.sv, account)) return null;
+
   // Same shape the session branch builds, so nothing downstream can tell which
   // channel a request arrived on — or has to.
   return {
-    id: claims.sub,
-    name: claims.name,
-    email: claims.email,
-    role: claims.role ?? "member",
-    phone: claims.phone ?? "",
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    role: account.role,
+    phone: account.phone,
   };
 }
 

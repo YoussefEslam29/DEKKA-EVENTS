@@ -1,12 +1,13 @@
 // PATCH  /api/event-templates/:id — edit a template (admin)
 // DELETE /api/event-templates/:id — remove a template (admin)
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { connectDB } from "@/lib/db";
 import { EventTemplate } from "@/models/EventTemplate";
 import { handle, isValidId, jsonError, parseBody } from "@/lib/api";
 import { updateEventTemplateSchema } from "@/lib/validation";
 import { guard } from "@/lib/rbac";
 import { toEventTemplateDTO } from "@/lib/data";
+import { releaseUploads } from "@/lib/storage";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -26,12 +27,17 @@ export async function PATCH(request: Request, { params }: Params) {
     if ("capacity" in update) update.capacity = update.capacity ?? null;
 
     await connectDB();
+    const before = await EventTemplate.findById(id).select("coverImage").lean();
     const doc = await EventTemplate.findByIdAndUpdate(
       id,
       { $set: update },
       { new: true, runValidators: true }
     ).lean();
     if (!doc) return jsonError("Not found", 404);
+    // The old file goes once nothing else points at it (PLAN/SITE_ROADMAP.md S9).
+    if (before?.coverImage && before.coverImage !== doc.coverImage) {
+      after(() => releaseUploads([before.coverImage]));
+    }
 
     return NextResponse.json({ data: toEventTemplateDTO(doc) });
   });
@@ -52,6 +58,8 @@ export async function DELETE(_request: Request, { params }: Params) {
     await connectDB();
     const removed = await EventTemplate.findByIdAndDelete(id).lean();
     if (!removed) return jsonError("Not found", 404);
+    // The old file goes once nothing else points at it (PLAN/SITE_ROADMAP.md S9).
+    after(() => releaseUploads([removed.coverImage]));
 
     return NextResponse.json({ data: { success: true } });
   });

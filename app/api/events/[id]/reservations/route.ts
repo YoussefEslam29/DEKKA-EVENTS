@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Event } from "@/models/Event";
-import { Reservation, generateReservationCode } from "@/models/Reservation";
+import { Reservation, uniqueReservationCode } from "@/models/Reservation";
 import { User } from "@/models/User";
 import { handle, isValidId, jsonError } from "@/lib/api";
 import { currentUser, guard } from "@/lib/rbac";
@@ -73,7 +73,7 @@ export async function POST(_request: Request, { params }: Params) {
       existing.status = "confirmed";
       existing.name = name;
       existing.phone = phone;
-      existing.code = generateReservationCode();
+      existing.code = await uniqueReservationCode(id);
       await existing.save();
       return NextResponse.json(
         { data: { id: String(existing._id), code: existing.code } },
@@ -86,7 +86,7 @@ export async function POST(_request: Request, { params }: Params) {
       user: user.id,
       name,
       phone,
-      code: generateReservationCode(),
+      code: await uniqueReservationCode(id),
       status: "confirmed",
     });
 

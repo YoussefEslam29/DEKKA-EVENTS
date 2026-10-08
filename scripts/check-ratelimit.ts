@@ -38,6 +38,8 @@ const EXPECTED: Bucket[] = [
   "reserve",
   "upload",
   "health",
+  "push-subscribe",
+  "password-change",
 ];
 for (const bucket of EXPECTED) {
   const spec = __buckets[bucket];

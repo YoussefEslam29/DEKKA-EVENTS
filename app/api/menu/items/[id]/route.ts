@@ -1,6 +1,6 @@
 // PATCH  /api/menu/items/:id — edit a menu item, one field or the whole form (admin)
 // DELETE /api/menu/items/:id — remove a menu item (admin)
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { connectDB } from "@/lib/db";
 import { MenuCategory } from "@/models/MenuCategory";
 import { MenuItem } from "@/models/MenuItem";
@@ -9,6 +9,7 @@ import { updateMenuItemSchema } from "@/lib/validation";
 import { guard } from "@/lib/rbac";
 import { toMenuItemDTO } from "@/lib/data";
 import { cheapestVariantPrice } from "@/lib/menu";
+import { releaseUploads } from "@/lib/storage";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -27,7 +28,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (Object.keys(update).length === 0) return jsonError("Nothing to update", 400);
 
     await connectDB();
-    const existing = await MenuItem.findById(id).select("category variants").lean();
+    const existing = await MenuItem.findById(id).select("category variants image").lean();
     if (!existing) return jsonError("Not found", 404);
 
     // lib/menu.ts's pricing rule, enforced on the write rather than trusted to
@@ -60,6 +61,8 @@ export async function PATCH(request: Request, { params }: Params) {
       { new: true, runValidators: true }
     ).lean();
     if (!doc) return jsonError("Not found", 404);
+    // The old file goes once nothing else points at it (PLAN/SITE_ROADMAP.md S9).
+    if (existing.image && existing.image !== doc.image) after(() => releaseUploads([existing.image]));
 
     return NextResponse.json({ data: toMenuItemDTO(doc) });
   });
@@ -76,6 +79,8 @@ export async function DELETE(_request: Request, { params }: Params) {
     await connectDB();
     const removed = await MenuItem.findByIdAndDelete(id).lean();
     if (!removed) return jsonError("Not found", 404);
+    // The old file goes once nothing else points at it (PLAN/SITE_ROADMAP.md S9).
+    after(() => releaseUploads([removed.image]));
 
     return NextResponse.json({ data: { success: true } });
   });

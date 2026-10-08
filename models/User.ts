@@ -27,6 +27,11 @@ export interface IUser {
   resetTokenHash?: string;
   /** When the current reset token stops working. TTL-indexed below. */
   resetTokenExpiresAt?: Date;
+  /**
+   * Bumped to end every existing session at once (`lib/session-check.ts`): on a password
+   * reset or change. Absent means 0, so accounts from before it existed are untouched.
+   */
+  sessionVersion?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +54,8 @@ const UserSchema = new Schema<IUser>(
     role: { type: String, enum: USER_ROLES, default: "member", index: true },
     resetTokenHash: { type: String, select: false },
     resetTokenExpiresAt: { type: Date, select: false },
+    // Optional and default-free: an older deploy simply ignores it (§9 rollback rule).
+    sessionVersion: { type: Number, min: 0 },
   },
   { timestamps: true }
 );

@@ -55,6 +55,13 @@ export type MobileTokenClaims = {
   role: UserRole;
   phone: string;
   /**
+   * The account's `sessionVersion` at issue time. `currentUser()` refuses the token
+   * once the account's version moves on (a password reset or change), exactly as the web
+   * session does (`lib/session-check.ts`). Absent on tokens issued before it existed,
+   * which counts as 0.
+   */
+  sv?: number;
+  /**
    * Structural assertion, not a security boundary — the salt above is what
    * actually separates the channels. This exists so that if a future refactor
    * ever collapses the two salts into one, a web session cookie still fails the

@@ -2,8 +2,7 @@
 // PATCH  /api/events/:id — edit an event (admin only). Status moves follow
 //        EVENT_TRANSITIONS; the first publish fans out a push notification (§6 below)
 // DELETE /api/events/:id — delete a night with no door records (admin only)
-import { NextResponse } from "next/server";
-import webpush from "web-push";
+import { NextResponse, after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { connectDB } from "@/lib/db";
 import { Event, type IEvent } from "@/models/Event";
@@ -14,71 +13,34 @@ import { updateEventSchema } from "@/lib/validation";
 import { currentUser, hasRole, guard } from "@/lib/rbac";
 import { countEventRecords, toEventDTO } from "@/lib/data";
 import { canTransition } from "@/lib/constants";
+import { sendToSubscriptions } from "@/lib/push";
+import { releaseUploads } from "@/lib/storage";
 
 type Params = { params: Promise<{ id: string }> };
 
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT;
-
-// `setVapidDetails` throws on an empty/malformed value, so this only runs
-// once real keys exist (`.env.example` ships blank on purpose — importing
-// this route must not crash every GET/DELETE just because push isn't
-// configured yet in this environment).
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-}
-
 /**
  * Fans a "new night" push out to every subscribed device (`PLAN/LOG_SIGN_AUTH_IN.md`
- * §6), only ever called on a night's first publish (see the `PATCH` handler below). Best-effort end to end: one dead or erroring
- * subscription can't take down the rest (`Promise.allSettled`), and the
- * caller wraps this whole function so nothing it throws can turn a
- * successful publish into a 500 — the event is published either way;
- * notification delivery is best-effort on top of that.
+ * §6), only ever on a night's first publish (see the `PATCH` handler below). It runs in
+ * `after()`, once the admin already has their response, so a slow or failing push
+ * service never holds up Publish. Delivery is best-effort; `lib/push.ts` handles dead
+ * devices and reports everything else.
  */
 async function notifyEventPublished(doc: IEvent) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !VAPID_SUBJECT) {
-    console.warn("[events publish] VAPID keys not configured — skipping push fan-out");
-    return;
-  }
-
-  const subs = await PushSubscription.find().lean();
+  const subs = await PushSubscription.find().select("endpoint keys").lean();
   if (subs.length === 0) return;
 
   // i18n note (§6): a push payload is rendered by the OS outside the page —
   // it can't live-switch with the viewer's locale toggle the way in-page
   // text does. Sent as one bilingual string instead, the same "English /
   // Arabic on one line" pattern `BilingualLabel` uses everywhere else.
-  const payload = JSON.stringify({
-    title: "New night at Dekka / ليلة جديدة في دكة",
-    body: doc.titleEn || doc.titleAr,
-    url: `/events/${doc._id}`,
-  });
-
-  await Promise.allSettled(
-    subs.map(async (sub) => {
-      try {
-        await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
-      } catch (err) {
-        const statusCode = (err as { statusCode?: number })?.statusCode;
-        // 404/410 = the browser unsubscribed or the endpoint expired —
-        // clean up so the next publish doesn't keep retrying a dead device.
-        if (statusCode === 404 || statusCode === 410) {
-          await PushSubscription.deleteOne({ _id: sub._id }).catch(() => {});
-        } else {
-          console.error("[events publish] push send failed", statusCode ?? "", err);
-          // A push that fails for any reason other than a dead endpoint is invisible
-          // otherwise: the publish still succeeds, the admin sees success, and nobody
-          // learns that nobody was notified. Reported, not thrown -- one device
-          // failing must not abort the fan-out to the rest.
-          Sentry.captureException(err, {
-            tags: { route: "PATCH /api/events/:id", stage: "push-send" },
-            extra: { statusCode },
-          });
-        }
-      }
-    })
+  await sendToSubscriptions(
+    subs,
+    {
+      title: "New night at Dekka / ليلة جديدة في دكة",
+      body: doc.titleEn || doc.titleAr,
+      url: `/events/${doc._id}`,
+    },
+    "push-publish"
   );
 }
 
@@ -135,7 +97,7 @@ export async function PATCH(request: Request, { params }: Params) {
     // findByIdAndUpdate alone only ever hands back the new document, so
     // there'd be no way to tell "just published" apart from "already
     // published, just editing the description" without this extra read.
-    const before = await Event.findById(id).select("status firstPublishedAt").lean();
+    const before = await Event.findById(id).select("status firstPublishedAt coverImage").lean();
     if (!before) return jsonError("Not found", 404);
 
     // The lifecycle (`EVENT_TRANSITIONS`, PLAN/SITE_ROADMAP.md I1). Without it a past
@@ -167,19 +129,25 @@ export async function PATCH(request: Request, { params }: Params) {
     }).lean();
     if (!doc) return jsonError("Not found", 404);
 
+    // The old file goes once nothing else points at it (PLAN/SITE_ROADMAP.md S9).
+    if (before.coverImage && before.coverImage !== doc.coverImage) {
+      after(() => releaseUploads([before.coverImage]));
+    }
+
     if (announce) {
-      try {
-        await notifyEventPublished(doc);
-      } catch (err) {
-        console.error("[PATCH /api/events/:id] push fan-out failed", err);
-        // Deliberately swallowed so a push failure never turns a successful publish
-        // into a 500 -- but swallowed is not the same as unseen. Without this the
-        // whole fan-out can fail silently on every publish forever.
-        Sentry.captureException(err, {
-          tags: { route: "PATCH /api/events/:id", stage: "push-fanout" },
-          extra: { eventId: String(doc._id) },
-        });
-      }
+      // After the response: the admin sees "published" at once, however many devices
+      // there are. Errors here would otherwise vanish, so they go to Sentry.
+      after(async () => {
+        try {
+          await notifyEventPublished(doc);
+        } catch (err) {
+          console.error("[PATCH /api/events/:id] push fan-out failed", err);
+          Sentry.captureException(err, {
+            tags: { route: "PATCH /api/events/:id", stage: "push-fanout" },
+            extra: { eventId: String(doc._id) },
+          });
+        }
+      });
     }
 
     return NextResponse.json({ data: toEventDTO(doc) });
@@ -211,6 +179,8 @@ export async function DELETE(_request: Request, { params }: Params) {
 
     // Reservations are meaningless without their event; there are no door rows here.
     await Reservation.deleteMany({ event: id });
+    // The old file goes once nothing else points at it (PLAN/SITE_ROADMAP.md S9).
+    after(() => releaseUploads([doc.coverImage]));
 
     return NextResponse.json({ data: { success: true } });
   });

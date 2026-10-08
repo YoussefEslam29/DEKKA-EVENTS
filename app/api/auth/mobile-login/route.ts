@@ -85,6 +85,7 @@ export async function POST(request: Request) {
       email: user.email ?? null,
       role: user.role,
       phone: user.phone ?? "",
+      sv: user.sessionVersion ?? 0,
     });
 
     // The user block mirrors `SessionUser` so the app can populate its Account
