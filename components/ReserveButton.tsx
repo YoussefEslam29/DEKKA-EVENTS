@@ -8,6 +8,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { ConsentText } from "@/components/legal/ConsentText";
+import { DoorCodeButton } from "@/components/DoorCodeButton";
 
 type Props = {
   eventId: string;
@@ -18,6 +19,9 @@ type Props = {
   canReserve: boolean;
   isFull: boolean;
   closed: boolean;
+  /** For the full-screen door code (4a.4): the night's title and "date · time". */
+  doorTitle: string;
+  doorWhen: string;
 };
 
 /**
@@ -33,6 +37,8 @@ export function ReserveButton({
   canReserve,
   isFull,
   closed,
+  doorTitle,
+  doorWhen,
 }: Props) {
   const { t } = useI18n();
   const router = useRouter();
@@ -117,6 +123,9 @@ export function ReserveButton({
           </p>
           <p className="font-mono text-3xl font-black tracking-[0.2em] text-on-dark">{code}</p>
           <p className="mt-1 text-xs text-text-muted">{t.event.codeHint}</p>
+        </div>
+        <div className="mt-3">
+          <DoorCodeButton code={code} title={doorTitle} when={doorWhen} />
         </div>
         <Button
           variant="ghost"

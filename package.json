@@ -16,6 +16,7 @@
     "check:identity": "tsx scripts/check-identity.ts",
     "check:door": "tsx scripts/check-door.ts",
     "check:seo": "tsx scripts/check-seo.ts",
+    "check:event-night": "tsx scripts/check-event-night.ts",
     "check:uploads": "tsx scripts/check-upload-pattern.ts",
     "check:sentry": "tsx scripts/check-sentry-scrub.ts",
     "check:config": "tsx scripts/check-next-config.ts",

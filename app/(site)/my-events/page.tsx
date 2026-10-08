@@ -3,11 +3,15 @@ import { redirect } from "next/navigation";
 import { getI18n } from "@/lib/i18n";
 import { currentUser } from "@/lib/rbac";
 import { getMyReservations, eventTitle } from "@/lib/data";
-import { formatDate, formatTime, formatMoney } from "@/lib/format";
+import { formatMoney, formatWhen } from "@/lib/format";
 import { Card, EmptyState, PageHeader, Badge } from "@/components/ui/Surface";
 import { buttonStyles } from "@/components/ui/Button";
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
+import { cafeNightKey, hasEnded } from "@/lib/staff";
+import { DoorCodeButton } from "@/components/DoorCodeButton";
+import { CancelReservationButton } from "@/components/CancelReservationButton";
+import { EventShareActions } from "@/components/EventShareActions";
 
 /** Its own title and canonical URL (PLAN/SITE_ROADMAP.md D1); the visitor's language. */
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,18 +27,22 @@ export default async function MyEventsPage() {
   if (!user) redirect("/login?next=/my-events");
 
   const rows = await getMyReservations(user.id);
-  // Upcoming reads soonest-first (what's next); past reads most-recent-first.
+  // "Upcoming" lasts until the night has *ended*, not until it starts: the guest needs
+  // their door code at 20:05, when a night that started at 20:00 used to have moved to
+  // "past" already. Soonest first; past reads most-recent-first.
+  const now = new Date();
+  const tonightKey = cafeNightKey(now);
   const upcoming = rows
-    .filter((r) => !r.event.isPast)
+    .filter((r) => !hasEnded(r.event.startsAt, now))
     .sort(
       (a, b) =>
         new Date(a.event.startsAt).getTime() - new Date(b.event.startsAt).getTime()
     );
-  const past = rows.filter((r) => r.event.isPast);
+  const past = rows.filter((r) => hasEnded(r.event.startsAt, now));
 
   // No `dim` flag any more: fading the past section dropped its already-muted
   // text to ~3.5:1. The section heading is what separates past from upcoming.
-  const section = (title: string, items: typeof rows) =>
+  const section = (title: string, items: typeof rows, ahead: boolean) =>
     items.length === 0 ? null : (
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-bold text-text-muted">{title}</h2>
@@ -43,14 +51,19 @@ export default async function MyEventsPage() {
             <Card key={reservation.id} className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Link
-                    href={`/events/${event.id}`}
-                    className="text-lg font-bold hover:text-gold-accent"
-                  >
-                    {eventTitle(event, locale)}
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/events/${event.id}`}
+                      className="text-lg font-bold hover:text-gold-accent"
+                    >
+                      {eventTitle(event, locale)}
+                    </Link>
+                    {ahead && cafeNightKey(event.startsAt) === tonightKey ? (
+                      <Badge tone="gold">{t.myEvents.tonightBadge}</Badge>
+                    ) : null}
+                  </div>
                   <p className="mt-1 text-sm text-text-muted">
-                    {formatDate(event.startsAt, locale)} · {formatTime(event.startsAt, locale)}
+                    {formatWhen(event.startsAt, locale)}
                   </p>
                   <p className="mt-1 text-sm font-semibold text-gold-accent">
                     {event.price > 0
@@ -70,6 +83,21 @@ export default async function MyEventsPage() {
                   </Badge>
                 </div>
               </div>
+              {ahead ? (
+                <div className="mt-4 grid gap-3 border-t border-border-dark pt-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <DoorCodeButton
+                      code={reservation.code}
+                      title={eventTitle(event, locale)}
+                      when={formatWhen(event.startsAt, locale)}
+                    />
+                    {!event.isPast ? (
+                      <CancelReservationButton reservationId={reservation.id} title={eventTitle(event, locale)} />
+                    ) : null}
+                  </div>
+                  <EventShareActions event={event} locale={locale} t={t} share={false} />
+                </div>
+              ) : null}
             </Card>
           ))}
         </div>
@@ -89,8 +117,8 @@ export default async function MyEventsPage() {
         </EmptyState>
       ) : (
         <>
-          {section(t.myEvents.upcoming, upcoming)}
-          {section(t.myEvents.past, past)}
+          {section(t.myEvents.upcoming, upcoming, true)}
+          {section(t.myEvents.past, past, false)}
         </>
       )}
     </div>

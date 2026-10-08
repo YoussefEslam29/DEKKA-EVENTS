@@ -20,6 +20,8 @@ export interface IReservation {
   /** Short human-readable code the guest shows at the door. */
   code: string;
   status: ReservationStatus;
+  /** When the "tonight at Dekka" push went out for it (`app/api/cron/reminders`); unset until then. */
+  remindedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,6 +39,7 @@ const ReservationSchema = new Schema<IReservation>(
       default: "confirmed",
       index: true,
     },
+    remindedAt: { type: Date },
   },
   { timestamps: true }
 );

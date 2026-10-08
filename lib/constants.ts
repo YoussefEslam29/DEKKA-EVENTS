@@ -19,6 +19,9 @@ export const EVENT_STATUSES = [
 ] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
+/** The statuses a guest may see. Every public route and page filters on exactly these. */
+export const PUBLIC_EVENT_STATUSES: EventStatus[] = ["published", "closed", "happened", "archived"];
+
 /**
  * Where an event may go from each status (`PLAN/SITE_ROADMAP.md` I1). One table, read by
  * both `PATCH /api/events/:id` (which refuses anything else with `INVALID_TRANSITION`)

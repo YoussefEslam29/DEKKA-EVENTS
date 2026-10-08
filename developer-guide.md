@@ -30,7 +30,8 @@ mobile auth bridge was ever built, and v1 doesn't use it.
 | 2 | Cafe menu: admin-managed, `/menu`, homepage "Barista's picks", staff sold-out switches, offline menu | ✅ shipped | "phase 2 of 4" |
 | — | Phone header **Admin** shortcut, using the owner's icon (`IMGS/admin dash.jpg`) | ✅ shipped | inside "phase 2 of 4" |
 | 3 | Event templates: save a night/activity once, make a draft from it in two taps | ✅ shipped | "phase 3 of 4" |
-| 4 | Extras (each independent): add-to-calendar, "Tonight at Dekka" banner, WhatsApp share cards, "Open now", seasonal menu sections, owner stats, QR table poster, demo mode | ⏳ not started — **ask the owner which first** | — |
+| 4a | Event night: add-to-calendar, "Tonight at Dekka" banner, WhatsApp share cards, full-screen door code | ✅ built (Roadmap P5) | "Roadmap P5" |
+| 4b, 4c | "Open now", seasonal menu sections; owner stats, QR table poster, demo mode | ⏳ Roadmap P6, P7 | — |
 
 **Open questions / things still owed to the owner:**
 - **Nothing has been tested on a real phone** — not the install, not push in the
@@ -784,6 +785,91 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Roadmap P5 — event night: calendar, Tonight banner, share cards, door code, cancel, reminders (2026-10-08)
+
+PWA phase 4a (`PLAN/DEKKA_PWA_APP.md` §5.2) plus F4 and F1 from `PLAN/SITE_ROADMAP.md`.
+- **Add to calendar** (`EventShareActions`, on the event page and My Events): a Google
+  Calendar link, and a `.ics` download from `GET /api/events/:id/calendar?lang=ar|en`.
+  - The file (`lib/calendar.ts`) is UTC with no zone block, CRLF, folded at 75 octets
+    without splitting an Arabic letter. It ends 3 h after the start, has a stable UID
+    (adding twice updates instead of duplicating), and a reminder 2 h before.
+  - Both public routes below follow §3 rule 9: public nights only (`PUBLIC_EVENT_STATUSES`;
+    a draft is a 404 for everyone), never the session or a cookie, rate-limited per IP
+    (`calendar-ip`, `og-ip`).
+- **WhatsApp share**: a `wa.me` link with a ready-made message, plus a **share card**,
+  `GET /api/events/:id/og`. It's a 1200×630 PNG of about 60 KB (WhatsApp drops images over
+  ~300 KB), cached at the edge for an hour. It's bilingual, since a crawler carries no
+  language cookie.
+  - `next/og` (Satori) can't do Arabic: no bidi, and it measures letters unjoined while
+    drawing them joined, so words got uneven gaps and lines wrapped early.
+  - `lib/og/bidi.ts` shapes the Arabic itself, into Unicode presentation forms, in visual
+    order. Satori draws those as plain glyphs. The details are in `DEKKA_PWA_APP.md`.
+  - The font is a static Cairo Bold cut by `scripts/make-og-font.py`, which also maps
+    the isolated forms Cairo leaves out.
+- **Tonight banner** (`TonightBanner`, top of the homepage): tonight's nights (05:00–05:00
+  Cairo, `cafeNightBounds`) that haven't ended, at most three. It reads "On now" once
+  started, and "Today" for a daytime start.
+- **Door code, full screen** (`DoorCodeButton`, event page and My Events): a modal with the
+  code large on a cream plate, read letter by letter to a screen reader. It keeps the
+  screen awake (Wake Lock, where supported), and Esc or Close hands focus back.
+- **My Events**: a night stays under Upcoming until it has *ended*. Before this, a night
+  that started at 20:00 had moved to Past by 20:05, just when the guest needed the code.
+  Tonight's carries a badge. Each card has the door code, **cancel** (F4, with a confirm)
+  and calendar.
+- **Reminders (F1), built but off**: `GET /api/cron/reminders`, run daily at 10:00 UTC by
+  Vercel Cron (`vercel.json`).
+  - It refuses everyone without `Authorization: Bearer $CRON_SECRET`, and does nothing
+    unless `REMINDERS_ENABLED=1` (decision Q8: not before Gate G1).
+  - It pushes "Tonight at Dekka" to members holding a confirmed spot tonight.
+  - Once only: rows are stamped with the run's own `Reservation.remindedAt` *before*
+    sending, and only stamped rows are sent to.
+- **Fixed, from P4:** every page built with `pageMetadata()` had lost the site's share
+  image, name and locale. Next.js replaces the layout's whole `openGraph` with a page's.
+  `SITE_OPEN_GRAPH` (`lib/seo.ts`) is now spread into every page's. An event page uses
+  its own card instead of the banner.
+- **Arabic date lines:** "٢٠٢٦ · ٦:٢٠" read as one long number, because the Arabic zero
+  "٠" looks like the dot. `formatWhen()` joins date and time with "،" in Arabic and is used
+  wherever both appear. The banner isolates a title with `<bdi>`, so a title ending in
+  Latin no longer pulls the time into it.
+- **`npm run check:event-night`:** 69 assertions:
+  - the `.ics` rules, and a year of cafe nights tiling across both clock changes;
+  - shaping (joins, lam-alef, ڤ), visual order (runs, digits, brackets), and that no plain
+    Arabic letter reaches the renderer;
+  - two real card renders, checked for size and dimensions;
+  - the public routes' terms, and the cron's order (secret, switch, database) and claim
+    filter.
+
+  15/15 mutations caught. Three were missed at first, and the checks were tightened.
+
+**Verification.**
+- **Checks:** typecheck, lint, build and `check:all` (14 scripts) are clean.
+- **End to end, 44/44:** on a production build against `dekka_verify`, with
+  `CRON_SECRET` and `REMINDERS_ENABLED=1`:
+  - **`.ics`:** the download and its headers; UID, title in each language, CRLF and fold
+    rules; draft, unknown and malformed ids 404;
+  - **Card:** PNG, 1200×630, ~56 KB, cache headers, no cookie; a draft's is 404;
+  - **What WhatsApp's user agent sees:** an absolute `og:image` pointing at the card, with
+    its size, in `<head>`; the site name kept; `/menu` sharing the banner;
+  - **Homepage:** the banner shows tonight's night and not next week's;
+  - **My Events:** the badge and the three actions;
+  - **In Chrome:** the door-code dialog opens modal with focus inside, and Esc closes it
+    and returns focus. Cancel from My Events frees the spot and the card disappears. No
+    page errors;
+  - **Cron:** 401 without, or with a wrong, secret. The first run stamps tonight's spot
+    and not next week's. A second run reminds nobody.
+- **Screens:** the homepage, an event page and My Events, in both languages at 390px and
+  1280px, with no overflow. The Arabic banner and date lines were looked at closely, and
+  four card samples by eye (mixed, long, lam-alef with brackets, English-only).
+
+**Not verified:**
+- a real WhatsApp, Instagram or Facebook preview (needs the deployed site);
+- the `.ics` opened on a real iPhone or Android, and Wake Lock on a real phone;
+- a reminder push actually arriving (no subscribed devices locally; that's Gate G1);
+- Vercel Cron actually firing.
+
+The cron needs the owner to set `CRON_SECRET` in Vercel. Reminders stay off until
+`REMINDERS_ENABLED=1`.
 
 ### Roadmap P4 — found and shared: titles, sitemap, structured data, home sections (2026-10-08)
 

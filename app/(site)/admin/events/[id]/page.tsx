@@ -10,7 +10,7 @@ import {
   eventTitle,
 } from "@/lib/data";
 import { DoorLog } from "@/components/DoorLog";
-import { formatDate, formatTime, formatMoney } from "@/lib/format";
+import { formatMoney, formatWhen } from "@/lib/format";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui/Surface";
 import { BackButton } from "@/components/ui/BackButton";
 import { FadeUp } from "@/components/ui/Motion";
@@ -61,7 +61,7 @@ export default async function AdminEventDetailPage({
 
         <PageHeader
           title={eventTitle(event, locale)}
-          subtitle={`${formatDate(event.startsAt, locale)} · ${formatTime(event.startsAt, locale)}`}
+          subtitle={formatWhen(event.startsAt, locale)}
           action={<Badge tone="gold">{t.event.status[event.status]}</Badge>}
         />
 

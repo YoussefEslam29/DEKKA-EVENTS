@@ -40,7 +40,10 @@ export const buttonStyles = cva(
 );
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof buttonStyles>;
+  VariantProps<typeof buttonStyles> & {
+    /** React 19 passes `ref` as a plain prop; it reaches the `<button>` through `...props`. */
+    ref?: React.Ref<HTMLButtonElement>;
+  };
 
 export function Button({ className, variant, size, ...props }: ButtonProps) {
   return (

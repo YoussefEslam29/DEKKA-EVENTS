@@ -16,6 +16,25 @@ export const PRIVATE_PATHS = [
   "/verify-email",
 ] as const;
 
+type OpenGraph = NonNullable<Metadata["openGraph"]>;
+type OpenGraphImage = { url: string; width: number; height: number; alt: string };
+
+/**
+ * The share card's site-wide fields: what WhatsApp or Instagram shows for any link without
+ * its own (an event page brings its own image). Next.js doesn't merge `openGraph` between
+ * the layout and a page (a page's object replaces the layout's whole), so `pageMetadata`
+ * spreads these in again.
+ */
+export const SITE_OPEN_GRAPH = {
+  type: "website",
+  siteName: "دكة · Dekka",
+  locale: "ar_EG",
+  alternateLocale: ["en_GB"],
+  title: "دكة — Dekka",
+  description: "قهوة وموسيقى حيّة في الإسكندرية — احجز مكانك. Coffee and live music in Alexandria.",
+  images: [{ url: "/brand/dekka-banner.jpg", width: 1280, height: 471, alt: "دكة · Dekka" }],
+} satisfies OpenGraph;
+
 /**
  * One page's title, description and canonical URL, plus its share card's matching text.
  * Titles go through the root layout's template ("… · دكة Dekka").
@@ -25,17 +44,26 @@ export function pageMetadata({
   description,
   path,
   noindex = false,
+  image,
 }: {
   title: string;
   description?: string;
   path: string;
   noindex?: boolean;
+  /** This page's own card; the site banner when absent. */
+  image?: OpenGraphImage;
 }): Metadata {
   return {
     title,
     ...(description ? { description } : {}),
     alternates: { canonical: path },
-    openGraph: { title, ...(description ? { description } : {}), url: path },
+    openGraph: {
+      ...SITE_OPEN_GRAPH,
+      title,
+      ...(description ? { description } : {}),
+      url: path,
+      ...(image ? { images: [image] } : {}),
+    },
     ...(noindex ? { robots: { index: false, follow: false } } : {}),
   };
 }

@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import robots from "../app/robots";
-import { PRIVATE_PATHS, cafeJsonLd, eventJsonLd, jsonLdString, pageMetadata } from "../lib/seo";
+import { PRIVATE_PATHS, SITE_OPEN_GRAPH, cafeJsonLd, eventJsonLd, jsonLdString, pageMetadata } from "../lib/seo";
 import { EVENT_DEFAULT_DURATION_MIN } from "../lib/constants";
 
 const ROOT = path.resolve(__dirname, "..");
@@ -39,7 +39,16 @@ check(typeof r.sitemap === "string" && /^https:\/\/[^/]+\/sitemap\.xml$/.test(r.
 const layout = read("app/layout.tsx");
 check(/metadataBase: new URL\(site\.url\)/.test(layout), "root metadataBase is the site URL");
 check(/template: "%s · دكة Dekka"/.test(layout), "titles get the brand through one template");
-check(/openGraph: \{[\s\S]*images: \[\{ url: "\/brand\/dekka-banner\.jpg"/.test(layout), "a default share image");
+check(/openGraph: SITE_OPEN_GRAPH/.test(layout), "the layout's share card is the shared one");
+check(SITE_OPEN_GRAPH.images[0].url === "/brand/dekka-banner.jpg", "a default share image");
+// Next.js replaces the layout's whole `openGraph` with a page's, so every page repeats it.
+type Og = { images?: { url: string }[]; siteName?: string; title?: string; url?: string };
+const og = pageMetadata({ title: "Y", path: "/y" }).openGraph as Og;
+check(og.images?.[0]?.url === "/brand/dekka-banner.jpg" && og.siteName === "دكة · Dekka", "a page keeps the site's image and name");
+check(og.title === "Y" && og.url === "/y", "…with its own title and URL");
+const own = pageMetadata({ title: "Z", path: "/z", image: { url: "/card.png", width: 1200, height: 630, alt: "Z" } }).openGraph as Og;
+check(own.images?.length === 1 && own.images[0].url === "/card.png", "a page's own image replaces the banner");
+check(/image: \{ url: `\/api\/events\/\$\{event\.id\}\/og`, width: 1200, height: 630/.test(read("app/(site)/events/[id]/page.tsx")), "an event page shares its own card");
 
 const publicPages = [...pagesUnder("app/(site)"), ...pagesUnder("app/(auth)")].filter(
   (p) => !p.includes("/admin/") && !p.includes("/staff/")

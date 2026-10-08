@@ -307,21 +307,30 @@ commit to `main`, a Feature Log entry, and updates to §0 and §7 of the guide.
 - **The font:** `lib/og/fonts/Cairo-Bold.ttf` (+ its `OFL.txt`) is a **static** wght=700
   instance of the vendored variable Cairo. It's cut once with fontTools (`varLib.instancer`, then
   `pyftsubset` to Arabic, Arabic presentation forms, Basic Latin + Latin-1, Arabic-Indic digits
-  and the punctuation used), at roughly 100 KB. It's loaded the same way the PDF report loads its
+  and the punctuation used), at roughly 70 KB. It's loaded the same way the PDF report loads its
   font (`readFileSync(new URL("./fonts/…", import.meta.url))`), so Vercel's file tracing picks it
   up. Cairo's OFL declares no Reserved Font Name, so a modified instance may keep the name. The
-  exact commands are recorded in the Feature Log so it can be regenerated. **Not a dependency** —
-  just a font file next to the existing one.
-- **Arabic word order:** Satori 0.25 has no bidi.
-  - **What a test render showed (2026-10-05):** letters *join* correctly with the static font,
-    but words are placed **left-to-right**, and Arabic word gaps come out oversized.
-  - **Fix:** `lib/og/bidi.ts` splits a line into direction runs (Arabic words; Latin runs kept
-    together, so "مع Dekka Band" stays "Dekka Band"; digits attached to their neighbours). It
-    lays them out as separate flex items in a `row-reverse`, wrapping container with an explicit
-    word gap.
+  exact steps are a script, `scripts/make-og-font.py`, so it can be regenerated. **Not a
+  dependency** — just a font file next to the existing one.
+- **Arabic word order and spacing:** Satori 0.25 has no bidi.
+  - **What a test render showed (2026-10-08):** letters *join* correctly with the static font,
+    but words are placed **left-to-right**, and Arabic word gaps come out oversized. The cause
+    of the gaps: Satori *measures* text letter by letter in the wide unjoined forms but *draws*
+    it shaped, so each Arabic word's box is wider than its ink, and long lines wrap too early.
+    Laying words out as separate `row-reverse` flex items fixed the order but not the gaps.
+  - **Fix:** `lib/og/bidi.ts` shapes Arabic itself, into the Unicode presentation forms (one
+    code point per joined shape, lam-alef ligatures included), and writes each line in *visual*
+    order: direction runs reversed (a Latin run like "Dekka Band" kept whole, digits attached to
+    their neighbours), Arabic words reversed, each Arabic word's letters reversed, brackets
+    mirrored. Satori leaves presentation forms alone (its own Arabic handling only matches
+    U+0600–U+06FF) and measures them exactly as it draws them. Cairo doesn't map the *isolated*
+    forms, so `make-og-font.py` maps them to the plain letters' glyphs. Harakat and tatweel are
+    dropped on the card. Titles are wrapped in logical order before reordering (two lines, then
+    an ellipsis on the reading end).
   - **Date line:** built from parts, not one formatted string, so digits can't reorder.
-  - **Testing:** `check:event-night` tests the run-splitting, and the rendered samples
-    (Arabic-only, mixed Arabic/English, long titles, free and paid) are looked at by eye.
+  - **Testing:** `check:event-night` tests the shaping, the runs and the visual order, and the
+    rendered samples (Arabic-only, mixed Arabic/English, long titles, lam-alef, brackets, free
+    and paid, English-only) are looked at by eye.
 
 #### 4a.4 Big door code
 

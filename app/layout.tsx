@@ -5,6 +5,7 @@ import { getI18n, dictFor } from "@/lib/i18n";
 import { getCookieConsent } from "@/lib/cookie-consent";
 import { EARLY_APP_SCRIPT } from "@/lib/pwa";
 import { site } from "@/lib/site";
+import { SITE_OPEN_GRAPH } from "@/lib/seo";
 import { Providers } from "@/components/Providers";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
@@ -30,17 +31,8 @@ export const metadata: Metadata = {
   // default.
   title: { default: "دكة — Dekka", template: "%s · دكة Dekka" },
   description: "قهوة وموسيقى حيّة — احجز مكانك في حفلات دكة القادمة.",
-  // The default share card: what WhatsApp or Instagram shows for any link without its
-  // own (an event page brings its own image).
-  openGraph: {
-    type: "website",
-    siteName: "دكة · Dekka",
-    locale: "ar_EG",
-    alternateLocale: ["en_GB"],
-    title: "دكة — Dekka",
-    description: "قهوة وموسيقى حيّة في الإسكندرية — احجز مكانك. Coffee and live music in Alexandria.",
-    images: [{ url: "/brand/dekka-banner.jpg", width: 1280, height: 471, alt: "دكة · Dekka" }],
-  },
+  // The default share card (lib/seo.ts; pages built with pageMetadata repeat it).
+  openGraph: SITE_OPEN_GRAPH,
   twitter: { card: "summary_large_image" },
   icons: {
     icon: "/brand/dekka-logo-square.png",

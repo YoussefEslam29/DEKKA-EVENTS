@@ -6,6 +6,7 @@ import {
   countReservationsForEvents,
   eventTitle,
   getFeaturedMenuItems,
+  getTonightEvents,
   type EventDTO,
 } from "@/lib/data";
 import { dateParts, formatMoney, formatTime, monthKey } from "@/lib/format";
@@ -19,6 +20,7 @@ import { FeaturedMenuStrip } from "@/components/menu/FeaturedMenuStrip";
 import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 import { NextNightCard } from "@/components/NextNightCard";
+import { TonightBanner } from "@/components/TonightBanner";
 import { VisitSection } from "@/components/VisitSection";
 import { JsonLd } from "@/components/JsonLd";
 import { cafeJsonLd } from "@/lib/seo";
@@ -92,10 +94,13 @@ export default async function EventsHubPage({
       ? params.filter
       : "all";
 
-  const [allUpcoming, allPast, featuredMenu] = await Promise.all([
+  // One clock for the whole render (request time; the page is force-dynamic).
+  const now = new Date();
+  const [allUpcoming, allPast, featuredMenu, tonight] = await Promise.all([
     getPublicEvents({ when: "upcoming", limit: 100 }),
     getPublicEvents({ when: "past", limit: 6 }),
     getFeaturedMenuItems(),
+    getTonightEvents(now),
   ]);
   const upcoming = allUpcoming.filter((e) => matchesSearch(e, q) && matchesFilter(e, filter));
   const past = allPast.filter((e) => matchesSearch(e, q) && matchesFilter(e, filter));
@@ -103,12 +108,12 @@ export default async function EventsHubPage({
   // The next night after tonight (tonight belongs to the Tonight banner), for the big
   // card under the hero (PLAN/SITE_ROADMAP.md X1). Ignores the filters on purpose: it
   // answers "what's next at Dekka", not "what matches my search".
-  const tonightKey = cafeNightKey(new Date());
+  const tonightKey = cafeNightKey(now);
   const nextNight =
     allUpcoming.find((e) => e.status === "published" && cafeNightKey(e.startsAt) !== tonightKey) ?? null;
 
   const counts = await countReservationsForEvents([
-    ...new Set([...upcoming.map((e) => e.id), ...(nextNight ? [nextNight.id] : [])]),
+    ...new Set([...upcoming.map((e) => e.id), ...tonight.map((e) => e.id), ...(nextNight ? [nextNight.id] : [])]),
   ]);
 
   const buildHref = (overrides: { month?: string; filter?: Filter }) => {
@@ -131,6 +136,7 @@ export default async function EventsHubPage({
 
   return (
     <div>
+      <TonightBanner events={tonight} counts={counts} now={now} locale={locale} t={t} />
       <JsonLd data={cafeJsonLd()} />
       {/* Framed-collage header, echoing the banner treatment in the brand assets. */}
       <section className="border-b border-border-dark bg-surface-dark">

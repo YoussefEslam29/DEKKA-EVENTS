@@ -11,7 +11,7 @@ import {
   eventText,
   eventTitle,
 } from "@/lib/data";
-import { formatDate, formatTime, formatMoney, formatNumber } from "@/lib/format";
+import { formatDate, formatTime, formatMoney, formatNumber, formatWhen } from "@/lib/format";
 import { Card, Badge } from "@/components/ui/Surface";
 import { PatternAccent } from "@/components/ui/PatternAccent";
 import { ReserveButton } from "@/components/ReserveButton";
@@ -19,6 +19,7 @@ import { site } from "@/lib/site";
 import { MapEmbed } from "@/components/MapEmbed";
 import { JsonLd } from "@/components/JsonLd";
 import { eventJsonLd, pageMetadata } from "@/lib/seo";
+import { EventShareActions } from "@/components/EventShareActions";
 
 /**
  * The night's own title and description (PLAN/SITE_ROADMAP.md D1): what a search result or a
@@ -34,13 +35,15 @@ export async function generateMetadata({
   const { locale, t } = await getI18n();
   const event = await getEvent(id);
   if (!event || event.status === "draft") return { robots: { index: false, follow: false } };
-  const when = `${formatDate(event.startsAt, locale)} · ${formatTime(event.startsAt, locale)}`;
+  const when = formatWhen(event.startsAt, locale);
   const price = event.price > 0 ? `${formatMoney(event.price, locale)} ${t.common.egp}` : t.common.free;
   const first = eventText(event, locale, "description").split(/\r?\n/)[0]?.slice(0, 160) ?? "";
   return pageMetadata({
     title: eventTitle(event, locale),
     description: [when, price, first].filter(Boolean).join(" · "),
     path: `/events/${event.id}`,
+    // The night's own card (app/api/events/[id]/og), not the site banner.
+    image: { url: `/api/events/${event.id}/og`, width: 1200, height: 630, alt: eventTitle(event, locale) },
   });
 }
 
@@ -251,7 +254,16 @@ export default async function EventDetailPage({
                 canReserve={!closed && !isFull}
                 isFull={isFull}
                 closed={closed}
+                doorTitle={eventTitle(event, locale)}
+                doorWhen={formatWhen(event.startsAt, locale)}
               />
+
+              {/* Calendar and WhatsApp for a night still ahead (PLAN/DEKKA_PWA_APP.md 4a). */}
+              {!isPast && event.status !== "draft" ? (
+                <div className="mt-4 border-t border-border-dark pt-4">
+                  <EventShareActions event={event} locale={locale} t={t} />
+                </div>
+              ) : null}
 
               {isCafeLocation ? (
                 <div className="mt-4 overflow-hidden rounded-xl border border-border-dark">

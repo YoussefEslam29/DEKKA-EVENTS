@@ -44,6 +44,8 @@ const EXPECTED: Bucket[] = [
   "verify-email-ip",
   "account-delete",
   "email-band",
+  "calendar-ip",
+  "og-ip",
 ];
 for (const bucket of EXPECTED) {
   const spec = __buckets[bucket];

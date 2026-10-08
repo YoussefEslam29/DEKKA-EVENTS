@@ -13,6 +13,7 @@ import type { MenuTag, EventTemplateKind, CheckInAuditAction } from "@/lib/const
 import { CheckInAudit } from "@/models/CheckInAudit";
 import { EventTemplate, type IEventTemplate } from "@/models/EventTemplate";
 import { fromLocalInputValue } from "@/lib/format";
+import { cafeNightBounds, hasEnded } from "@/lib/staff";
 
 /**
  * Plain, JSON-safe shapes. Mongoose documents carry ObjectIds and Dates that
@@ -667,6 +668,28 @@ export async function getAdminOverview() {
     Reservation.countDocuments({ status: "confirmed" }),
   ]);
   return { upcoming, drafts, pendingSubmissions, totalReservations };
+}
+
+/**
+ * Tonight's nights that haven't finished (`PLAN/DEKKA_PWA_APP.md` §5.2, 4a.2): published or
+ * closed (closed only stops reservations; the night still happens), starting within the
+ * current cafe night (05:00 to 05:00 Cairo, `lib/staff.ts`), and not yet over. At most
+ * three. Served by the `{ status, startsAt }` index.
+ *
+ * Deviation from the spec's "today's calendar day": at 00:30 a 22:00 show is still on,
+ * and a calendar day would have dropped it at midnight.
+ */
+export async function getTonightEvents(now = new Date()): Promise<EventDTO[]> {
+  const { start, end } = cafeNightBounds(now);
+  await connectDB();
+  const docs = await Event.find({
+    status: { $in: ["published", "closed"] },
+    startsAt: { $gte: start, $lt: end },
+  })
+    .sort({ startsAt: 1 })
+    .limit(5)
+    .lean();
+  return docs.filter((d) => !hasEnded(d.startsAt, now)).slice(0, 3).map((d) => toEventDTO(d));
 }
 
 /**

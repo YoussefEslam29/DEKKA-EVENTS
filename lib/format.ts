@@ -41,6 +41,15 @@ export function formatTime(date: Date | string, locale: Locale): string {
  * matching `formatTime`. Formatted as a fixed UTC instant so no timezone can
  * shift it — it's a time of day, not a moment.
  */
+/**
+ * Date and time on one line. Arabic joins them with its own comma: the "·" used in English
+ * would sit between two numbers ("٢٠٢٦ · ٦:٢٠"), where beside the Arabic zero "٠" it reads
+ * as one long number.
+ */
+export function formatWhen(date: Date | string, locale: Locale): string {
+  return `${formatDate(date, locale)}${locale === "ar" ? "، " : " · "}${formatTime(date, locale)}`;
+}
+
 export function formatTimeOfDay(hhmm: string, locale: Locale): string {
   const [h, m] = hhmm.split(":").map(Number);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;

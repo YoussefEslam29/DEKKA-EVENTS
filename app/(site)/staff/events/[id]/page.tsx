@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getI18n } from "@/lib/i18n";
 import { getEvent, getEventReservations, getCheckIns, eventTitle } from "@/lib/data";
-import { formatDate, formatTime } from "@/lib/format";
+import { formatWhen } from "@/lib/format";
 import { PageHeader } from "@/components/ui/Surface";
 import { BackButton } from "@/components/ui/BackButton";
 import { FadeUp } from "@/components/ui/Motion";
@@ -35,7 +35,7 @@ export default async function DoorCheckInPage({
 
         <PageHeader
           title={eventTitle(event, locale)}
-          subtitle={`${formatDate(event.startsAt, locale)} · ${formatTime(event.startsAt, locale)}`}
+          subtitle={formatWhen(event.startsAt, locale)}
         />
       </FadeUp>
 
