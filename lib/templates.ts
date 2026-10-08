@@ -57,6 +57,21 @@ export function startsAtFor(date: string, time: string): Date | null {
 }
 
 /**
+ * The same cafe wall-clock time `days` calendar days later: "Wednesday 20:00 in Cairo"
+ * becomes "next Wednesday 20:00 in Cairo", even across Egypt's DST change. Adding
+ * `7 * 24h` (or `setDate` in the browser's own timezone, as Duplicate used to) drifts an
+ * hour across the change, or by the admin's offset when they're abroad
+ * (`PLAN/SITE_ROADMAP.md` I4).
+ */
+export function shiftCafeDays(instant: string | Date, days: number): Date | null {
+  const local = toLocalInputValue(instant); // "YYYY-MM-DDTHH:mm", cafe time
+  if (!local) return null;
+  const [y, m, d] = local.slice(0, 10).split("-").map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  return startsAtFor(day, local.slice(11, 16));
+}
+
+/**
  * The new event's fields, built from a template on the server. Always a draft:
  * the existing Publish transition stays the single path that announces a night
  * (and fans out the push notification), so making an event from a template

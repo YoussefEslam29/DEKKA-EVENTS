@@ -1,19 +1,19 @@
 // GET    /api/events/:id — event detail (drafts are admin-only)
-// PATCH  /api/events/:id — edit an event (admin only); a real draft/closed →
-//        published transition also fans out a push notification (§6 below)
-// DELETE /api/events/:id — delete an event and everything hanging off it (admin only)
+// PATCH  /api/events/:id — edit an event (admin only). Status moves follow
+//        EVENT_TRANSITIONS; the first publish fans out a push notification (§6 below)
+// DELETE /api/events/:id — delete a night with no door records (admin only)
 import { NextResponse } from "next/server";
 import webpush from "web-push";
 import * as Sentry from "@sentry/nextjs";
 import { connectDB } from "@/lib/db";
 import { Event, type IEvent } from "@/models/Event";
 import { Reservation } from "@/models/Reservation";
-import { CheckIn } from "@/models/CheckIn";
 import { PushSubscription } from "@/models/PushSubscription";
 import { handle, isValidId, jsonError, parseBody } from "@/lib/api";
 import { updateEventSchema } from "@/lib/validation";
 import { currentUser, hasRole, guard } from "@/lib/rbac";
-import { toEventDTO } from "@/lib/data";
+import { countEventRecords, toEventDTO } from "@/lib/data";
+import { canTransition } from "@/lib/constants";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -31,8 +31,7 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT) {
 
 /**
  * Fans a "new night" push out to every subscribed device (`PLAN/LOG_SIGN_AUTH_IN.md`
- * §6), only ever called on a genuine draft/closed → published transition (see
- * the `PATCH` handler below). Best-effort end to end: one dead or erroring
+ * §6), only ever called on a night's first publish (see the `PATCH` handler below). Best-effort end to end: one dead or erroring
  * subscription can't take down the rest (`Promise.allSettled`), and the
  * caller wraps this whole function so nothing it throws can turn a
  * successful publish into a 500 — the event is published either way;
@@ -136,8 +135,31 @@ export async function PATCH(request: Request, { params }: Params) {
     // findByIdAndUpdate alone only ever hands back the new document, so
     // there'd be no way to tell "just published" apart from "already
     // published, just editing the description" without this extra read.
-    const before = await Event.findById(id).select("status").lean();
+    const before = await Event.findById(id).select("status firstPublishedAt").lean();
     if (!before) return jsonError("Not found", 404);
+
+    // The lifecycle (`EVENT_TRANSITIONS`, PLAN/SITE_ROADMAP.md I1). Without it a past
+    // night could be re-published (re-announcing it to every member) or sent back to
+    // draft (dropping its takings out of the monthly report).
+    const nextStatus = input.status;
+    if (nextStatus && !canTransition(before.status, nextStatus)) {
+      return jsonError("INVALID_TRANSITION", 409, { from: before.status, to: nextStatus });
+    }
+    if (nextStatus === "draft" && before.status !== "draft") {
+      const records = await countEventRecords(id);
+      if (records.reservations > 0 || records.checkIns > 0) {
+        return jsonError("EVENT_HAS_RECORDS", 409, records);
+      }
+    }
+
+    // Push only the first time a night is announced (roadmap Q7). Re-opening a closed
+    // night, or re-publishing one that was unpublished, notifies nobody. Events from
+    // before `firstPublishedAt` existed fall back to "only from draft".
+    const announce =
+      nextStatus === "published" && before.status === "draft" && !before.firstPublishedAt;
+    if (nextStatus === "published" && !before.firstPublishedAt) {
+      update.firstPublishedAt = new Date();
+    }
 
     const doc = await Event.findByIdAndUpdate(id, update, {
       new: true,
@@ -145,9 +167,7 @@ export async function PATCH(request: Request, { params }: Params) {
     }).lean();
     if (!doc) return jsonError("Not found", 404);
 
-    // Only a genuine draft/closed → published transition notifies — a
-    // re-save of an already-published event must never re-notify.
-    if (update.status === "published" && before.status !== "published") {
+    if (announce) {
       try {
         await notifyEventPublished(doc);
       } catch (err) {
@@ -175,14 +195,22 @@ export async function DELETE(_request: Request, { params }: Params) {
     if (!isValidId(id)) return jsonError("Invalid ID", 400);
 
     await connectDB();
+    const existing = await Event.findById(id).select("status").lean();
+    if (!existing) return jsonError("Not found", 404);
+
+    // Door rows are the record of money taken (PLAN/SITE_ROADMAP.md I2). A night that
+    // happened, or has any door row (voided ones included, since they're in the log),
+    // is archived, never deleted.
+    const records = await countEventRecords(id);
+    if (existing.status === "happened" || existing.status === "archived" || records.checkIns > 0) {
+      return jsonError("EVENT_HAS_RECORDS", 409, records);
+    }
+
     const doc = await Event.findByIdAndDelete(id).lean();
     if (!doc) return jsonError("Not found", 404);
 
-    // Reservations and door rows are meaningless without their event.
-    await Promise.all([
-      Reservation.deleteMany({ event: id }),
-      CheckIn.deleteMany({ event: id }),
-    ]);
+    // Reservations are meaningless without their event; there are no door rows here.
+    await Reservation.deleteMany({ event: id });
 
     return NextResponse.json({ data: { success: true } });
   });

@@ -9,6 +9,7 @@ import { handle, isValidId, jsonError, parseBody } from "@/lib/api";
 import { checkInSchema } from "@/lib/validation";
 import { guard } from "@/lib/rbac";
 import { getCheckIns } from "@/lib/data";
+import { recordCheckInAudit, snapshotCheckIn } from "@/lib/checkin-audit";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -65,6 +66,14 @@ export async function POST(request: Request, { params }: Params) {
       reservation: reservationId,
       recordedBy: auth.user.id,
       note: input.note,
+    });
+
+    await recordCheckInAudit({
+      checkIn: String(checkIn._id),
+      event: id,
+      action: "create",
+      user: auth.user,
+      changes: snapshotCheckIn(checkIn, "in"),
     });
 
     return NextResponse.json(

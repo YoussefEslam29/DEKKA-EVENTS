@@ -19,6 +19,36 @@ export const EVENT_STATUSES = [
 ] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
+/**
+ * Where an event may go from each status (`PLAN/SITE_ROADMAP.md` I1). One table, read by
+ * both `PATCH /api/events/:id` (which refuses anything else with `INVALID_TRANSITION`)
+ * and `EventAdminActions` (which only offers these buttons), so the two can't disagree.
+ *
+ * What it rules out, and why:
+ * - `happened`/`archived` → `published`: re-announcing a past night. Re-opening goes
+ *   `happened → closed → published`, deliberately two steps.
+ * - `happened`/`archived` → `draft`: the monthly report and the PDF only count non-draft
+ *   nights, so this made a night's takings vanish from the books.
+ * Moving *to* `draft` additionally requires no reservations and no door records; the
+ * route checks that, since it needs the database.
+ */
+export const EVENT_TRANSITIONS: Record<EventStatus, readonly EventStatus[]> = {
+  draft: ["published"],
+  published: ["closed", "happened", "draft"],
+  closed: ["published", "happened", "draft"],
+  happened: ["archived", "closed"],
+  archived: ["happened"],
+};
+
+/** Staying put is always allowed: a PATCH that resends the current status is an edit. */
+export function canTransition(from: EventStatus, to: EventStatus): boolean {
+  return from === to || EVENT_TRANSITIONS[from].includes(to);
+}
+
+/** What the door log records (`CheckInAudit.action`). */
+export const CHECKIN_AUDIT_ACTIONS = ["create", "update", "void"] as const;
+export type CheckInAuditAction = (typeof CHECKIN_AUDIT_ACTIONS)[number];
+
 export const PAYMENT_METHODS = ["cash", "instapay"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 

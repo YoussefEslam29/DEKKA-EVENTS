@@ -5,8 +5,11 @@ import {
   getEvent,
   getEventReservations,
   getCheckIns,
+  getCheckInAudit,
+  countEventRecords,
   eventTitle,
 } from "@/lib/data";
+import { DoorLog } from "@/components/DoorLog";
 import { formatDate, formatTime, formatMoney } from "@/lib/format";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui/Surface";
 import { BackButton } from "@/components/ui/BackButton";
@@ -33,9 +36,11 @@ export default async function AdminEventDetailPage({
   const event = await getEvent(id);
   if (!event) notFound();
 
-  const [reservations, checkIns] = await Promise.all([
+  const [reservations, checkIns, records, doorLog] = await Promise.all([
     getEventReservations(id),
     getCheckIns(id),
+    countEventRecords(id),
+    getCheckInAudit(id),
   ]);
 
   const revenue = checkIns.reduce((sum, c) => sum + c.amount, 0);
@@ -61,7 +66,12 @@ export default async function AdminEventDetailPage({
         />
 
         <div className="mb-6 flex flex-wrap items-center gap-2">
-          <EventAdminActions eventId={event.id} status={event.status} />
+          <EventAdminActions
+            eventId={event.id}
+            status={event.status}
+            reservationCount={records.reservations}
+            hasRecords={records.reservations > 0 || records.checkIns > 0}
+          />
           <DuplicateEventButton event={event} />
           {(event.status === "happened" || event.status === "archived") && (
             <ShowEventReportButton eventId={event.id} />
@@ -159,6 +169,8 @@ export default async function AdminEventDetailPage({
           </Card>
         )}
       </section>
+
+      <DoorLog entries={doorLog} locale={locale} t={t} />
 
       <section>
         <h2 className="mb-3 text-lg font-bold">{t.admin.editEvent}</h2>

@@ -11,7 +11,9 @@ const checks = Object.keys(pkg.scripts)
 
 for (const name of checks) {
   console.log(`\n▶ npm run ${name}`);
-  const result = spawnSync("npm", ["run", "--silent", name], { stdio: "inherit", shell: true });
+  // One command string (script names are our own `check:*` keys, no user input):
+  // passing an args array together with `shell: true` is deprecated (DEP0190).
+  const result = spawnSync(`npm run --silent ${name}`, { stdio: "inherit", shell: true });
   if (result.status !== 0) {
     console.error(`\n✗ ${name} failed (exit ${result.status}).`);
     process.exit(result.status ?? 1);

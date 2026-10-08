@@ -8,7 +8,8 @@ import { BandSubmission, type SubmissionStatus } from "@/models/BandSubmission";
 import { User } from "@/models/User";
 import { MenuCategory, type IMenuCategory } from "@/models/MenuCategory";
 import { MenuItem, type IMenuItem } from "@/models/MenuItem";
-import type { MenuTag, EventTemplateKind } from "@/lib/constants";
+import type { MenuTag, EventTemplateKind, CheckInAuditAction } from "@/lib/constants";
+import { CheckInAudit } from "@/models/CheckInAudit";
 import { EventTemplate, type IEventTemplate } from "@/models/EventTemplate";
 import { fromLocalInputValue } from "@/lib/format";
 
@@ -252,7 +253,7 @@ export async function getEventReservations(
     Reservation.find({ event: eventId, status: "confirmed" })
       .sort({ createdAt: 1 })
       .lean(),
-    CheckIn.find({ event: eventId, reservation: { $ne: null } })
+    CheckIn.find({ event: eventId, reservation: { $ne: null }, voidedAt: null })
       .select("reservation")
       .lean(),
   ]);
@@ -267,7 +268,10 @@ export async function getEventReservations(
 export async function getCheckIns(eventId: string): Promise<CheckInDTO[]> {
   if (!mongoose.Types.ObjectId.isValid(eventId)) return [];
   await connectDB();
-  const docs = await CheckIn.find({ event: eventId }).sort({ createdAt: -1 }).lean();
+  // Voided rows (removed at the door) are out of every total; the door log shows them.
+  const docs = await CheckIn.find({ event: eventId, voidedAt: null })
+    .sort({ createdAt: -1 })
+    .lean();
   return docs.map((d) => ({
     id: String(d._id),
     eventId: String(d.event),
@@ -348,6 +352,8 @@ export async function getEventReportData(
         from: CheckIn.collection.name,
         localField: "_id",
         foreignField: "event",
+        // Rows removed at the door are voided, not deleted; they're not attendance.
+        pipeline: [{ $match: { voidedAt: null } }],
         as: "checkins",
       },
     },
@@ -561,6 +567,8 @@ export async function getMonthlyReport(month: string): Promise<MonthlyReport> {
         from: CheckIn.collection.name,
         localField: "_id",
         foreignField: "event",
+        // Voided door rows took no money; they never count towards the month.
+        pipeline: [{ $match: { voidedAt: null } }],
         as: "checkins",
       },
     },
@@ -654,6 +662,66 @@ export async function getAdminOverview() {
 }
 
 /**
+ * Nights that are over but still `published`/`closed` (`PLAN/SITE_ROADMAP.md` I5): the
+ * analysis report only unlocks once a night is marked `happened`, and nothing marks it
+ * automatically. "Over" means it started more than `graceHours` ago, so a night still in
+ * progress never shows up. Served by the `{ status, startsAt }` index.
+ */
+export async function getNightsToCloseOut(graceHours = 6): Promise<EventDTO[]> {
+  await connectDB();
+  const cutoff = new Date(Date.now() - graceHours * 60 * 60 * 1000);
+  const docs = await Event.find({
+    status: { $in: ["published", "closed"] },
+    startsAt: { $lt: cutoff },
+  })
+    .sort({ startsAt: -1 })
+    .limit(20)
+    .lean();
+  return docs.map((d) => toEventDTO(d));
+}
+
+export type CheckInAuditDTO = {
+  id: string;
+  checkInId: string;
+  action: CheckInAuditAction;
+  byName: string;
+  changes: { field: string; from: string | number | null; to: string | number | null }[];
+  createdAt: string;
+};
+
+/** One night's door log, newest first (`PLAN/SITE_ROADMAP.md` I3). */
+export async function getCheckInAudit(eventId: string, limit = 300): Promise<CheckInAuditDTO[]> {
+  if (!mongoose.Types.ObjectId.isValid(eventId)) return [];
+  await connectDB();
+  const docs = await CheckInAudit.find({ event: eventId })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+  const plain = (v: unknown) =>
+    typeof v === "string" || typeof v === "number" ? v : v == null ? null : String(v);
+  return docs.map((d) => ({
+    id: String(d._id),
+    checkInId: String(d.checkIn),
+    action: d.action,
+    byName: d.byName ?? "",
+    changes: (d.changes ?? []).map((c) => ({ field: c.field, from: plain(c.from), to: plain(c.to) })),
+    createdAt: new Date(d.createdAt).toISOString(),
+  }));
+}
+
+/** Confirmed reservations and *all* door rows (voided ones too) for one night. */
+export async function countEventRecords(
+  eventId: string
+): Promise<{ reservations: number; checkIns: number }> {
+  await connectDB();
+  const [reservations, checkIns] = await Promise.all([
+    Reservation.countDocuments({ event: eventId, status: "confirmed" }),
+    CheckIn.countDocuments({ event: eventId }),
+  ]);
+  return { reservations, checkIns };
+}
+
+/**
  * A door row with the night it belongs to attached — the shape the cross-event
  * Customers grid needs (`PLAN/FIX_ADMIN_DASH.md` §2c).
  */
@@ -681,7 +749,7 @@ export async function getAllCheckIns({
 }: { eventId?: string; q?: string; limit?: number } = {}): Promise<CheckInRowDTO[]> {
   await connectDB();
 
-  const match: Record<string, unknown> = {};
+  const match: Record<string, unknown> = { voidedAt: null };
   if (eventId && mongoose.Types.ObjectId.isValid(eventId)) {
     match.event = new mongoose.Types.ObjectId(eventId);
   }
@@ -783,6 +851,9 @@ export async function getAllReservations({
         from: CheckIn.collection.name,
         localField: "_id",
         foreignField: "reservation",
+        // A voided row has already handed its reservation back; filtered anyway, so
+        // "did they come" never depends on that detail of the void.
+        pipeline: [{ $match: { voidedAt: null } }],
         as: "checkInDoc",
       },
     },

@@ -8,7 +8,13 @@ import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Select, FormRow } from "@/components/ui/Field";
 import { Card } from "@/components/ui/Surface";
 import { toLocalInputValue, fromLocalInputValue, CAFE_TIMEZONE } from "@/lib/format";
-import { EVENT_STATUSES, PAYMENT_METHODS, type PaymentMethod } from "@/lib/constants";
+import {
+  EVENT_STATUSES,
+  EVENT_TRANSITIONS,
+  PAYMENT_METHODS,
+  type EventStatus,
+  type PaymentMethod,
+} from "@/lib/constants";
 import { site } from "@/lib/site";
 import type { EventDTO } from "@/lib/data";
 
@@ -55,6 +61,11 @@ export function EventForm({ event, defaultDate }: Props) {
     event?.paymentMethods ?? ["cash"]
   );
   const [isPoster, setIsPoster] = useState(event?.isPoster ?? false);
+  // The same lifecycle table the API enforces (`EVENT_TRANSITIONS`): editing offers the
+  // current status plus where it may go next; a new night starts as a draft or published.
+  const statusOptions: EventStatus[] = event
+    ? [event.status, ...EVENT_TRANSITIONS[event.status]]
+    : ["draft", "published"];
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
@@ -179,7 +190,13 @@ export function EventForm({ event, defaultDate }: Props) {
       });
       const body = await res.json();
       if (!res.ok) {
-        setError(body.error ?? t.common.somethingWrong);
+        setError(
+          body.error === "INVALID_TRANSITION"
+            ? t.admin.invalidTransition
+            : body.error === "EVENT_HAS_RECORDS"
+              ? t.admin.eventHasRecords
+              : (body.error ?? t.common.somethingWrong)
+        );
         return;
       }
       router.push(`/admin/events/${event?.id ?? body.data.id}`);
@@ -359,7 +376,7 @@ export function EventForm({ event, defaultDate }: Props) {
         <p className="dk-muted -mt-2 mb-4 text-xs">{t.admin.fields.termsRightsHint}</p>
         <FormRow label={t.admin.fields.status} htmlFor="status" className="max-w-xs">
           <Select id="status" value={form.status} onChange={set("status")}>
-            {EVENT_STATUSES.map((status) => (
+            {statusOptions.map((status) => (
               <option key={status} value={status}>
                 {t.event.status[status]}
               </option>

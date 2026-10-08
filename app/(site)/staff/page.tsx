@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, Coffee } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { getStaffEvents, eventTitle } from "@/lib/data";
-import { formatDate, formatTime } from "@/lib/format";
+import { dayKey, formatDate, formatTime } from "@/lib/format";
 import { Card, EmptyState, PageHeader, Badge } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { requireRole } from "@/lib/rbac";
@@ -14,7 +14,9 @@ export default async function StaffEventPickerPage() {
   await requireRole("staff", "/staff");
   const { locale, t } = await getI18n();
   const events = await getStaffEvents();
-  const today = new Date().toDateString();
+  // Cairo's calendar day, not the server's (UTC on Vercel): a 00:30 start belongs to the
+  // night before (PLAN/SITE_ROADMAP.md I4).
+  const today = dayKey(new Date());
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-10 md:px-8">
@@ -36,7 +38,7 @@ export default async function StaffEventPickerPage() {
       ) : (
         <div className="grid gap-3">
           {events.map((event) => {
-            const isToday = new Date(event.startsAt).toDateString() === today;
+            const isToday = dayKey(event.startsAt) === today;
             return (
               <Link key={event.id} href={`/staff/events/${event.id}`}>
                 <Card className="flex flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:border-gold">

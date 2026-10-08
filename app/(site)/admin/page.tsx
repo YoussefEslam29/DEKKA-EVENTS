@@ -6,8 +6,10 @@ import {
   getAllEvents,
   getAllReservations,
   getSubmissions,
+  getNightsToCloseOut,
   countReservationsForEvents,
 } from "@/lib/data";
+import { CloseOutCard } from "@/components/CloseOutCard";
 import { monthKey } from "@/lib/format";
 import { PageHeader } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
@@ -44,11 +46,12 @@ export default async function AdminOverviewPage({
     ? (tab as OverviewTab)
     : "upcoming";
 
-  const [overview, allEvents, reservations, submissions] = await Promise.all([
+  const [overview, allEvents, reservations, submissions, toCloseOut] = await Promise.all([
     getAdminOverview(),
     getAllEvents(),
     getAllReservations({ limit: 200 }),
     getSubmissions("pending"),
+    getNightsToCloseOut(),
   ]);
 
   // Rendered once per request (async server component, `force-dynamic`), so there is no
@@ -94,6 +97,8 @@ export default async function AdminOverviewPage({
           }
         />
       </FadeUp>
+
+      <CloseOutCard events={toCloseOut} />
 
       {/* `useSearchParams` inside the tabs needs a boundary to suspend at. */}
       <Suspense fallback={null}>

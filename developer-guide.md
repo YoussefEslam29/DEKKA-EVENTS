@@ -289,6 +289,21 @@ create-time value. That once blanked events on Publish. The menu and template ch
 scripts' mutation runs showed it would also re-show sold-out items on a price change and
 wipe a template's description on a rename. **Any new update schema must use it.**
 
+### The event lifecycle is one table
+
+`EVENT_TRANSITIONS` in `lib/constants.ts` says where a night may go from each status. The
+API refuses everything else, and the admin buttons and the form's status dropdown are
+built from the same table, so they can't offer a move the API refuses. A night only
+reaches `draft` with no reservations and no door rows. It is only announced by push on
+its first publish (`firstPublishedAt`).
+
+### Door rows are voided, never deleted
+
+A `CheckIn` is the record of cash taken. "Remove" sets `voidedAt`; every reader filters
+`voidedAt: null`; and `CheckInAudit` logs each check-in, edit and removal with who did it.
+Any new query on `CheckIn` must filter voided rows too; `check:integrity` scans
+`lib/data.ts` for it.
+
 ### Reordering takes the whole sequence
 
 Menu sections, menu items (per section) and templates are reordered with
@@ -507,6 +522,8 @@ offline menu all call it.
 - Don't let a cafe-menu photo be a pasted URL. Menu `image` must match
   `UPLOAD_IMAGE_PATTERN` (uploads only), so `/_next/image` only fetches from hosts this
   site already trusts.
+- Don't delete a `CheckIn` or add a `CheckIn` query without `voidedAt: null`, and don't
+  add a status change that bypasses `canTransition()` (§2).
 - Don't delete a menu section that still has items (`409 CATEGORY_NOT_EMPTY`). Hiding
   (`isActive: false`) is the reversible way off the menu.
 - Don't read `request.json()` fields directly — always through `parseBody()` + a
@@ -756,6 +773,63 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Roadmap P1 — integrity: lifecycle rules, voided door rows, the door log (2026-10-08)
+
+- **Lifecycle (I1).** `EVENT_TRANSITIONS` + `canTransition()` in `lib/constants.ts` is the
+  one table. `PATCH /api/events/:id` refuses anything else (`409 INVALID_TRANSITION`), and
+  `EventAdminActions` and `EventForm`'s status dropdown offer only those moves. Moving to
+  `draft` also needs zero reservations and zero door rows (`409 EVENT_HAS_RECORDS`). Ruled
+  out: re-publishing a `happened`/`archived` night (it pushed every member about a past
+  night) and sending one back to `draft` (its takings left the monthly report).
+- **First publish only (roadmap Q7).** New optional `Event.firstPublishedAt`. The push
+  fan-out fires only on `draft → published` while it's unset. Re-opening a closed night
+  or re-publishing an unpublished one notifies nobody.
+- **Delete protection (I2).** `DELETE /api/events/:id` refuses a `happened`/`archived`
+  night or any night with a door row (voided ones included), and no longer touches
+  `CheckIn` at all. The UI hides Delete there and names the reservation count in the
+  confirm.
+- **Door rows are voided, never deleted (I3).** `CheckIn.voidedAt/voidedBy/voidedReservation`
+  (optional). "Remove" sets them and moves `reservation` into `voidedReservation`, so the
+  existing unique partial index lets the guest be checked in again. Every reader filters
+  `voidedAt: null`: `getCheckIns`, `getEventReservations`, `getAllCheckIns`,
+  `getAllReservations`, `getMonthlyReport`, `getEventReportData`. A voided row can't be
+  edited (`409 CHECKIN_VOIDED`).
+- **The door log.** New `CheckInAudit` collection (`lib/checkin-audit.ts`): one row per
+  check-in, edit (field by field, old → new) and removal, with who and when. It is shown on
+  the admin event page (`components/DoorLog.tsx`). A failed log write reports to Sentry
+  but never fails the door. The door table now confirms before removing and says
+  "every edit or removal here is recorded".
+- **Cairo time (I4).** `shiftCafeDays()` (`lib/templates.ts`) keeps Duplicate at the same
+  Cairo wall-clock time across Egypt's DST change; the old `setDate` in the browser's
+  timezone was an hour off either side of it (`check:integrity` proves both
+  directions). The staff picker's "today" uses `dayKey()`, not the server's UTC date.
+- **Close-out prompt (I5).** `getNightsToCloseOut()`: published or closed nights that
+  started more than 6 hours ago. `components/CloseOutCard.tsx` sits on `/admin` with a
+  one-tap "Mark as happened".
+- **Fixed while there:** on a phone, the door page scrolled sideways by 268px once the
+  attendee table had rows. Its one-column grid sized itself to the table's minimum width.
+  It now uses `minmax(0, …)` tracks (`DoorTable.tsx`), so the table scrolls inside
+  `DataGrid` instead.
+
+**Verification.**
+- **Checks:** typecheck, lint, build and `check:all` (9 scripts) are clean.
+  `check:integrity` has 80 assertions. Five mutations each made it fail:
+  `happened → draft` allowed, the void filter dropped from `getCheckIns`, door rows
+  hard-deleted, Duplicate back to `+7 × 24h`, and the old notify rule.
+- **End to end:** 41/41 against a production build on the local `dekka_verify` database
+  (marker proof first), with real sign-ins for an admin, a staff member and a member.
+  Covered: every allowed and refused transition, `firstPublishedAt` surviving a re-open,
+  the delete rules, a door row created → edited → voided → re-checked-in, the door log
+  holding exactly `create, update, void, create` with `amount 100 → 80` and the staff
+  name, the monthly report counting only the live row, the page gates holding for a
+  signed-in member and staff, and the close-out prompt appearing and clearing.
+- **Screens:** `/admin`, the admin event page, the door page and `/admin/customers` in
+  Arabic and English at 390px and 1280px. Screenshots were looked at, and scroll width
+  was measured after hydration: 0 overflow everywhere.
+
+**Not verified:** a real phone; the push fan-out itself (no subscriptions in the test
+database; the rule is covered by source assertions and the `firstPublishedAt` checks).
 
 ### Security fix: admin and staff pages leaked their data to signed-out requests (2026-10-08)
 

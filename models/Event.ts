@@ -32,6 +32,13 @@ export interface IEvent {
   termsAr?: string;
   termsEn?: string;
   status: EventStatus;
+  /**
+   * When the night was first announced. Set by the first `→ published` transition, and
+   * the push fan-out only fires while it's unset, so un-publishing and re-publishing
+   * (or re-opening a closed night) never notifies everyone twice. Absent on events that
+   * predate the field; see the PATCH route for how those are handled.
+   */
+  firstPublishedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +72,8 @@ const EventSchema = new Schema<IEvent>(
       default: "draft",
       index: true,
     },
+    // Optional and default-free, so a rollback simply ignores it (§9).
+    firstPublishedAt: { type: Date },
   },
   { timestamps: true }
 );

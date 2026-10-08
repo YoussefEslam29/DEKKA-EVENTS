@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
 import type { EventDTO } from "@/lib/data";
+import { shiftCafeDays } from "@/lib/templates";
 
 /**
  * Clones an event into a new draft, one week later at the same time of day —
@@ -19,8 +20,9 @@ export function DuplicateEventButton({ event }: { event: EventDTO }) {
   async function duplicate() {
     setBusy(true);
     try {
-      const startsAt = new Date(event.startsAt);
-      startsAt.setDate(startsAt.getDate() + 7);
+      // A week later at the same *cafe* time — not the browser's (see shiftCafeDays).
+      const startsAt = shiftCafeDays(event.startsAt, 7);
+      if (!startsAt) return;
 
       const payload = {
         titleAr: event.titleAr,

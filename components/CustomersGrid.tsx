@@ -80,6 +80,8 @@ export function CustomersGrid({
   }
 
   async function deleteRow(row: CheckInRowDTO) {
+    // Voids the door row (it leaves every total; the night's door log keeps it).
+    if (!window.confirm(t.staff.confirmRemove.replace("{name}", row.name))) return;
     const res = await fetch(`/api/checkins/${row.id}`, { method: "DELETE" });
     if (!res.ok) return;
     setData((current) => current.filter((r) => r.id !== row.id));

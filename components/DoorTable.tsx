@@ -129,6 +129,8 @@ export function DoorTable({
   }
 
   async function removeCheckIn(checkIn: CheckInDTO) {
+    // A door row is money taken; one mis-tap in a dim room shouldn't remove it.
+    if (!window.confirm(t.staff.confirmRemove.replace("{name}", checkIn.name))) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/checkins/${checkIn.id}`, { method: "DELETE" });
@@ -240,7 +242,11 @@ export function DoorTable({
   ];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
+    // `minmax(0, …)` tracks, not plain `1fr`/implicit ones: those size themselves to the
+    // attendee table's minimum width, which stretched the whole door column (form
+    // included) to ~640px on a 390px phone once the table had rows. With a zero minimum
+    // the table scrolls inside DataGrid's own wrapper instead.
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <div className="space-y-6">
         <Card className="p-4">
           <h2 className="mb-3 flex items-center gap-2 font-bold">
@@ -428,6 +434,9 @@ export function DoorTable({
               editHint: t.grid.editHint,
             }}
           />
+          {/* Said up front rather than discovered: the door log (admin event page)
+              records every edit and removal with the name of whoever made it. */}
+          <p className="dk-hairline dk-muted border-t px-4 py-2 text-xs">{t.staff.auditNote}</p>
         </Card>
       </div>
     </div>

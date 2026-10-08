@@ -25,6 +25,18 @@ export interface ICheckIn {
   /** Which staff member logged the entry. */
   recordedBy: mongoose.Types.ObjectId;
   note?: string;
+  /**
+   * Set when the row is removed from the door table (`PLAN/SITE_ROADMAP.md` I3). Door rows
+   * are the record of cash taken, so a removal voids rather than deletes: every reader
+   * filters `voidedAt: null`, and the door log keeps who did it. Absent on live rows.
+   */
+  voidedAt?: Date | null;
+  voidedBy?: mongoose.Types.ObjectId | null;
+  /**
+   * The reservation this row had consumed, moved here on void. `reservation` itself is
+   * cleared so the unique partial index below frees the guest to be checked in again.
+   */
+  voidedReservation?: mongoose.Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +52,10 @@ const CheckInSchema = new Schema<ICheckIn>(
     reservation: { type: Schema.Types.ObjectId, ref: "Reservation", default: null },
     recordedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     note: { type: String, maxlength: 300 },
+    // All three optional and default-free: existing rows stay exactly as they are.
+    voidedAt: { type: Date },
+    voidedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    voidedReservation: { type: Schema.Types.ObjectId, ref: "Reservation" },
   },
   { timestamps: true }
 );
