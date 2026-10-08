@@ -39,9 +39,17 @@ mobile auth bridge was ever built, and v1 doesn't use it.
 - Daytime "activities" were built as ordinary events with `kind: "activity"` on their
   template (sun icon instead of moon). The owner never confirmed; if activities need
   different fields (e.g. no reservations), that's new work.
-- **The speed pass's region move (2026-10-06) only takes effect on the next deploy.**
-  After the push, confirm `x-vercel-id` reads `fra1::fra1::…` (§4 rule 6), then rerun
-  the phone timings in the Feature Log entry to get the real before/after.
+- **The speed pass's region move (2026-10-06) is confirmed live** (2026-10-08:
+  `x-vercel-id: fra1::fra1::…`). Still owed: rerun the phone timings in its Feature Log
+  entry to get the real before/after.
+- **Rate limiting is INACTIVE in production** (found 2026-10-08 in the runtime logs: a
+  fresh process logged the `[ratelimit] … INACTIVE` warning). The code is done; the
+  Upstash integration just isn't connected to the Vercel project. Until it is, every
+  limited endpoint is unthrottled (§3 rule 8).
+- **`PLAN/SITE_ROADMAP.md` (2026-10-08) is the current plan.** It audits the whole site and
+  sequences the fixes before the remaining PWA phase-4 features;
+  `PLAN/SITE_ROADMAP_IMPLEMENTATION.md` lists the tasks. Its §6 lists what only the owner
+  can do.
 - The menu starts empty in production until the owner adds sections and items at
   `/admin/menu`. There is no dish photography yet; every card is designed to work
   without a photo.
@@ -721,6 +729,12 @@ offline menu all call it.
   in `app/layout.tsx`). Browsers fetch it after the page loads, so it's not on the
   critical path, but a 32–48 px export from `npm run brand:assets` would do the same job
   in a few KB.
+- **`npm audit` (dev dependencies) keeps 5 high findings, all one chain:**
+  `braces` ← `micromatch` ← `fast-glob` ← `@next/eslint-plugin-next` ←
+  `eslint-config-next`. There is no fix on the 16.x line (npm's only suggestion is
+  downgrading to `eslint-config-next@14`, which is wrong), and it only ever runs on our own
+  lint globs, never in production. CI audits production dependencies only
+  (`npm audit --omit=dev`), which are clean. Re-check when `eslint-config-next` moves.
 - **`stripDefaults()` in `lib/validation.ts` touches Zod internals**
   (`instanceof z.ZodDefault`, `.removeDefault()`). It's the structural guard that
   stops `updateEventSchema` re-introducing the default-leak bug described in §8,
@@ -733,6 +747,30 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Roadmap P0 — safe base (`PLAN/SITE_ROADMAP.md`, 2026-10-08)
+
+- **`next` 16.3.1 → 16.3.8** (and `eslint-config-next` with it, both still exact pins).
+  16.3.1 carried 9 published advisories, including an unauthenticated RCE in the image
+  optimizer, an RCE in `next/og` and an image-optimizer SSRF; 16.3.8 is the first release
+  outside every advisory range. `npm audit fix` cleared `undici`, `brace-expansion`,
+  `fast-uri` and `source-map-js`; `sharp` → `^0.35.5`. Production dependencies now audit
+  clean. The remaining dev-only chain is in §7.
+- **Runtime:** `"engines": { "node": ">=24 <25" }` (local and Vercel both run Node 24),
+  `@types/node` → `^24`, and in-range updates (`zod` 4.6.5, `mongoose` 9.11.1,
+  `@sentry/nextjs` 10.76.1, `@upstash/*`, `framer-motion` 13.5.1, `lucide-react` 1.53).
+- **`npm run check:all`** (`scripts/check-all.mjs`) runs every `check:*` script, discovered
+  from `package.json`.
+- **CI:** `.github/workflows/ci.yml` — on every push/PR to `main`: `npm ci`, typecheck, lint,
+  `check:all`, build (placeholder env; nothing connects anywhere). Weekly and on demand:
+  `npm audit --omit=dev --audit-level=high`.
+
+**Verification.** typecheck, lint, all 8 checks and `next build` are clean on the new
+versions; `stripDefaults` survived the Zod minor bump (`check:menu` / `check:templates`
+exercise it). `npm audit --omit=dev`: 0 vulnerabilities.
+
+**Not verified:** the CI workflow itself has never run (it runs on the first push), and
+production rate limiting is still off until Upstash is connected (§0).
 
 ### Mobile speed pass (2026-10-06)
 
@@ -1728,9 +1766,10 @@ is no staging environment and no test suite, so the checklists below are the gat
 - [ ] `npm run typecheck` — clean
 - [ ] `npm run lint` — clean
 - [ ] `npm run build` — succeeds locally
-- [ ] The relevant `npm run check:*` script passes if you touched what it covers
-      (`check:uploads`, `check:sentry`, `check:config`, `check:ratelimit`,
-      `check:reset`, `check:mobile-auth`, `check:menu`, `check:templates`)
+- [ ] `npm run check:all` passes (it runs every `check:*` script in `package.json`, so
+      a new check is included as soon as its script entry exists). CI
+      (`.github/workflows/ci.yml`) runs the same list plus a build on every push to
+      `main`; a red run there means "roll back", since the deploy has already started.
 - [ ] Manually exercise the code path you changed against a real `happened` event
       or a throwaway document — `MONGODB_URI` is the live cluster, so treat every
       write as real (`HANDOFF.md` "Standing rules")
