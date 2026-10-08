@@ -1,0 +1,55 @@
+# Every push to `main` deploys to production through Vercel, and there is no staging.
+# This workflow is the red/green light beside that deploy: the same checks the
+# developer guide's pre-push list asks for (§9), run on every push instead of on memory.
+# It does not block Vercel — it tells you, within a few minutes, whether to roll back.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Weekly dependency audit: advisories get published against versions that were fine
+  # when installed (that is how next@16.3.1 picked up a critical one).
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Placeholders only. Nothing in typecheck, lint, the check scripts or `next build`
+      # connects to a database or a third-party service; these just keep config that
+      # reads them at import time from complaining.
+      MONGODB_URI: mongodb://127.0.0.1:27017/ci
+      AUTH_SECRET: ci-placeholder-secret-not-used-for-anything-real
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run check:all
+      - run: npm run build
+
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Production dependencies only: the dev-only `braces` chain under
+      # eslint-config-next has no fix on the 16.x line (see developer-guide.md §7).
+      - run: npm audit --omit=dev --audit-level=high
