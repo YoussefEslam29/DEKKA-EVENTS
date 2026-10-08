@@ -58,7 +58,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const doc = await MenuItem.findByIdAndUpdate(
       id,
       { $set: update },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     ).lean();
     if (!doc) return jsonError("Not found", 404);
     // The old file goes once nothing else points at it (PLAN/SITE_ROADMAP.md S9).

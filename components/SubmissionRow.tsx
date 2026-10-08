@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Mail } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
 import { Card, Badge } from "@/components/ui/Surface";
 import { Textarea } from "@/components/ui/Field";
 import type { SubmissionDTO } from "@/lib/data";
 import type { SubmissionStatus } from "@/lib/constants";
+import { formatShortDate } from "@/lib/format";
 
 const tone = {
   pending: "warn",
@@ -17,8 +18,33 @@ const tone = {
 } as const;
 
 /** One pitch in the inbox, with the approve/decline controls inline. */
-export function SubmissionRow({ submission }: { submission: SubmissionDTO }) {
-  const { t } = useI18n();
+export function SubmissionRow({
+  submission,
+  canEmail = false,
+}: {
+  submission: SubmissionDTO;
+  /** A mail provider is configured, so "Email the band" can work (F3). */
+  canEmail?: boolean;
+}) {
+  const { t, locale } = useI18n();
+  const [notifiedAt, setNotifiedAt] = useState(submission.notifiedAt);
+  const [emailState, setEmailState] = useState<"idle" | "sending" | "failed">("idle");
+
+  async function emailBand() {
+    setEmailState("sending");
+    try {
+      const res = await fetch(`/api/submissions/${submission.id}/notify`, { method: "POST" });
+      if (!res.ok) {
+        setEmailState("failed");
+        return;
+      }
+      const body = await res.json();
+      setNotifiedAt(body.data.notifiedAt);
+      setEmailState("idle");
+    } catch {
+      setEmailState("failed");
+    }
+  }
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(submission.adminNote);
@@ -113,6 +139,26 @@ export function SubmissionRow({ submission }: { submission: SubmissionDTO }) {
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {/* F3: the decision goes to the band only when someone presses this. */}
+      {canEmail && submission.status !== "pending" ? (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button size="sm" variant="lightOutline" disabled={emailState === "sending"} onClick={emailBand}>
+            <Mail className="h-3.5 w-3.5" aria-hidden />
+            {emailState === "sending" ? t.admin.emailBand.sending : t.admin.emailBand.button}
+          </Button>
+          {notifiedAt ? (
+            <span className="text-xs text-ink-faint">
+              {t.admin.emailBand.sent.replace("{date}", formatShortDate(notifiedAt, locale))}
+            </span>
+          ) : null}
+          {emailState === "failed" ? (
+            <span role="alert" className="text-xs text-bad">
+              {t.admin.emailBand.failed}
+            </span>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="mt-3 border-t border-line pt-3">

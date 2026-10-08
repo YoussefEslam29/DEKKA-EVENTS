@@ -32,6 +32,16 @@ export interface IUser {
    * reset or change. Absent means 0, so accounts from before it existed are untouched.
    */
   sessionVersion?: number;
+  /**
+   * When the person proved they own `email` (`PLAN/SITE_ROADMAP.md` S3): a verification
+   * link, a password reset, or a provider sign-in that asserts a verified address. Until
+   * then the account gets no `ADMIN_EMAILS`/`STAFF_EMAILS` role and can't be linked to a
+   * social sign-in. Absent on accounts from before it existed.
+   */
+  emailVerifiedAt?: Date;
+  /** SHA-256 of the email-verification token; same rules as `resetTokenHash`. */
+  verifyTokenHash?: string;
+  verifyTokenExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +66,9 @@ const UserSchema = new Schema<IUser>(
     resetTokenExpiresAt: { type: Date, select: false },
     // Optional and default-free: an older deploy simply ignores it (§9 rollback rule).
     sessionVersion: { type: Number, min: 0 },
+    emailVerifiedAt: { type: Date },
+    verifyTokenHash: { type: String, select: false },
+    verifyTokenExpiresAt: { type: Date, select: false },
   },
   { timestamps: true }
 );

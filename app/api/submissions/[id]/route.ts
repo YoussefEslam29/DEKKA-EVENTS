@@ -24,7 +24,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (parsed.data.adminNote !== undefined) update.adminNote = parsed.data.adminNote;
 
     await connectDB();
-    const doc = await BandSubmission.findByIdAndUpdate(id, update, { new: true }).lean();
+    const doc = await BandSubmission.findByIdAndUpdate(id, update, { returnDocument: "after" }).lean();
     if (!doc) return jsonError("Not found", 404);
 
     return NextResponse.json({

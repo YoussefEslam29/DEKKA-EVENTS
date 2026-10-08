@@ -1,6 +1,6 @@
 // GET  /api/submissions — band submissions inbox (admin only)
 // POST /api/submissions — pitch a show; open to logged-out visitors by design
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { connectDB } from "@/lib/db";
 import { BandSubmission, SUBMISSION_STATUSES } from "@/models/BandSubmission";
 import { handle, parseBody } from "@/lib/api";
@@ -8,6 +8,8 @@ import { submissionSchema } from "@/lib/validation";
 import { currentUser, guard } from "@/lib/rbac";
 import { getSubmissions } from "@/lib/data";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
+import { emailEnabled, sendEmail } from "@/lib/email";
+import { pitchReceivedEmailBody } from "@/lib/identity";
 
 export async function GET(request: Request) {
   return handle("GET /api/submissions", async () => {
@@ -42,6 +44,14 @@ export async function POST(request: Request) {
       user: user?.id ?? null,
       status: "pending",
     });
+
+    // F3 (PLAN/SITE_ROADMAP.md): tell the band it arrived. After the response, never
+    // blocking the form, and silent without a mail provider. The route is already
+    // rate-limited per IP, which also caps how many of these one machine can trigger.
+    if (emailEnabled) {
+      const { subject, text } = pitchReceivedEmailBody(submission.bandName);
+      after(() => sendEmail({ to: submission.email, subject, text }).then(() => undefined));
+    }
 
     return NextResponse.json(
       { data: { id: String(submission._id), status: submission.status } },

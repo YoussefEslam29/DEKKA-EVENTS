@@ -163,6 +163,31 @@ export const ar = {
     phoneInvalid: "رقم الموبايل لازم يكون 6 أرقام على الأقل.",
     photoInvalid: "الصورة دي مش قادرين نحفظها. جرّب ترفعها تاني.",
     profilePhotoAlt: "صورة الملف الشخصي",
+    verify: {
+      title: "أكّد إيميلك",
+      body: "أكّد إن الإيميل ده بتاعك، عشان رسايلنا توصلك وتقدر تدخل بجوجل بعدين.",
+      send: "ابعتلي رابط التأكيد",
+      sending: "بنبعت…",
+      sent: "بعتنالك رابط — بصّ على الإيميل (والـ spam كمان).",
+      failed: "مقدرناش نبعت دلوقتي. جرّب كمان شوية.",
+      verified: "إيميلك متأكد.",
+    },
+    data: {
+      title: "بياناتك",
+      body: "نزّل نسخة من كل اللي عندنا عنك، أو امسح حسابك خالص.",
+      export: "نزّل بياناتي",
+      deleteTitle: "امسح حسابي",
+      deleteBody:
+        "ده هيمسح حسابك نهائياً. حجوزاتك اللي فاتت هتفضل في سجلات الحفلات من غير اسمك ولا رقمك، وأي عرض بعته كفرقة هيفضل عند دكة من غير ما يكون مربوط بحسابك.",
+      passwordLabel: "كلمة السر للتأكيد",
+      emailLabel: "اكتب إيميلك للتأكيد",
+      confirm: "امسح حسابي نهائياً",
+      confirmQuestion: "متأكد؟ مش هينفع ترجع.",
+      deleting: "بنمسح…",
+      wrongPassword: "كلمة السر دي مش صح.",
+      emailMismatch: "الإيميل ده مش إيميل حسابك.",
+      lastAdmin: "إنت آخر مسؤول في دكة — خلّي حد تاني مسؤول الأول.",
+    },
   },
   auth: {
     loginTitle: "أهلاً بيك في دكة",
@@ -187,6 +212,8 @@ export const ar = {
     // `{providers}` يتحدد من رد السيرفر (`details.providers`) مش هاردكودد
     // لجوجل — شايف lib/providers.ts.
     emailTakenOAuth: "البريد ده عنده حساب بـ{providers} بالفعل — سجّل دخولك بالزرار تحت.",
+    accountNotLinked:
+      "في حساب في دكة بالإيميل ده لسه متأكدش. ادخل بكلمة السر وأكّد الإيميل من «حسابي» (أو استخدم «نسيت كلمة السر»)، وبعدها تقدر تدخل بجوجل.",
     passwordShort: "كلمة السر لازم تكون 8 حروف على الأقل.",
     passwordMismatch: "كلمة السر والتأكيد مش متطابقين.",
     guestNote: "تقدر تتفرج على الحفلات من غير حساب — الحساب مطلوب وقت الحجز بس.",
@@ -216,6 +243,11 @@ export const ar = {
     resetDone: "تمام! كلمة السر اتغيرت. تقدر تسجل دخولك دلوقتي.",
     resetInvalid: "الرابط ده مش صالح أو انتهت صلاحيته. اطلب رابط جديد.",
     resetMismatch: "كلمتين السر مش زي بعض.",
+    verifyTitle: "تأكيد الإيميل",
+    verifyChecking: "بنأكد…",
+    verifyDone: "تمام! إيميلك اتأكد.",
+    verifyInvalid: "الرابط ده مش صالح أو انتهت صلاحيته. اطلب رابط جديد من «حسابي».",
+    verifyToAccount: "روح لحسابك",
     orContinueWith: "أو تابع باستخدام",
     withApple: "المتابعة بآبل",
     showPassword: "إظهار كلمة السر",
@@ -325,6 +357,12 @@ export const ar = {
       empty: "مفيش حاجة اتسجّلت لسه.",
       actions: { create: "سجّل دخول", update: "عدّل", void: "شال" },
       unknownUser: "حساب اتمسح",
+    },
+    emailBand: {
+      button: "ابعت للفرقة إيميل",
+      sending: "بنبعت…",
+      sent: "اتبعتلهم إيميل {date}",
+      failed: "الإيميل متبعتش.",
     },
     closeOut: {
       title: "ليالي محتاجة تتقفل",
@@ -815,6 +853,31 @@ export const en: DeepMutable<Dict> = {
     phoneInvalid: "Phone number must be at least 6 characters.",
     photoInvalid: "That photo couldn't be saved. Try uploading it again.",
     profilePhotoAlt: "Profile photo",
+    verify: {
+      title: "Confirm your email",
+      body: "Confirm this email is yours, so our messages reach you and you can sign in with Google later.",
+      send: "Send me a confirmation link",
+      sending: "Sending…",
+      sent: "Link sent — check your inbox (and spam).",
+      failed: "Couldn't send it right now. Try again in a bit.",
+      verified: "Your email is confirmed.",
+    },
+    data: {
+      title: "Your data",
+      body: "Download a copy of everything we hold about you, or delete your account.",
+      export: "Download my data",
+      deleteTitle: "Delete my account",
+      deleteBody:
+        "This deletes your account for good. Your past reservations stay in the nights' records without your name or number, and any pitch you sent as a band stays with Dekka, no longer linked to you.",
+      passwordLabel: "Your password, to confirm",
+      emailLabel: "Type your email to confirm",
+      confirm: "Delete my account for good",
+      confirmQuestion: "Are you sure? This can't be undone.",
+      deleting: "Deleting…",
+      wrongPassword: "That password isn't right.",
+      emailMismatch: "That isn't your account's email.",
+      lastAdmin: "You're Dekka's last admin — make someone else an admin first.",
+    },
   },
   auth: {
     loginTitle: "Welcome to Dekka",
@@ -838,6 +901,8 @@ export const en: DeepMutable<Dict> = {
     emailTaken: "That email is already registered.",
     emailTakenOAuth:
       "You already have an account with this email, signed in with {providers} — use the button below instead.",
+    accountNotLinked:
+      "There's already a Dekka account with this email that hasn't been confirmed. Sign in with its password and confirm the email from your Account page (or use \"Forgot password\") — then you can sign in with Google.",
     passwordShort: "Password must be at least 8 characters.",
     passwordMismatch: "Passwords do not match.",
     guestNote:
@@ -868,6 +933,11 @@ export const en: DeepMutable<Dict> = {
     resetDone: "Done — your password is changed. You can sign in now.",
     resetInvalid: "This link is invalid or has expired. Request a new one.",
     resetMismatch: "The two passwords do not match.",
+    verifyTitle: "Confirm your email",
+    verifyChecking: "Confirming…",
+    verifyDone: "Done! Your email is confirmed.",
+    verifyInvalid: "This link isn't valid or has expired. Ask for a new one from your Account page.",
+    verifyToAccount: "Go to your account",
     orContinueWith: "or continue with",
     withApple: "Continue with Apple",
     showPassword: "Show password",
@@ -977,6 +1047,12 @@ export const en: DeepMutable<Dict> = {
       empty: "Nothing recorded yet.",
       actions: { create: "Checked in", update: "Edited", void: "Removed" },
       unknownUser: "Deleted account",
+    },
+    emailBand: {
+      button: "Email the band",
+      sending: "Sending…",
+      sent: "Emailed {date}",
+      failed: "The email didn't send.",
     },
     closeOut: {
       title: "Nights to close out",

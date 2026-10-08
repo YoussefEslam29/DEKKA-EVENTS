@@ -13,11 +13,13 @@ function safeNext(value: string | undefined): string {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, error } = await searchParams;
   const target = safeNext(next);
   if (await currentUser()) redirect(target);
 
-  return <AuthScreen mode="login" next={target} />;
+  // `error` comes back from Auth.js; only a short known code is passed on.
+  const authError = error && /^[A-Za-z]{1,40}$/.test(error) ? error : undefined;
+  return <AuthScreen mode="login" next={target} authError={authError} />;
 }

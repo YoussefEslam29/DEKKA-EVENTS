@@ -124,7 +124,7 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     const doc = await Event.findByIdAndUpdate(id, update, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     }).lean();
     if (!doc) return jsonError("Not found", 404);

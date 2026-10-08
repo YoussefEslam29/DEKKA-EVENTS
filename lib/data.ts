@@ -84,6 +84,8 @@ export type SubmissionDTO = {
   status: SubmissionStatus;
   adminNote: string;
   createdAt: string;
+  /** ISO time the band was last emailed about the decision, or "" (F3). */
+  notifiedAt: string;
 };
 
 /** What `.lean()` hands back for an event: the schema fields plus the id. */
@@ -516,6 +518,7 @@ export async function getSubmissions(
     status: d.status,
     adminNote: d.adminNote ?? "",
     createdAt: new Date(d.createdAt).toISOString(),
+    notifiedAt: d.notifiedAt ? new Date(d.notifiedAt).toISOString() : "",
   }));
 }
 
@@ -901,6 +904,8 @@ export type AccountDTO = {
    * set-vs-change branch on `/account`. The hash itself never leaves this
    * function. */
   hasPassword: boolean;
+  /** The address has been proven (`PLAN/SITE_ROADMAP.md` S3). */
+  emailVerified: boolean;
 };
 
 /**
@@ -922,6 +927,7 @@ export async function getAccountUser(userId: string): Promise<AccountDTO | null>
     image: doc.image ?? "",
     providers: doc.providers ?? [],
     hasPassword: Boolean(doc.passwordHash),
+    emailVerified: Boolean(doc.emailVerifiedAt),
   };
 }
 

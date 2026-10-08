@@ -152,6 +152,24 @@ export const resetPasswordSchema = z
   })
   .strict();
 
+/** `POST /api/auth/verify-email/confirm` — the token from the emailed link, nothing else. */
+export const verifyEmailConfirmSchema = z
+  .object({
+    token: z.string().trim().regex(/^[0-9a-f]{64}$/, "Invalid or expired link"),
+  })
+  .strict();
+
+/**
+ * `DELETE /api/account` (`PLAN/SITE_ROADMAP.md` F7): proof it's really you. A password
+ * account re-enters its password; an account with no password types its email.
+ */
+export const deleteAccountSchema = z
+  .object({
+    password: z.string().max(200).optional(),
+    confirmEmail: z.string().trim().toLowerCase().max(200).optional(),
+  })
+  .strict();
+
 /**
  * `POST /api/push/subscribe` (`PLAN/LOG_SIGN_AUTH_IN.md` §6) — the browser's
  * own `PushSubscription.toJSON()` shape, unchanged. `.strict()` for the same

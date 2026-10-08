@@ -45,6 +45,15 @@ const BUCKETS = {
   // Checking the current password is a bcrypt compare: a stolen session must not get
   // unlimited guesses at the real one.
   "password-change": { limit: 10, window: "10 m" },
+  // Email verification (PLAN/SITE_ROADMAP.md S3). Sending costs mail quota; confirming
+  // is a token guess, which 256 random bits make pointless, so 20/h is about load.
+  "verify-email": { limit: 3, window: "1 h" },
+  "verify-email-ip": { limit: 20, window: "1 h" },
+  // Deleting an account re-checks a password with bcrypt, like a password change.
+  "account-delete": { limit: 5, window: "1 h" },
+  // A band's acknowledgement is sent by the public pitch route, already limited per IP
+  // (`submission-ip`); this one caps the admin's explicit "email the band" button.
+  "email-band": { limit: 30, window: "1 h" },
   // Public, unauthenticated, and touches the database. The uptime monitor uses one
   // request per 5 minutes, so this is generous by two orders of magnitude.
   health: { limit: 60, window: "1 m" },

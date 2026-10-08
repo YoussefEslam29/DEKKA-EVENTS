@@ -9,6 +9,7 @@ import { resetPasswordSchema } from "@/lib/validation";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import { hashResetToken, resetTokenMatches } from "@/lib/password-reset";
 import { forgetSessionAccount } from "@/lib/session-check";
+import { bootstrapRole } from "@/lib/roles";
 
 export async function POST(request: Request) {
   return handle("POST /api/auth/reset-password", async () => {
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
     if (user.resetTokenExpiresAt.getTime() <= Date.now()) return invalid();
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
+    const promoted = bootstrapRole(user.email.toLowerCase());
 
     // Single-use: the token fields are cleared in the same write that sets the
     // password, so a second submission of the same link fails even inside the
@@ -60,7 +62,14 @@ export async function POST(request: Request) {
     const result = await User.updateOne(
       { _id: user._id, resetTokenHash: candidateHash },
       {
-        $set: { passwordHash },
+        // Spending a link sent to the address proves the person owns it, so the
+        // account is verified too, and gets any ADMIN_EMAILS/STAFF_EMAILS role it is
+        // entitled to (PLAN/SITE_ROADMAP.md S3; same rule as lib/verification.ts).
+        $set: {
+          passwordHash,
+          emailVerifiedAt: new Date(),
+          ...(promoted && promoted !== user.role ? { role: promoted } : {}),
+        },
         $unset: { resetTokenHash: "", resetTokenExpiresAt: "" },
         // A reset proves control of the address, so make sure credentials sign-in is
         // listed — an OAuth-only account that later sets a password this way would

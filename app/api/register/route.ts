@@ -1,11 +1,11 @@
 // POST /api/register — create an email/password member account (public).
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { handle, jsonError, parseBody } from "@/lib/api";
 import { registerSchema } from "@/lib/validation";
-import { bootstrapRole } from "@/lib/roles";
+import { sendVerificationEmail } from "@/lib/verification";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 export async function POST(request: Request) {
@@ -39,11 +39,16 @@ export async function POST(request: Request) {
       phone,
       passwordHash,
       providers: ["credentials"],
-      // Same env bootstrap the OAuth path applies, so a staff/admin invited by
-      // email gets their role by signing up normally — previously this was
-      // hardcoded to "member" and `ADMIN_EMAILS` silently did nothing here.
-      role: bootstrapRole(email) ?? "member",
+      // Always a member at sign-up (PLAN/SITE_ROADMAP.md S3). Typing an address proves
+      // nothing, so an ADMIN_EMAILS/STAFF_EMAILS role is applied only once the address
+      // is verified (lib/verification.ts). Without an email provider that never
+      // happens on its own; promote with `npm run set-role` instead.
+      role: "member",
     });
+
+    // The verification link, sent after the response so sign-up never waits on mail.
+    const origin = new URL(request.url).origin;
+    after(() => sendVerificationEmail(String(user._id), origin).catch(() => false));
 
     // Never echo the hash back, even to the account's own owner.
     return NextResponse.json(

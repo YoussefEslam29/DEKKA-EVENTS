@@ -20,6 +20,8 @@ export interface IBandSubmission {
   adminNote?: string;
   /** Present only when the musician happened to be signed in. */
   user?: mongoose.Types.ObjectId | null;
+  /** When an admin last emailed the band about the decision (PLAN/SITE_ROADMAP.md F3). */
+  notifiedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +44,7 @@ const BandSubmissionSchema = new Schema<IBandSubmission>(
     },
     adminNote: { type: String, maxlength: 1000 },
     user: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    notifiedAt: { type: Date },
   },
   { timestamps: true }
 );

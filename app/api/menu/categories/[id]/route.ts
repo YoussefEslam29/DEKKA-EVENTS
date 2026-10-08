@@ -26,7 +26,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const doc = await MenuCategory.findByIdAndUpdate(
       id,
       { $set: parsed.data },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     ).lean();
     if (!doc) return jsonError("Not found", 404);
 

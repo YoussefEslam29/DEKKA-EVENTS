@@ -13,6 +13,7 @@
     "check:all": "node scripts/check-all.mjs",
     "check:integrity": "tsx scripts/check-integrity.ts",
     "check:hardening": "tsx scripts/check-hardening.ts",
+    "check:identity": "tsx scripts/check-identity.ts",
     "check:uploads": "tsx scripts/check-upload-pattern.ts",
     "check:sentry": "tsx scripts/check-sentry-scrub.ts",
     "check:config": "tsx scripts/check-next-config.ts",

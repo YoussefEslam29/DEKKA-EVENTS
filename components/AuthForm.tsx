@@ -37,6 +37,12 @@ type Props = {
    * coming. See PLAN/password-reset.md.
    */
   emailEnabled?: boolean;
+  /**
+   * A sign-in error Auth.js sent back in the URL (`/login?error=…`). The only one with
+   * its own copy is `AccountNotLinked`: a social sign-in refused because the existing
+   * account with that email hasn't proven it owns the address (lib/identity.ts).
+   */
+  authError?: string;
 };
 
 type SocialOption = {
@@ -89,14 +95,20 @@ function SocialButton({
  * sits below the switch link — one tap away, but not competing with the
  * primary sign-in action.
  */
-export function AuthForm({ mode, next, providers, emailEnabled }: Props) {
+export function AuthForm({ mode, next, providers, emailEnabled, authError }: Props) {
   const { t, bi } = useI18n();
   const router = useRouter();
   const isSignup = mode === "signup";
   const { pressable, reduced } = useMotionPresets();
 
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    authError === "AccountNotLinked"
+      ? t.auth.accountNotLinked
+      : authError
+        ? t.common.somethingWrong
+        : null
+  );
   // Set only alongside an `EMAIL_TAKEN_OAUTH` error: the provider(s) already on
   // file for that email, per PLAN/LOG_SIGN_AUTH_IN.md §4a. Drives which social
   // button(s) render inline with the error — never hardcoded to Google, so a

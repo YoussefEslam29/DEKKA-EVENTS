@@ -42,11 +42,11 @@ export const legalContentAr = {
     },
     retention: {
       heading: "مدة الاحتفاظ بالبيانات",
-      body: "نحتفظ ببيانات حسابك وسجلات حجوزاتك وحضورك طالما حسابك قائم، ولا يوجد لدينا حالياً حذف تلقائي لهذه البيانات بعد مدة معينة. إذا ألغيت حجزاً فإن سجله لا يُحذف بل تتغير حالته إلى «ملغي» لأغراض السجلات الداخلية. يمكنك في أي وقت أن تطلب حذف بياناتك كما هو موضح أدناه.",
+      body: "نحتفظ ببيانات حسابك وسجلات حجوزاتك وحضورك طالما حسابك قائم، ولا يوجد لدينا حالياً حذف تلقائي لهذه البيانات بعد مدة معينة. إذا ألغيت حجزاً فإن سجله لا يُحذف بل تتغير حالته إلى «ملغي» لأغراض السجلات الداخلية. يمكنك في أي وقت حذف حسابك من صفحة «حسابي»: نحذف الحساب نفسه، ونستبدل اسمك ورقم هاتفك في سجلات الحجوزات والحضور، ونحتفظ فقط بالمبالغ المدفوعة لأغراض المحاسبة.",
     },
     yourRights: {
       heading: "حقوقك",
-      body: "بحسب قانون حماية البيانات الشخصية المصري (وبما يتوافق مع الحقوق المكافئة في اللائحة الأوروبية GDPR)، يحق لك أن تطلب: الاطلاع على البيانات التي نحتفظ بها عنك، تصحيح أي بيانات غير دقيقة، حذف بياناتك، أو الحصول على نسخة منها. بعض هذه الحقوق متاح مباشرة من صفحة «حسابي» (الاسم ورقم الهاتف والصورة)، وأي طلب آخر — بما فيه حذف الحساب بالكامل — نُنفّذه يدوياً بعد استلام طلبك على {email}.",
+      body: "بحسب قانون حماية البيانات الشخصية المصري (وبما يتوافق مع الحقوق المكافئة في اللائحة الأوروبية GDPR)، يحق لك أن تطلب: الاطلاع على البيانات التي نحتفظ بها عنك، تصحيح أي بيانات غير دقيقة، حذف بياناتك، أو الحصول على نسخة منها. من صفحة «حسابي» مباشرةً يمكنك تعديل الاسم ورقم الهاتف والصورة، وتنزيل نسخة من بياناتك، وحذف حسابك بالكامل؛ وأي طلب آخر نُنفّذه يدوياً بعد استلام طلبك على {email}.",
     },
     children: {
       heading: "الأطفال",
@@ -195,11 +195,11 @@ export const legalContentEn: DeepMutable<LegalContent> = {
     },
     retention: {
       heading: "How long we keep data",
-      body: "We keep your account, reservation, and attendance records for as long as your account exists — there's currently no automatic deletion after a set period. Cancelling a reservation doesn't delete its record; it's marked \"cancelled\" for our internal records. You can ask us to delete your data at any time, as described below.",
+      body: "We keep your account, reservation, and attendance records for as long as your account exists — there's currently no automatic deletion after a set period. Cancelling a reservation doesn't delete its record; it's marked \"cancelled\" for our internal records. You can delete your account at any time from your Account page: we delete the account itself and replace your name and phone number in reservation and attendance records, keeping only the amounts paid, for our accounts.",
     },
     yourRights: {
       heading: "Your rights",
-      body: "Under Egypt's Personal Data Protection Law (and consistent with the equivalent GDPR rights), you can ask to: access the data we hold about you, correct anything inaccurate, delete your data, or receive a copy of it. Some of this is available directly from your Account page (name, phone, photo); anything else — including deleting your account entirely — we handle by hand once you email {email}.",
+      body: "Under Egypt's Personal Data Protection Law (and consistent with the equivalent GDPR rights), you can ask to: access the data we hold about you, correct anything inaccurate, delete your data, or receive a copy of it. Your Account page lets you change your name, phone and photo, download a copy of your data, and delete your account entirely; anything else we handle by hand once you email {email}.",
     },
     children: {
       heading: "Children",

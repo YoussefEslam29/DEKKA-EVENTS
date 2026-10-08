@@ -5,6 +5,7 @@ import { SUBMISSION_STATUSES, type SubmissionStatus } from "@/lib/constants";
 import { PageHeader, EmptyState } from "@/components/ui/Surface";
 import { FadeUp, Stagger, StaggerItem } from "@/components/ui/Motion";
 import { SubmissionRow } from "@/components/SubmissionRow";
+import { emailEnabled } from "@/lib/email";
 import { cn } from "@/lib/utils";
 import { requireRole } from "@/lib/rbac";
 
@@ -59,7 +60,7 @@ export default async function AdminSubmissionsPage({
         <Stagger className="grid gap-3">
           {submissions.map((submission) => (
             <StaggerItem key={submission.id}>
-              <SubmissionRow submission={submission} />
+              <SubmissionRow submission={submission} canEmail={emailEnabled} />
             </StaggerItem>
           ))}
         </Stagger>

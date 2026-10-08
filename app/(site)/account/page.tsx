@@ -9,6 +9,9 @@ import { getAccountUser } from "@/lib/data";
 import { Card, PageHeader } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { AccountForm } from "@/components/AccountForm";
+import { AccountDataSection } from "@/components/AccountDataSection";
+import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
+import { emailEnabled } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +35,18 @@ export default async function AccountPage() {
           provider lives here, not app-wide (see `components/Providers.tsx`).
           Seeded with the session the server already has, so it starts ready
           instead of fetching `/api/auth/session` on mount. */}
+      {/* Only when there's a way to send the link (PLAN/SITE_ROADMAP.md S3). */}
+      {emailEnabled && !account.emailVerified ? (
+        <div className="mb-6">
+          <VerifyEmailBanner />
+        </div>
+      ) : null}
       <SessionProvider session={session}>
         <AccountForm account={account} />
       </SessionProvider>
+      <div className="mt-6">
+        <AccountDataSection email={account.email} hasPassword={account.hasPassword} />
+      </div>
       {/* Browser only — inside the installed app there is nothing left to get. */}
       <Link href="/get-app" className="mt-4 block standalone:hidden">
         <Card className="flex items-center gap-3 p-4">

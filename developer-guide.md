@@ -349,12 +349,17 @@ offline menu all call it.
 5. **OAuth providers degrade safely.** A provider with no credentials configured
    (`enabledOAuthProviders` in `lib/auth.ts`) simply doesn't render its button, rather
    than rendering a button that dead-ends at a broken callback.
-6. **Admin bootstrap is env-based, applied per path.** `ADMIN_EMAILS`/`STAFF_EMAILS`
-   (`lib/roles.ts`) set a role at account creation on both paths — credentials
-   (`app/api/register/route.ts`) and OAuth (`lib/auth.ts`'s `signIn` callback) — but
-   the OAuth path also *re-applies* the bootstrap on every subsequent sign-in, so
-   adding an email to a list promotes an existing account next time it signs in with
-   a provider; the credentials path checks only once, at signup. Either way, roles
+6. **Admin bootstrap is env-based, and only for a proven address** (since 2026-10-08,
+   roadmap S3). `ADMIN_EMAILS`/`STAFF_EMAILS` (`lib/roles.ts`) are applied when the
+   person *proves* they own the address: clicking the verification link
+   (`lib/verification.ts`), spending a password-reset link, or a social sign-in whose
+   provider vouches for the email (re-applied on each of those sign-ins). **Never at
+   credentials sign-up**: typing an address proves nothing, and the old behaviour gave a
+   listed role to whoever registered that address first. While no email provider is
+   configured, verification can't happen, so an invited staff member is promoted with
+   `npm run set-role` instead. Social sign-in links to an existing account only if that
+   account is verified or has no password (`oauthLinkDecision` in `lib/identity.ts`),
+   which closes the pre-registration takeover. Roles
    live in the database from then on — to change an existing account's role, run
    `scripts/set-role.ts <email> <role>`. The new role reaches the person's open session
    within about five minutes, with no re-login: the session re-checks the account every
@@ -776,6 +781,77 @@ offline menu all call it.
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
 
+### Roadmap P-ID — identity: email verification, safe linking, export and deletion (2026-10-08)
+
+Built **dormant**, like password reset: everything that sends mail switches on once
+`RESEND_API_KEY` + `EMAIL_FROM` are set on a verified domain. Until then the
+rules still apply.
+
+- **Email verification (S3).** New optional `User.emailVerifiedAt`, with
+  `verifyTokenHash`/`verifyTokenExpiresAt` (`select: false`, same rules as the reset
+  token: SHA-256, constant-time compare, single use, 24h). The link goes out after
+  sign-up (`after()`). `POST /api/auth/verify-email` resends it (signed in,
+  `verify-email` bucket; `503 EMAIL_DISABLED` without a provider), and
+  `POST /api/auth/verify-email/confirm` spends it (public, `verify-email-ip`). The
+  `/verify-email` page posts the token from the browser, so a mail scanner fetching the
+  link can't spend it. `/account` shows a "Confirm your email" card when unverified and
+  email is on. A spent password-reset link verifies too.
+- **Roles only for a proven address (S3).** Sign-up always creates a member.
+  `ADMIN_EMAILS`/`STAFF_EMAILS` apply at verification (`markEmailVerified`), a reset,
+  or a vouched social sign-in. See §3 rule 6.
+- **Safe social linking (S3).** `oauthLinkDecision` (`lib/identity.ts`):
+  - **Linking:** a provider sign-in links only to an account that is verified or has no
+    password.
+  - **Vouching:** Google must say `email_verified`; Facebook and Apple as documented.
+  - **Refusal:** it lands on `/login?error=AccountNotLinked`, which explains how to
+    verify first.
+  - This is what makes turning Google on safe; nothing else changes until
+    `AUTH_GOOGLE_*` is set.
+- **Emails to bands (F3).** The acknowledgement goes out on submit (`after()`). An
+  explicit "Email the band" button on approved/declined pitches calls
+  `POST /api/submissions/:id/notify` (admin, `email-band` bucket) and records
+  `BandSubmission.notifiedAt`. It is a button rather than automatic, so a mis-clicked
+  decision isn't already in the band's inbox.
+- **Your data (F7).** `GET /api/account/export` downloads everything held about the
+  caller as JSON (no hashes). `DELETE /api/account` takes the password, or the typed
+  email for an account with no password, and refuses the last admin
+  (`409 LAST_ADMIN`). It then:
+  - replaces the name and phone with "—" on the person's reservations, on the door rows
+    checked in from them, and in those rows' door-log entries;
+  - keeps the amounts, so the night's takings still add up;
+  - deletes push devices;
+  - unlinks pitches;
+  - deletes the account last, so a failure part-way is safe to retry.
+
+  The privacy policy says so (dated 2026-10-08). UI:
+  `components/AccountDataSection.tsx`.
+- **Fixed while there:** Mongoose 9 deprecates `new: true` on `findOneAndUpdate`, so all
+  nine uses are now `returnDocument: "after"`, with no warnings left in the server log.
+  Pipeline updates need `updatePipeline: true` in Mongoose 9; the first deletion run
+  failed on exactly that, before writing anything.
+- **`npm run check:identity`:** 48 assertions. Three mutations caught: linking an
+  unverified password account, bootstrapping the role at sign-up, and deleting without
+  the password.
+
+**Verification.**
+- **End to end, 27/27:** on a production build against `dekka_verify`, with email off
+  (as in production) and `STAFF_EMAILS` set to a throwaway address.
+  - **Roles:** the invited address registered as a plain member.
+  - **Verification:** "send link" answered `503 EMAIL_DISABLED`. A planted token (what
+    the email would carry) verified the address and applied the staff role, which
+    reached the open session through `update()`. Reusing the token was refused, and so
+    was an expired one.
+  - **Export:** downloaded as an attachment, with no hashes.
+  - **Deletion:** the wrong password and the last admin were both refused. The real
+    deletion anonymised the reservation, the door row and its log while keeping the
+    100 EGP, and the monthly report still adds up.
+  - **Dormant pages:** `/login?error=AccountNotLinked` explains itself, and
+    `/verify-email` and "Email the band" are dormant.
+- **Regression:** the P1 run is still 41/41.
+
+**Not verified:** a real email (no sending domain); a real Google sign-in (no
+`AUTH_GOOGLE_*`). Both are owner steps in `PLAN/SITE_ROADMAP.md` §6.
+
 ### Roadmap P2 — hardening: push, headers, images, revocable sessions, uploads (2026-10-08)
 
 - **Push (S5), `lib/push.ts`.** A subscription's endpoint must be a real push service
@@ -835,7 +911,9 @@ the next session doesn't have to diff `git log` to understand intent. Newest fir
     when it called `update()`, with the first device signed back in and
     `sessionVersion` at 1.
 - **Cleanup:** this run's upload files were deleted.
-- **Timed revocation:** see the line below.
+- **Timed revocation, 5/5:** a session that never calls `update()` still reads normally
+  inside the 5-minute window after its account's version was bumped. After the window
+  it is gone, and `/my-events` sends it to sign in.
 
 **Not verified:** `releaseUploads()` against a real Blob store (it no-ops without
 `BLOB_READ_WRITE_TOKEN`); a real push delivery; the CSP reports arriving in Sentry.

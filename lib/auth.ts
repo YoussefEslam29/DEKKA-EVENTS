@@ -8,6 +8,7 @@ import { connectDB } from "@/lib/db";
 import { User, type UserRole } from "@/models/User";
 import { bootstrapRole } from "@/lib/roles";
 import { loadSessionAccount, needsRecheck, sessionStillValid } from "@/lib/session-check";
+import { oauthLinkDecision, providerVerifiedEmail } from "@/lib/identity";
 import {
   clientIp,
   consumeRateLimit,
@@ -113,22 +114,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       if (!account || account.provider === "credentials") return true;
 
       const email = user.email?.toLowerCase();
       if (!email) return false;
 
-      // Social sign-ins land in the same users collection as email members.
+      // Social sign-ins land in the same users collection as email members. Who may be
+      // merged with whom is decided by lib/identity.ts (PLAN/SITE_ROADMAP.md S3): a
+      // provider login attaches only to an account whose address is proven, or to one
+      // with no password; never to an unverified password account, which anyone could
+      // have registered with someone else's address.
       await connectDB();
-      const existing = await User.findOne({ email });
+      const existing = await User.findOne({ email }).select("+passwordHash");
+      const decision = oauthLinkDecision(
+        existing
+          ? { hasPassword: Boolean(existing.passwordHash), emailVerified: Boolean(existing.emailVerifiedAt) }
+          : null,
+        providerVerifiedEmail(account.provider, profile)
+      );
+      if (decision === "refuse") return "/login?error=AccountNotLinked";
+
+      // From here the provider vouches for the address, so it counts as verified and
+      // earns its ADMIN_EMAILS/STAFF_EMAILS role on every sign-in, as before.
+      const promoted = bootstrapRole(email);
       if (existing) {
         if (!existing.providers.includes(account.provider)) {
           existing.providers.push(account.provider);
         }
         if (user.image && !existing.image) existing.image = user.image;
-        const promoted = bootstrapRole(email);
         if (promoted && existing.role !== promoted) existing.role = promoted;
+        if (!existing.emailVerifiedAt) existing.emailVerifiedAt = new Date();
         await existing.save();
       } else {
         await User.create({
@@ -136,7 +152,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email,
           image: user.image ?? undefined,
           providers: [account.provider],
-          role: bootstrapRole(email) ?? "member",
+          role: promoted ?? "member",
+          emailVerifiedAt: new Date(),
         });
       }
       return true;

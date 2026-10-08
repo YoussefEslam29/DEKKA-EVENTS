@@ -30,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const doc = await MenuItem.findByIdAndUpdate(
       id,
       { $set: { available: parsed.data.available } },
-      { new: true }
+      { returnDocument: "after" }
     )
       .select("available")
       .lean();

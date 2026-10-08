@@ -40,6 +40,10 @@ const EXPECTED: Bucket[] = [
   "health",
   "push-subscribe",
   "password-change",
+  "verify-email",
+  "verify-email-ip",
+  "account-delete",
+  "email-band",
 ];
 for (const bucket of EXPECTED) {
   const spec = __buckets[bucket];

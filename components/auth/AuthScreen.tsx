@@ -54,10 +54,13 @@ function heroImage(mode: "login" | "signup"): string | null {
 export async function AuthScreen({
   mode,
   next,
+  authError,
   children,
 }: {
   mode: "login" | "signup";
   next: string;
+  /** Passed through to `AuthForm` (see its prop of the same name). */
+  authError?: string;
   /**
    * Renders in the form column instead of `AuthForm`. The forgot-password and
    * reset-password screens use this so they inherit the exact split layout, hero
@@ -133,6 +136,7 @@ export async function AuthScreen({
             next={next}
             providers={enabledOAuthProviders}
             emailEnabled={emailEnabled}
+            authError={authError}
           />
         )}
       </section>

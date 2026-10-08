@@ -47,7 +47,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const updated = await CheckIn.findOneAndUpdate(
       { _id: id, voidedAt: null },
       { $set: patch },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     ).lean();
     if (!updated) return jsonError("CHECKIN_VOIDED", 409);
 
@@ -105,7 +105,7 @@ export async function DELETE(_request: Request, { params }: Params) {
           reservation: null,
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     ).lean();
     if (!voided) return jsonError("Not found", 404);
 
