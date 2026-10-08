@@ -781,6 +781,49 @@ offline menu all call it.
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
 
+### Roadmap P3 — door night: offline queue, tonight first (2026-10-08)
+
+- **Offline queue (R3), `lib/door-queue.ts`.** "Add" saves the entry on the phone
+  (localStorage, per night) and clears the form at once, then sends. Waiting entries show
+  as "Waiting to send (n)" and retry on their own: when the phone comes back online,
+  when the page returns to the front, and every 15s. A 2xx removes the entry; no signal,
+  a 429 or a 5xx keeps it in its place in line; any other refusal (e.g. "already in")
+  stays with its reason and a Remove button. With no signal the page says so and keeps
+  working. localStorage rather than the roadmap's IndexedDB: a night's queue is a few
+  KB, and synchronous access keeps it obvious.
+- **No double recording.** Every entry carries a `clientId` (UUID). `CheckIn.clientId`
+  is new and optional, with a unique sparse index, which is safe on the live collection
+  because no row has the field. The check-in POST answers a resend with the row it
+  already has (`200`, `replayed: true`). That lookup runs *before* the already-checked-in
+  rule, so a resent reserved guest isn't reported as a refusal. A duplicate-key race
+  answers with the winner's row, and a `clientId` reused on another night is
+  `409 CLIENT_ID_REUSED`.
+- **The page must already be open.** The service worker still never caches `/staff`
+  (§2), so opening the door page with no signal shows `/offline`. Open it before the
+  doors open; after that the signal can come and go.
+- **Fixed while there:** removing a door row with no signal threw an unhandled error;
+  it now says it didn't happen.
+- **Tonight first (X2), `lib/staff.ts`.** The picker groups Tonight / Coming up /
+  Earlier by *cafe night*, which runs until 05:00 Cairo, so a 00:30 start and a door
+  still open after midnight both count as tonight.
+- **`npm run check:door`:** 31 assertions. Three mutations caught: no replay lookup,
+  refusals retried forever, and the calendar day used instead of the cafe night.
+
+**Verification.**
+- **Browser run, 21/21:** a production build against `dekka_verify`, driven at 390px in
+  Chrome's real offline mode, with the database read before and after.
+  - **Offline:** three entries made with no signal waited (in localStorage, nothing on
+    the server, the form cleared each time).
+  - **Back online:** they sent by themselves, each recorded exactly once.
+  - **Server trouble:** an entry answered with a forced 503 survived a reload, then
+    sent once.
+  - **Duplicates:** three simultaneous copies of one `clientId` recorded one row, and a
+    refused entry showed "already in" with a working Remove.
+  - **Layout:** no sideways scroll.
+- **Picker:** screenshots in both languages at 390px and 1280px, with no overflow.
+
+**Not verified:** a real phone on the cafe's actual Wi-Fi.
+
 ### Roadmap P-ID — identity: email verification, safe linking, export and deletion (2026-10-08)
 
 Built **dormant**, like password reset: everything that sends mail switches on once

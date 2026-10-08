@@ -8,6 +8,7 @@ import {
   EVENT_TEMPLATE_KINDS,
 } from "@/lib/constants";
 import { isRealDate, TIME_OF_DAY } from "@/lib/templates";
+import { CLIENT_ID_PATTERN } from "@/lib/door-queue";
 
 const trimmed = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) => trimmed(max).optional().default("");
@@ -285,6 +286,12 @@ export const checkInSchema = z.object({
   gender: z.enum(GENDERS).nullish(),
   reservationId: z.string().trim().max(40).optional(),
   note: optionalText(300),
+  /**
+   * The door phone's own id for this entry (lib/door-queue.ts). Optional: older clients
+   * and the admin don't send one. When present, a resend of the same entry is answered
+   * with the row already recorded instead of a second row.
+   */
+  clientId: z.string().trim().regex(CLIENT_ID_PATTERN, "Invalid client id").optional(),
 });
 
 /**

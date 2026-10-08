@@ -37,6 +37,12 @@ export interface ICheckIn {
    * cleared so the unique partial index below frees the guest to be checked in again.
    */
   voidedReservation?: mongoose.Types.ObjectId | null;
+  /**
+   * The door phone's id for this entry (`lib/door-queue.ts`, roadmap R3). Unique, so a
+   * resend after a dropped connection can't record the same person twice. Absent on
+   * rows from before the queue and on entries the admin adds.
+   */
+  clientId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +62,7 @@ const CheckInSchema = new Schema<ICheckIn>(
     voidedAt: { type: Date },
     voidedBy: { type: Schema.Types.ObjectId, ref: "User" },
     voidedReservation: { type: Schema.Types.ObjectId, ref: "Reservation" },
+    clientId: { type: String, maxlength: 64 },
   },
   { timestamps: true }
 );
@@ -66,6 +73,10 @@ CheckInSchema.index(
   { reservation: 1 },
   { unique: true, partialFilterExpression: { reservation: { $type: "objectId" } } }
 );
+
+// One row per door-phone entry (roadmap R3). Sparse, so the many rows without a clientId
+// don't collide; safe to build on the live collection, since no existing row has the field.
+CheckInSchema.index({ clientId: 1 }, { unique: true, sparse: true });
 
 export const CheckIn =
   (models.CheckIn as mongoose.Model<ICheckIn>) ||

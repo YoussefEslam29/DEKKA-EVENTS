@@ -167,7 +167,11 @@ const duplicate = readFileSync(path.join(ROOT, "components/DuplicateEventButton.
 check(/shiftCafeDays\(event\.startsAt, 7\)/.test(duplicate), "Duplicate shifts by Cairo days");
 check(!/setDate\(/.test(duplicate), "Duplicate no longer uses the browser's setDate");
 const staffPage = readFileSync(path.join(ROOT, "app/(site)/staff/page.tsx"), "utf8");
-check(!/toDateString/.test(staffPage) && /dayKey\(/.test(staffPage), "the staff picker decides 'today' in Cairo");
+const staffLib = readFileSync(path.join(ROOT, "lib/staff.ts"), "utf8");
+check(
+  !/toDateString/.test(staffPage) && /groupStaffEvents\(/.test(staffPage) && /dayKey\(/.test(staffLib),
+  "the staff picker decides 'tonight' in Cairo"
+);
 
 // ---------------------------------------------------------------------------
 

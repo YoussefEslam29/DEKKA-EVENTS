@@ -2,7 +2,9 @@ import Link from "next/link";
 import { ChevronRight, Coffee } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { getStaffEvents, eventTitle } from "@/lib/data";
-import { dayKey, formatDate, formatTime } from "@/lib/format";
+import { formatDate, formatTime } from "@/lib/format";
+import { groupStaffEvents } from "@/lib/staff";
+import type { EventDTO } from "@/lib/data";
 import { Card, EmptyState, PageHeader, Badge } from "@/components/ui/Surface";
 import { FadeUp } from "@/components/ui/Motion";
 import { requireRole } from "@/lib/rbac";
@@ -14,9 +16,14 @@ export default async function StaffEventPickerPage() {
   await requireRole("staff", "/staff");
   const { locale, t } = await getI18n();
   const events = await getStaffEvents();
-  // Cairo's calendar day, not the server's (UTC on Vercel): a 00:30 start belongs to the
-  // night before (PLAN/SITE_ROADMAP.md I4).
-  const today = dayKey(new Date());
+  // Grouped by the Cairo night, not the server's UTC date (PLAN/SITE_ROADMAP.md I4, X2):
+  // tonight first, so the door is one tap away on the busiest evening.
+  const groups = groupStaffEvents(events, new Date());
+  const sections: { label: string; items: EventDTO[]; tonight: boolean }[] = [
+    { label: t.staff.groups.tonight, items: groups.tonight, tonight: true },
+    { label: t.staff.groups.upcoming, items: groups.upcoming, tonight: false },
+    { label: t.staff.groups.earlier, items: groups.earlier, tonight: false },
+  ];
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-10 md:px-8">
@@ -36,28 +43,39 @@ export default async function StaffEventPickerPage() {
       {events.length === 0 ? (
         <EmptyState>{t.staff.noEvents}</EmptyState>
       ) : (
-        <div className="grid gap-3">
-          {events.map((event) => {
-            const isToday = dayKey(event.startsAt) === today;
-            return (
-              <Link key={event.id} href={`/staff/events/${event.id}`}>
-                <Card className="flex flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:border-gold">
-                  <div>
-                    <p className="text-lg font-bold">{eventTitle(event, locale)}</p>
-                    <p className="text-sm text-ink-soft">
-                      {formatDate(event.startsAt, locale)} ·{" "}
-                      {formatTime(event.startsAt, locale)}
-                    </p>
-                  </div>
-                  {isToday ? (
-                    <Badge tone="good">{t.staff.checkInTitle}</Badge>
-                  ) : (
-                    <Badge>{t.event.status[event.status]}</Badge>
-                  )}
-                </Card>
-              </Link>
-            );
-          })}
+        <div className="grid gap-6">
+          {sections
+            .filter((section) => section.items.length > 0)
+            .map((section) => (
+              <section key={section.label}>
+                <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-ink-faint">
+                  {section.label}
+                </h2>
+                <div className="grid gap-3">
+                  {section.items.map((event) => (
+                    <Link key={event.id} href={`/staff/events/${event.id}`}>
+                      <Card
+                        className={`flex min-h-16 flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:border-gold ${
+                          section.tonight ? "border-good/60" : ""
+                        }`}
+                      >
+                        <div>
+                          <p className="text-lg font-bold">{eventTitle(event, locale)}</p>
+                          <p className="text-sm text-ink-soft">
+                            {formatDate(event.startsAt, locale)} · {formatTime(event.startsAt, locale)}
+                          </p>
+                        </div>
+                        {section.tonight ? (
+                          <Badge tone="good">{t.staff.checkInTitle}</Badge>
+                        ) : (
+                          <Badge>{t.event.status[event.status]}</Badge>
+                        )}
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
         </div>
       )}
     </div>

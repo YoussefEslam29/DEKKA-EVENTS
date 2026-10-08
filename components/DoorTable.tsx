@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { UserPlus, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { UserPlus, Search, CloudOff, Clock } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, FormRow } from "@/components/ui/Field";
@@ -10,7 +10,27 @@ import { Stagger, StaggerItem } from "@/components/ui/Motion";
 import { DataGrid, type GridColumn } from "@/components/ui/DataGrid";
 import { formatMoney, formatTime } from "@/lib/format";
 import type { CheckInDTO, ReservationDTO } from "@/lib/data";
-import { PAYMENT_METHODS, GENDERS, type PaymentMethod } from "@/lib/constants";
+import { PAYMENT_METHODS, GENDERS, type Gender, type PaymentMethod } from "@/lib/constants";
+import {
+  newClientId,
+  outcomeFor,
+  readQueue,
+  writeQueue,
+  type CheckInPayload,
+  type QueuedCheckIn,
+} from "@/lib/door-queue";
+
+/** localStorage, or null where it's unavailable (private mode, blocked site data). */
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** How often a non-empty queue retries on its own, on top of "online" and focus events. */
+const RETRY_MS = 15_000;
 
 type Props = {
   eventId: string;
@@ -30,6 +50,12 @@ type Props = {
  * spreadsheet-first flow. What changed is the table beside it: it is now the
  * shared `DataGrid`, so a mistyped digit is a click and a retype instead of a
  * delete and a re-add.
+ *
+ * Every entry is saved on this phone first and sent after (`lib/door-queue.ts`,
+ * `PLAN/SITE_ROADMAP.md` R3): the form clears at once, so a bad signal never holds up
+ * the next person in line. Entries the server hasn't confirmed yet show as "waiting to
+ * send" and retry by themselves; each carries a `clientId`, so a resend never records
+ * anyone twice.
  */
 export function DoorTable({
   eventId,
@@ -42,8 +68,111 @@ export function DoorTable({
   const [checkIns, setCheckIns] = useState<CheckInDTO[]>(initialCheckIns);
   const [reservations, setReservations] = useState<ReservationDTO[]>(initialReservations);
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The queue. `queueRef` is the source of truth (send loops read it synchronously);
+  // `queue` mirrors it for rendering, and localStorage keeps it across a reload.
+  const [queue, setQueue] = useState<QueuedCheckIn[]>([]);
+  const queueRef = useRef<QueuedCheckIn[]>([]);
+  const sending = useRef(false);
+  const [online, setOnline] = useState(true);
+
+  const commitQueue = useCallback(
+    (next: QueuedCheckIn[]) => {
+      queueRef.current = next;
+      writeQueue(browserStorage(), eventId, next);
+      setQueue(next);
+    },
+    [eventId]
+  );
+
+  /**
+   * Sends waiting entries in the order they were taken. Stops at the first one that has
+   * to wait (no signal, rate limited, server trouble) so order is kept; marks one the
+   * server refused with its reason and moves on.
+   */
+  const flush = useCallback(async () => {
+    if (sending.current) return;
+    sending.current = true;
+    try {
+      for (const item of [...queueRef.current]) {
+        if (item.error) continue;
+        let status: number | "network" = "network";
+        let body: { data?: CheckInDTO; error?: string } | null = null;
+        try {
+          const res = await fetch(`/api/events/${eventId}/checkins`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(item.payload),
+          });
+          status = res.status;
+          body = await res.json().catch(() => null);
+        } catch {
+          status = "network";
+        }
+
+        const outcome = outcomeFor(status);
+        if (outcome === "retry") break;
+        if (outcome === "synced" && body?.data) {
+          const row = body.data;
+          setCheckIns((rows) => (rows.some((r) => r.id === row.id) ? rows : [row, ...rows]));
+          commitQueue(queueRef.current.filter((q) => q.clientId !== item.clientId));
+        } else {
+          const reason =
+            body?.error === "ALREADY_CHECKED_IN" ? t.staff.queue.alreadyIn : body?.error ?? String(status);
+          commitQueue(
+            queueRef.current.map((q) => (q.clientId === item.clientId ? { ...q, error: reason } : q))
+          );
+        }
+      }
+    } finally {
+      sending.current = false;
+    }
+  }, [eventId, commitQueue, t]);
+
+  // Pick up whatever a reload or a closed tab left waiting, then keep trying: when the
+  // phone says it's back online, when the page comes back to the front, and on a timer.
+  useEffect(() => {
+    const waiting = readQueue(browserStorage(), eventId);
+    queueRef.current = waiting;
+    // Storage only exists in the browser, so it's read after mount; the server renders
+    // an empty queue and this fills it in.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQueue(waiting);
+    setOnline(navigator.onLine);
+    void flush();
+
+    const goOnline = () => {
+      setOnline(true);
+      void flush();
+    };
+    const goOffline = () => setOnline(false);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void flush();
+    };
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(() => {
+      if (queueRef.current.some((q) => !q.error)) void flush();
+    }, RETRY_MS);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
+    };
+  }, [eventId, flush]);
+
+  /** A refused entry stays until a person has read why; this lets them clear it. */
+  function dropQueued(item: QueuedCheckIn) {
+    commitQueue(queueRef.current.filter((q) => q.clientId !== item.clientId));
+    if (item.payload.reservationId && item.error !== t.staff.queue.alreadyIn) {
+      setReservations((rows) =>
+        rows.map((r) => (r.id === item.payload.reservationId ? { ...r, checkedIn: false } : r))
+      );
+    }
+  }
 
   const [form, setForm] = useState({
     name: "",
@@ -84,54 +213,48 @@ export function DoorTable({
     }));
   }
 
-  async function addAttendee(e: React.FormEvent) {
+  /**
+   * Takes the entry: saves it on this phone, clears the form for the next person, then
+   * sends. Never waits on the network, so a dead signal can't hold up the line.
+   */
+  function addAttendee(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
-    try {
-      const res = await fetch(`/api/events/${eventId}/checkins`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          phone: form.phone,
-          paymentMethod: form.paymentMethod,
-          amount: Number(form.amount) || 0,
-          gender: form.gender || undefined,
-          reservationId: form.reservationId || undefined,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        setError(body.error === "ALREADY_CHECKED_IN" ? t.staff.checkedIn : t.common.somethingWrong);
-        return;
-      }
-
-      setCheckIns((rows) => [body.data as CheckInDTO, ...rows]);
-      if (form.reservationId) {
-        setReservations((rows) =>
-          rows.map((r) => (r.id === form.reservationId ? { ...r, checkedIn: true } : r))
-        );
-      }
-      setForm({
-        name: "",
-        phone: "",
-        paymentMethod: form.paymentMethod,
-        amount: String(defaultPrice),
-        gender: "",
-        reservationId: "",
-      });
-    } catch {
-      setError(t.common.somethingWrong);
-    } finally {
-      setBusy(false);
+    const payload: CheckInPayload = {
+      clientId: newClientId(),
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      paymentMethod: form.paymentMethod,
+      amount: Number(form.amount) || 0,
+      ...(form.gender ? { gender: form.gender as Gender } : {}),
+      ...(form.reservationId ? { reservationId: form.reservationId } : {}),
+    };
+    commitQueue([
+      ...queueRef.current,
+      { clientId: payload.clientId, payload, createdAt: new Date().toISOString() },
+    ]);
+    if (form.reservationId) {
+      // Shown as in straight away so nobody picks the same reservation twice; undone
+      // if the server refuses the entry and someone removes it.
+      setReservations((rows) =>
+        rows.map((r) => (r.id === form.reservationId ? { ...r, checkedIn: true } : r))
+      );
     }
+    setForm({
+      name: "",
+      phone: "",
+      paymentMethod: form.paymentMethod,
+      amount: String(defaultPrice),
+      gender: "",
+      reservationId: "",
+    });
+    void flush();
   }
 
   async function removeCheckIn(checkIn: CheckInDTO) {
     // A door row is money taken; one mis-tap in a dim room shouldn't remove it.
     if (!window.confirm(t.staff.confirmRemove.replace("{name}", checkIn.name))) return;
-    setBusy(true);
+    setError(null);
     try {
       const res = await fetch(`/api/checkins/${checkIn.id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -144,8 +267,10 @@ export function DoorTable({
           rows.map((r) => (r.id === checkIn.reservationId ? { ...r, checkedIn: false } : r))
         );
       }
-    } finally {
-      setBusy(false);
+    } catch {
+      // Removing needs the server (it's recorded in the door log); without a signal it
+      // simply hasn't happened yet, so say so rather than throw.
+      setError(t.common.somethingWrong);
     }
   }
 
@@ -330,8 +455,8 @@ export function DoorTable({
             ) : null}
             {error ? <p className="mb-3 text-sm font-semibold text-bad">{error}</p> : null}
 
-            <Button type="submit" className="w-full" disabled={busy}>
-              {busy ? t.staff.adding : t.staff.add}
+            <Button type="submit" className="w-full">
+              {t.staff.add}
             </Button>
           </form>
         </Card>
@@ -380,6 +505,50 @@ export function DoorTable({
       </div>
 
       <div>
+        {!online ? (
+          <p
+            role="status"
+            className="mb-4 flex items-start gap-2 rounded-[4px] border border-warn/50 bg-warn/10 p-3 text-sm font-semibold"
+          >
+            <CloudOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            {t.staff.queue.offline}
+          </p>
+        ) : null}
+
+        {queue.length > 0 ? (
+          <Card className="mb-4 p-4">
+            <h2 className="flex items-center gap-2 font-bold">
+              <Clock className="h-4 w-4 text-gold-deep" aria-hidden />
+              {t.staff.queue.title.replace("{n}", String(queue.length))}
+            </h2>
+            <p className="dk-muted mb-2 text-xs">{t.staff.queue.hint}</p>
+            <ul className="divide-y divide-line">
+              {queue.map((item) => (
+                <li key={item.clientId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <span className="min-w-0">
+                    <span className="font-semibold">{item.payload.name}</span>
+                    <span className="dk-muted ms-2" dir="ltr">
+                      {item.payload.phone} · {formatMoney(item.payload.amount, locale)}
+                    </span>
+                  </span>
+                  {item.error ? (
+                    <span className="flex items-center gap-2">
+                      <span role="alert" className="text-xs font-semibold text-bad">
+                        {t.staff.queue.rejected.replace("{reason}", item.error)}
+                      </span>
+                      <Button size="sm" variant="lightGhost" className="min-h-11" onClick={() => dropQueued(item)}>
+                        {t.staff.queue.remove}
+                      </Button>
+                    </span>
+                  ) : (
+                    <Badge tone="warn">{t.staff.queue.pending}</Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
+
         <Stagger className="mb-4 grid grid-cols-3 gap-3">
           <StaggerItem>
             <Card className="p-3">
