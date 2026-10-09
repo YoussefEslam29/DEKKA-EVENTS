@@ -59,6 +59,9 @@ const BUCKETS = {
   // Share-card images: WhatsApp, Facebook and others fetch these when a link is
   // pasted, and Vercel's edge caches them, so the limit only bites on a loop.
   "og-ip": { limit: 120, window: "1 m" },
+  // The anonymous counters' beacon. Keyed by a SHA-256 of the IP, so even this
+  // short-lived counter never holds the raw address (PLAN/DEKKA_PWA_APP.md §5.4).
+  "stats-ip": { limit: 60, window: "10 m" },
   // Public, unauthenticated, and touches the database. The uptime monitor uses one
   // request per 5 minutes, so this is generous by two orders of magnitude.
   health: { limit: 60, window: "1 m" },

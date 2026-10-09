@@ -10,6 +10,7 @@ import { getSubmissions } from "@/lib/data";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 import { emailEnabled, sendEmail } from "@/lib/email";
 import { pitchReceivedEmailBody } from "@/lib/identity";
+import { notifyAdmins, pitchAlert } from "@/lib/admin-alerts";
 
 export async function GET(request: Request) {
   return handle("GET /api/submissions", async () => {
@@ -52,6 +53,9 @@ export async function POST(request: Request) {
       const { subject, text } = pitchReceivedEmailBody(submission.bandName);
       after(() => sendEmail({ to: submission.email, subject, text }).then(() => undefined));
     }
+
+    // F2: the admins' phones hear about it too (only their own subscribed devices).
+    after(() => notifyAdmins(pitchAlert(submission.bandName), "push-pitch"));
 
     return NextResponse.json(
       { data: { id: String(submission._id), status: submission.status } },

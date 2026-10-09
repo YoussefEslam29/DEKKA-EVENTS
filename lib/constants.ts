@@ -87,3 +87,16 @@ export type MenuTag = (typeof MENU_TAGS)[number];
  */
 export const EVENT_TEMPLATE_KINDS = ["night", "activity"] as const;
 export type EventTemplateKind = (typeof EVENT_TEMPLATE_KINDS)[number];
+
+/**
+ * The privacy-safe counters (`PLAN/DEKKA_PWA_APP.md` §5.4, 4c.1): anonymous daily totals,
+ * nothing about who. `menu_item_view` is per item; the rest are plain tallies.
+ * - `menu_item_view`: a card at least half on screen for a second, once per page load.
+ * - `install_prompt_shown` / `_accepted`: the install strip or /get-app panel actually
+ *   visible, and Chromium's "accepted" (iPhones give websites no such signal).
+ * - `app_open`: a launch of the installed app; the one install signal iPhones give.
+ * - `qr_scan`: an arrival at /get-app?from=qr, from the table poster.
+ */
+export const TALLY_METRICS = ["install_prompt_shown", "install_prompt_accepted", "app_open", "qr_scan"] as const;
+export const USAGE_METRICS = ["menu_item_view", ...TALLY_METRICS] as const;
+export type UsageMetric = (typeof USAGE_METRICS)[number];

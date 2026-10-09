@@ -8,6 +8,8 @@ import { BackButton } from "@/components/ui/BackButton";
 import { MonthPicker } from "@/components/MonthPicker";
 import { ReportCharts } from "@/components/ReportCharts";
 import { requireRole } from "@/lib/rbac";
+import { Download } from "lucide-react";
+import { buttonStyles } from "@/components/ui/Button";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +43,16 @@ export default async function MonthlyReportPage({
       <FadeUp>
         <PageHeader
           title={`${t.admin.report} — ${formatMonth(month, locale)}`}
-          action={<MonthPicker month={month} />}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <MonthPicker month={month} />
+              {/* F5: the same month as a spreadsheet (UTF-8 with BOM, so Excel reads Arabic). */}
+              <a href={`/api/reports/monthly/csv?month=${month}`} download className={buttonStyles({ variant: "lightOutline", className: "min-h-11" })}>
+                <Download className="h-4 w-4" aria-hidden />
+                {t.exports.csv}
+              </a>
+            </div>
+          }
         />
 
         <div className="mb-6 grid gap-3 sm:grid-cols-3">

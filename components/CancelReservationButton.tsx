@@ -14,18 +14,21 @@ export function CancelReservationButton({ reservationId, title }: { reservationI
   const { t } = useI18n();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
   async function cancel() {
     if (!window.confirm(t.myEvents.confirmCancel.replace("{title}", title))) return;
     setBusy(true);
-    setFailed(false);
+    setFailed(null);
     try {
       const res = await fetch(`/api/reservations/${reservationId}`, { method: "DELETE" });
       if (res.ok) router.refresh();
-      else setFailed(true);
+      else {
+        const body = await res.json().catch(() => null);
+        setFailed(body?.error === "DEMO_MODE" ? t.demo.blocked : t.common.somethingWrong);
+      }
     } catch {
-      setFailed(true);
+      setFailed(t.common.somethingWrong);
     } finally {
       setBusy(false);
     }
@@ -38,7 +41,7 @@ export function CancelReservationButton({ reservationId, title }: { reservationI
       </Button>
       {failed ? (
         <span role="alert" className="text-xs text-bad">
-          {t.common.somethingWrong}
+          {failed}
         </span>
       ) : null}
     </span>

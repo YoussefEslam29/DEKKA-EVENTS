@@ -32,7 +32,7 @@ mobile auth bridge was ever built, and v1 doesn't use it.
 | 3 | Event templates: save a night/activity once, make a draft from it in two taps | ✅ shipped | "phase 3 of 4" |
 | 4a | Event night: add-to-calendar, "Tonight at Dekka" banner, WhatsApp share cards, full-screen door code | ✅ built (Roadmap P5) | "Roadmap P5" |
 | 4b | Cafe life: "Open now", one-tap directions, seasonal menu sections | ✅ built (Roadmap P6) | "Roadmap P6" |
-| 4c | Owner tools: stats, QR table poster, demo mode | ⏳ Roadmap P7 | — |
+| 4c | Owner tools: stats, QR table poster, demo mode | ✅ built (Roadmap P7) | "Roadmap P7" |
 
 **Open questions / things still owed to the owner:**
 - **Nothing has been tested on a real phone** — not the install, not push in the
@@ -786,6 +786,109 @@ offline menu all call it.
 
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
+
+### Roadmap P7 — owner tools: anonymous stats, QR poster, demo mode, admin alerts, CSV (2026-10-09)
+
+PWA phase 4c (`PLAN/DEKKA_PWA_APP.md` §5.4) plus F2 and F5 from `PLAN/SITE_ROADMAP.md`, with
+the §7 defaults: `uqr` for the QR, demo mode as proposed, and both extra counters.
+- **Anonymous counters:**
+  - **Storage:** `UsageCounter` holds `{ metric, day, item?, count }` and nothing else: no
+    user, IP, cookie, agent or time finer than the Cairo day. One unique index, and every
+    write is an upsert `$inc`.
+  - **Metrics:** menu item views (a card at least half on screen for a second, once per page
+    load, on `/menu` only), install prompt shown (only if actually visible) and accepted
+    (Chromium only), `app_open` (installed-app launches) and `qr_scan` (`/get-app?from=qr`,
+    then the marker is removed from the address).
+  - **`POST /api/stats`:** a public rule-9 route. A strict discriminated schema, at most 100
+    de-duplicated ids, only existing items counted. It never reads the session or a cookie,
+    is rate-limited (`stats-ip`) on a SHA-256 of the IP, and answers 204.
+  - **Staff and admins aren't counted:** the `(site)` layout marks their pages
+    `data-stats-off` on the server, so the beacon itself still learns nothing.
+  - **Sending:** `lib/stats-client.ts` batches views and sends them by `sendBeacon` 5 s after
+    the last one, while the page is open. In testing, a send started as the page navigated
+    away never arrived, `keepalive` fetch or beacon alike, so `pagehide` only catches the
+    remainder.
+  - **Admin card:** `UsageStatsCard` on `/admin` shows the last 30 days: top five items,
+    prompt shown, accepted with a rate, app opens and QR arrivals, with the honest caveat.
+  - **Legal pages:** the privacy policy now describes the counters and says "no
+    *third-party* analytics". It also no longer claims Resend sends one kind of email. The
+    cookie policy's section is now "No tracking, no advertising" and lists `dekka_demo`. Both
+    dates are bumped.
+- **QR table poster** (`/admin/qr`, sidebar "QR poster"):
+  - **Content:** A4, bilingual. The QR (ECC Q, 4-module quiet zone, 10 cm in print) encodes
+    `site.url/get-app?from=qr`. It's drawn as one inline SVG path on the server, so the
+    encoder never ships to the browser.
+  - **Printing:** "Print the poster" sets the page to A4. The site chrome is wrapped in
+    `display: contents` + `print:hidden`, so nothing moves on screen.
+- **Demo mode** (proposal Q2):
+  - **Starting it:** an admin presses "Start the demo" on `/admin`. `POST /api/demo` sets
+    `dekka_demo=1` on that device for 2 hours (not `httpOnly`; "Leave demo" clears it in the
+    browser).
+  - **What changes:** a ribbon shows on every page, and sample data (`lib/demo-fixtures.ts`,
+    always a night *tonight* in Cairo) appears on `/`, `/events/demo-*` (reserved, with a door
+    code), `/menu`, `/my-events` (even signed out) and the stats card.
+  - **No writes:** `proxy.ts`, whose matcher fires only for `/api/*` with the cookie, refuses
+    every non-read except `/api/auth/*`, using the pure `demoBlocks()`. The result is
+    `409 DEMO_MODE`, which the reserve, cancel and menu screens show as "nothing is saved".
+  - **No leaks:** no `/api/*` route reads demo mode, so nothing sample reaches the cached
+    menu, a share card or a calendar file.
+- **Admin push alerts (F2):** `lib/admin-alerts.ts` pushes to the admins' own devices only, in
+    `after()`, never throwing. It fires on a new pitch, and on the reservation that fills a
+    night (new or revived).
+- **CSV exports (F5):**
+  - **Routes:** `GET /api/reports/monthly/csv?month=` and `GET /api/reports/customers?eventId=&q=`,
+    admin-only, with "Download CSV" buttons on the report and Customers pages.
+  - **Format** (`lib/csv.ts`): UTF-8 with a BOM, so Excel reads Arabic; CRLF; quotes doubled;
+    `no-store`.
+  - **Formula injection:** guest-typed text starting with `= + - @` gets an apostrophe, so
+    Excel shows it as text instead of running it.
+- **`npm run check:owner-tools`:** 77 assertions:
+  - the beacon schema, and the counter's exact fields read from the Mongoose schema;
+  - that the stats route never sees identity and limits on a hashed IP;
+  - `demoBlocks`, the proxy matcher, and that no API route imports demo code;
+  - fixtures always having a night tonight, checked across five days including the
+    fall-back night;
+  - QR size, CSV escaping and the formula guard, alert targeting, and the legal text.
+
+  12/12 mutations caught: a `user` field on the counter, the method check, a demo-aware
+  `/api/menu`, the rate limit removed or given the raw IP, the matcher's cookie condition,
+  the formula guard, the BOM, tonight being over, an early full alert, the item cap, and
+  staff being counted.
+
+**Verification.**
+- **Checks:** typecheck, lint, build and `check:all` (16 scripts) are clean.
+- **End to end, 61/61**, on a production build against `dekka_verify`. In Chrome, with the
+  manifest blocked so the browser's own install prompt can't interfere:
+  - **Menu views:** every card seen counts once, as a row with only its four fields and the
+    Cairo day. A second page load counts again; a glance under a second counts nothing.
+  - **Install prompt:** a fake `beforeinstallprompt` showed the strip and counted it; Install,
+    accepted, counted. On desktop, where the strip is CSS-hidden, nothing counted.
+  - **Poster and app:** `/get-app?from=qr` counted once, dropped its marker, and a reload
+    didn't recount. An installed-app launch counted.
+  - **No admin noise:** an admin browsing added nothing.
+  - **Stats card:** the top items with their counts and the accept rate.
+  - **Demo mode:** the ribbon and sample data on every listed page. A reservation, a menu
+    edit, the beacon, a pitch and a delete each returned 409. **A document count of every
+    collection before and after was identical.** `/api/menu` stayed real, and sample ids had
+    no card or calendar file. Leave demo restored the real site.
+  - **QR:** OpenCV decoded the screenshot to exactly `https://dekka-events.vercel.app/get-app?from=qr`.
+    The printed PDF is one A4 page with no header, footer or sidebar, and the poster's parts
+    were measured inside the printable area in both languages.
+  - **CSV:** both exports start EF BB BF with bilingual headers. A guest named
+    `=HYPERLINK(…)` came out as `'=HYPERLINK(…)`. Members get 403, and a bad month 400.
+  - **Alerts:** a pitch and the night-filling reservation still succeed, and the server log
+    shows no errors.
+- **Screens:** `/admin`, `/admin/qr`, `/admin/report`, `/admin/customers`, `/privacy` and
+  `/cookies` in both languages at 390px and 1280px, with no overflow, looked at.
+
+**Not verified:**
+- a push alert actually arriving (no subscribed devices locally; Gate G1);
+- printing the poster and scanning it with a real phone;
+- the counters on a real iPhone;
+- the legal wording reviewed by the owner (it's the plan's draft, and should be signed off).
+
+**Known limit:** the beacon's limit (60 per 10 minutes per IP) is shared by everyone behind
+the cafe's Wi-Fi, so on a busy night some counts can be dropped (silently, by design).
 
 ### Roadmap P6 — cafe life: open now, one-tap directions, seasonal menu sections (2026-10-08)
 

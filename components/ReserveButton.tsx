@@ -74,6 +74,7 @@ export function ReserveButton({
       if (!res.ok) {
         if (body.error === "EVENT_FULL") setError(t.event.full);
         else if (body.error === "RESERVATIONS_CLOSED") setError(t.event.closed);
+        else if (body.error === "DEMO_MODE") setError(t.demo.blocked);
         else if (body.error === "PHONE_REQUIRED") {
           setError(t.event.phoneRequired);
           setPhoneRequired(true);
@@ -97,7 +98,8 @@ export function ReserveButton({
     try {
       const res = await fetch(`/api/reservations/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        setError(t.common.somethingWrong);
+        const body = await res.json().catch(() => null);
+        setError(body?.error === "DEMO_MODE" ? t.demo.blocked : t.common.somethingWrong);
         return;
       }
       setCode(null);

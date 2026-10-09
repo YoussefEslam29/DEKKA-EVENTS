@@ -8,6 +8,7 @@ import { MenuItemCard } from "@/components/menu/MenuItemCard";
 import { localName } from "@/lib/menu";
 import type { MenuCategoryDTO, MenuItemDTO } from "@/lib/data";
 import { formatDayKey } from "@/lib/format";
+import { countItemView } from "@/lib/stats-client";
 import { cn } from "@/lib/utils";
 
 const sectionId = (id: string) => `menu-${id}`;
@@ -72,6 +73,32 @@ export function MenuBoard({ categories }: { categories: MenuCategoryDTO[] }) {
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
+  }, [visible]);
+
+  // Anonymous view counts (PLAN/DEKKA_PWA_APP.md §5.4): a card at least half on screen
+  // for a full second counts once for this page load. One observer for every card.
+  useEffect(() => {
+    const timers = new Map<Element, ReturnType<typeof setTimeout>>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.menuItem;
+          if (!id) continue;
+          if (entry.isIntersecting) {
+            if (!timers.has(entry.target)) timers.set(entry.target, setTimeout(() => countItemView(id), 1000));
+          } else {
+            clearTimeout(timers.get(entry.target));
+            timers.delete(entry.target);
+          }
+        }
+      },
+      { threshold: 0.5 }
+    );
+    document.querySelectorAll("[data-menu-item]").forEach((el) => observer.observe(el));
+    return () => {
+      observer.disconnect();
+      timers.forEach(clearTimeout);
+    };
   }, [visible]);
 
   // Keep the lit chip in view inside its own scroll row. `block: "nearest"`

@@ -598,8 +598,11 @@ Already built (§5.0). Nothing to do. The Feature Log will say so.
   - **Rate limit:** the `stats-ip` bucket (60 per 10 minutes) is keyed by **a SHA-256 of the
     IP**, so even Upstash's short-lived counter never holds the raw address.
   - **Response:** `204`.
-- **Client:** `lib/stats-client.ts` batches the item views and flushes them with one
-  `fetch(…, { keepalive: true })` on `pagehide`/`visibilitychange`, or at 50 items.
+- **Client:** `lib/stats-client.ts` batches the item views and sends them with
+  `navigator.sendBeacon` 5 seconds after the last one (or at 50 items), while the page is
+  still open; `pagehide`/`visibilitychange` only flush what's left. *(Changed while building,
+  2026-10-09: in testing, a send started as the page navigated away never arrived, whether a
+  `keepalive` fetch or a beacon, and unload-time sends are unreliable on iPhones anyway.)*
   - **One observer:** a single `IntersectionObserver` in `MenuBoard`.
   - **Signed-in staff and admins aren't counted**, decided in the browser. The server still
     never learns who anyone is.

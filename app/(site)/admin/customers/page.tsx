@@ -5,6 +5,8 @@ import { FadeUp } from "@/components/ui/Motion";
 import { BackButton } from "@/components/ui/BackButton";
 import { CustomersGrid } from "@/components/CustomersGrid";
 import { requireRole } from "@/lib/rbac";
+import { Download } from "lucide-react";
+import { buttonStyles } from "@/components/ui/Button";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +36,21 @@ export default async function AdminCustomersPage({
     <div>
       <BackButton fallbackHref="/admin" />
       <FadeUp>
-        <PageHeader title={t.customers.title} subtitle={t.customers.subtitle} />
+        <PageHeader
+          title={t.customers.title}
+          subtitle={t.customers.subtitle}
+          action={
+            // F5: what's on screen, filters included, as a spreadsheet.
+            <a
+              href={`/api/reports/customers?${new URLSearchParams({ ...(eventId ? { eventId } : {}), ...(q ? { q } : {}) })}`}
+              download
+              className={buttonStyles({ variant: "lightOutline", className: "min-h-11" })}
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              {t.exports.csv}
+            </a>
+          }
+        />
       </FadeUp>
 
       <CustomersGrid

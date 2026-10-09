@@ -20,7 +20,7 @@ import { site } from "@/lib/site";
 export const LEGAL_UPDATED_AT = {
   privacy: "2026-10-08",
   terms: "2026-09-07",
-  cookies: "2026-09-07",
+  cookies: "2026-10-08",
   refundPolicy: "2026-09-07",
 } as const;
 

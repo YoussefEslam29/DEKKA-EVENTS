@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, Coffee, Inbox, BarChart3, LayoutDashboard, LayoutTemplate, Users } from "lucide-react";
+import { CalendarDays, Coffee, Inbox, BarChart3, LayoutDashboard, LayoutTemplate, QrCode, Users } from "lucide-react";
 import { getI18n } from "@/lib/i18n";
 import { currentUser, hasRole } from "@/lib/rbac";
 
@@ -26,14 +26,15 @@ export default async function AdminLayout({
     { href: "/admin/menu", label: t.cafeMenu.title, Icon: Coffee },
     { href: "/admin/submissions", label: t.admin.submissions, Icon: Inbox },
     { href: "/admin/report", label: t.admin.report, Icon: BarChart3 },
+    { href: "/admin/qr", label: t.poster.navLabel, Icon: QrCode },
   ];
 
   return (
     // §8 exception: cream workspace for the data-heavy back-office. The tint is
     // full-bleed so it doesn't leave dark gutters beside the centred column.
     <div className="dk-workspace min-h-full flex-1">
-      <div className="mx-auto flex max-w-[1180px] flex-col gap-6 px-4 py-8 md:flex-row md:px-8">
-      <aside className="md:w-52 md:shrink-0">
+      <div className="mx-auto flex max-w-[1180px] flex-col gap-6 px-4 py-8 md:flex-row md:px-8 print:block print:max-w-none print:p-0">
+      <aside className="md:w-52 md:shrink-0 print:hidden">
         <nav className="flex gap-1 overflow-x-auto md:flex-col">
           {links.map(({ href, label, Icon }) => (
             <Link

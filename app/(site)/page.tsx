@@ -26,6 +26,8 @@ import { VisitRow } from "@/components/VisitRow";
 import { JsonLd } from "@/components/JsonLd";
 import { cafeJsonLd } from "@/lib/seo";
 import { cafeNightKey } from "@/lib/staff";
+import { isDemo } from "@/lib/demo";
+import { DEMO_RESERVED, demoEvents, demoFeatured } from "@/lib/demo-fixtures";
 
 /** The site default title, plus a canonical URL so filtered/search variants don't compete. */
 export const metadata: Metadata = { alternates: { canonical: "/" } };
@@ -97,12 +99,17 @@ export default async function EventsHubPage({
 
   // One clock for the whole render (request time; the page is force-dynamic).
   const now = new Date();
-  const [allUpcoming, allPast, featuredMenu, tonight] = await Promise.all([
-    getPublicEvents({ when: "upcoming", limit: 100 }),
-    getPublicEvents({ when: "past", limit: 6 }),
-    getFeaturedMenuItems(),
-    getTonightEvents(now),
-  ]);
+  // Demo mode (PLAN/DEKKA_PWA_APP.md §5.4, 4c.3): sample nights and picks, this device only.
+  const demo = await isDemo();
+  const sample = demo ? demoEvents(now) : null;
+  const [allUpcoming, allPast, featuredMenu, tonight] = sample
+    ? [sample.upcoming, sample.past, demoFeatured(now), sample.tonight]
+    : await Promise.all([
+        getPublicEvents({ when: "upcoming", limit: 100 }),
+        getPublicEvents({ when: "past", limit: 6 }),
+        getFeaturedMenuItems(),
+        getTonightEvents(now),
+      ]);
   const upcoming = allUpcoming.filter((e) => matchesSearch(e, q) && matchesFilter(e, filter));
   const past = allPast.filter((e) => matchesSearch(e, q) && matchesFilter(e, filter));
 
@@ -113,9 +120,11 @@ export default async function EventsHubPage({
   const nextNight =
     allUpcoming.find((e) => e.status === "published" && cafeNightKey(e.startsAt) !== tonightKey) ?? null;
 
-  const counts = await countReservationsForEvents([
-    ...new Set([...upcoming.map((e) => e.id), ...tonight.map((e) => e.id), ...(nextNight ? [nextNight.id] : [])]),
-  ]);
+  const counts = demo
+    ? DEMO_RESERVED
+    : await countReservationsForEvents([
+        ...new Set([...upcoming.map((e) => e.id), ...tonight.map((e) => e.id), ...(nextNight ? [nextNight.id] : [])]),
+      ]);
 
   const buildHref = (overrides: { month?: string; filter?: Filter }) => {
     const nextMonth = overrides.month ?? month;

@@ -8,7 +8,12 @@ import {
   getSubmissions,
   getNightsToCloseOut,
   countReservationsForEvents,
+  getUsageStats,
 } from "@/lib/data";
+import { UsageStatsCard } from "@/components/admin/UsageStatsCard";
+import { DemoModeCard } from "@/components/admin/DemoModeCard";
+import { isDemo } from "@/lib/demo";
+import { demoStats } from "@/lib/demo-fixtures";
 import { CloseOutCard } from "@/components/CloseOutCard";
 import { monthKey } from "@/lib/format";
 import { PageHeader } from "@/components/ui/Surface";
@@ -40,18 +45,21 @@ export default async function AdminOverviewPage({
 }) {
   // First, before any read: see requireRole() for why the layout's check isn't enough.
   await requireRole("admin", "/admin");
-  const { t } = await getI18n();
+  const { locale, t } = await getI18n();
   const { tab } = await searchParams;
   const active: OverviewTab = TABS.includes(tab as OverviewTab)
     ? (tab as OverviewTab)
     : "upcoming";
 
-  const [overview, allEvents, reservations, submissions, toCloseOut] = await Promise.all([
+  const demo = await isDemo();
+  const [overview, allEvents, reservations, submissions, toCloseOut, usage] = await Promise.all([
     getAdminOverview(),
     getAllEvents(),
     getAllReservations({ limit: 200 }),
     getSubmissions("pending"),
     getNightsToCloseOut(),
+    // Sample numbers in demo mode (PLAN/DEKKA_PWA_APP.md §5.4); everything else here is real.
+    demo ? demoStats() : getUsageStats(30),
   ]);
 
   // Rendered once per request (async server component, `force-dynamic`), so there is no
@@ -99,6 +107,9 @@ export default async function AdminOverviewPage({
       </FadeUp>
 
       <CloseOutCard events={toCloseOut} />
+
+      <UsageStatsCard stats={usage} locale={locale} t={t} />
+      <DemoModeCard on={demo} />
 
       {/* `useSearchParams` inside the tabs needs a boundary to suspend at. */}
       <Suspense fallback={null}>

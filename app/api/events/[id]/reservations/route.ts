@@ -1,6 +1,6 @@
 // GET  /api/events/:id/reservations — the door list (staff/admin)
 // POST /api/events/:id/reservations — hold a spot for the signed-in member
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Event } from "@/models/Event";
 import { Reservation, uniqueReservationCode } from "@/models/Reservation";
@@ -9,6 +9,7 @@ import { handle, isValidId, jsonError } from "@/lib/api";
 import { currentUser, guard } from "@/lib/rbac";
 import { getEventReservations } from "@/lib/data";
 import { rateLimit } from "@/lib/ratelimit";
+import { nightFullAlert, notifyAdmins } from "@/lib/admin-alerts";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -55,13 +56,21 @@ export async function POST(_request: Request, { params }: Params) {
     // Capacity is checked here rather than enforced by an index: at cafe scale a
     // simultaneous double-booking is far less likely than it is confusing to
     // debug, and an admin can always close the event by hand.
+    let taken = 0;
     if (event.capacity != null) {
-      const taken = await Reservation.countDocuments({
+      taken = await Reservation.countDocuments({
         event: id,
         status: "confirmed",
       });
       if (taken >= event.capacity) return jsonError("EVENT_FULL", 409);
     }
+    // F2 (PLAN/SITE_ROADMAP.md): this spot is the last one, so tell the admins' phones.
+    const fillsTheNight = event.capacity != null && taken + 1 === event.capacity;
+    const alertIfFull = () => {
+      if (!fillsTheNight) return;
+      const night = { id: String(event._id), titleAr: event.titleAr, titleEn: event.titleEn };
+      after(() => notifyAdmins(nightFullAlert(night), "push-night-full"));
+    };
 
     const profile = await User.findById(user.id).lean();
     const name = profile?.name ?? user.name ?? "";
@@ -75,6 +84,7 @@ export async function POST(_request: Request, { params }: Params) {
       existing.phone = phone;
       existing.code = await uniqueReservationCode(id);
       await existing.save();
+      alertIfFull();
       return NextResponse.json(
         { data: { id: String(existing._id), code: existing.code } },
         { status: 201 }
@@ -89,6 +99,7 @@ export async function POST(_request: Request, { params }: Params) {
       code: await uniqueReservationCode(id),
       status: "confirmed",
     });
+    alertIfFull();
 
     return NextResponse.json(
       { data: { id: String(reservation._id), code: reservation.code } },

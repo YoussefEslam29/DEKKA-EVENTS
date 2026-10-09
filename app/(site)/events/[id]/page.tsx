@@ -20,6 +20,8 @@ import { MapEmbed } from "@/components/MapEmbed";
 import { JsonLd } from "@/components/JsonLd";
 import { eventJsonLd, pageMetadata } from "@/lib/seo";
 import { EventShareActions } from "@/components/EventShareActions";
+import { isDemo, isDemoId } from "@/lib/demo";
+import { DEMO_CODES, DEMO_RESERVED, demoEventById } from "@/lib/demo-fixtures";
 
 /**
  * The night's own title and description (PLAN/SITE_ROADMAP.md D1): what a search result or a
@@ -56,17 +58,23 @@ export default async function EventDetailPage({
 }) {
   const { id } = await params;
   const { locale, t } = await getI18n();
-  const event = await getEvent(id);
+  // Demo mode (PLAN/DEKKA_PWA_APP.md §5.4, 4c.3): a sample night, already reserved, with
+  // its door code. Nothing is read or sent; the reserve and cancel buttons are refused by
+  // proxy.ts on this device.
+  const demo = isDemoId(id) && (await isDemo());
+  const event = demo ? demoEventById(id) : await getEvent(id);
   if (!event) notFound();
 
   const user = await currentUser();
   // Drafts stay invisible to everyone but the admin previewing them.
   if (event.status === "draft" && !hasRole(user, "admin")) notFound();
 
-  const [reserved, myReservation] = await Promise.all([
-    countReservations(event.id),
-    user ? getMyReservation(event.id, user.id) : Promise.resolve(null),
-  ]);
+  const [reserved, myReservation] = demo
+    ? [DEMO_RESERVED[id] ?? 0, DEMO_CODES[id] ? { id: `demo-res-${id}`, code: DEMO_CODES[id] } : null]
+    : await Promise.all([
+        countReservations(event.id),
+        user ? getMyReservation(event.id, user.id) : Promise.resolve(null),
+      ]);
 
   const spotsLeft =
     event.capacity != null ? Math.max(event.capacity - reserved, 0) : null;
@@ -133,7 +141,7 @@ export default async function EventDetailPage({
 
   return (
     <article>
-      {event.status !== "draft" ? <JsonLd data={eventJsonLd(event, spotsLeft)} /> : null}
+      {event.status !== "draft" && !demo ? <JsonLd data={eventJsonLd(event, spotsLeft)} /> : null}
       {/*
        * §8: the event hero gets the same treatment as the auth left panel —
        * dark image, gradient, bold English headline with the Arabic beneath —
@@ -248,7 +256,7 @@ export default async function EventDetailPage({
             <Card className="p-4">
               <ReserveButton
                 eventId={event.id}
-                signedIn={Boolean(user)}
+                signedIn={Boolean(user) || demo}
                 initialCode={myReservation?.code ?? null}
                 reservationId={myReservation?.id ?? null}
                 canReserve={!closed && !isFull}
@@ -259,7 +267,7 @@ export default async function EventDetailPage({
               />
 
               {/* Calendar and WhatsApp for a night still ahead (PLAN/DEKKA_PWA_APP.md 4a). */}
-              {!isPast && event.status !== "draft" ? (
+              {!isPast && event.status !== "draft" && !demo ? (
                 <div className="mt-4 border-t border-border-dark pt-4">
                   <EventShareActions event={event} locale={locale} t={t} />
                 </div>

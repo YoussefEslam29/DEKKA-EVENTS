@@ -52,7 +52,8 @@ export function MenuItemCard({
   const soldOut = !item.available;
 
   return (
-    <article className="dk-card flex gap-4 p-4">
+    // `data-menu-item`: what `/menu`'s view counter watches (MenuBoard); nothing else reads it.
+    <article data-menu-item={item.id} className="dk-card flex gap-4 p-4">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h3 className={cn("text-base font-bold", soldOut ? "text-text-muted" : "text-on-dark")}>

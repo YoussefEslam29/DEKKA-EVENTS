@@ -12,6 +12,8 @@ import { cafeNightKey, hasEnded } from "@/lib/staff";
 import { DoorCodeButton } from "@/components/DoorCodeButton";
 import { CancelReservationButton } from "@/components/CancelReservationButton";
 import { EventShareActions } from "@/components/EventShareActions";
+import { isDemo } from "@/lib/demo";
+import { demoReservations } from "@/lib/demo-fixtures";
 
 /** Its own title and canonical URL (PLAN/SITE_ROADMAP.md D1); the visitor's language. */
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,10 +25,13 @@ export const dynamic = "force-dynamic";
 
 export default async function MyEventsPage() {
   const { locale, t } = await getI18n();
+  // Demo mode (PLAN/DEKKA_PWA_APP.md §5.4, 4c.3): sample spots with door codes, even
+  // signed out, so the pitch can show this screen on any phone.
+  const demo = await isDemo();
   const user = await currentUser();
-  if (!user) redirect("/login?next=/my-events");
+  if (!user && !demo) redirect("/login?next=/my-events");
 
-  const rows = await getMyReservations(user.id);
+  const rows = demo ? demoReservations() : await getMyReservations(user!.id);
   // "Upcoming" lasts until the night has *ended*, not until it starts: the guest needs
   // their door code at 20:05, when a night that started at 20:00 used to have moved to
   // "past" already. Soonest first; past reads most-recent-first.
@@ -95,7 +100,8 @@ export default async function MyEventsPage() {
                       <CancelReservationButton reservationId={reservation.id} title={eventTitle(event, locale)} />
                     ) : null}
                   </div>
-                  <EventShareActions event={event} locale={locale} t={t} share={false} />
+                  {/* A sample night has no real calendar file to offer. */}
+                  {demo ? null : <EventShareActions event={event} locale={locale} t={t} share={false} />}
                 </div>
               ) : null}
             </Card>

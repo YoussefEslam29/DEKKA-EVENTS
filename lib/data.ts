@@ -9,7 +9,8 @@ import { BandSubmission, type SubmissionStatus } from "@/models/BandSubmission";
 import { User } from "@/models/User";
 import { MenuCategory, type IMenuCategory } from "@/models/MenuCategory";
 import { MenuItem, type IMenuItem } from "@/models/MenuItem";
-import type { MenuTag, EventTemplateKind, CheckInAuditAction } from "@/lib/constants";
+import type { MenuTag, EventTemplateKind, CheckInAuditAction, UsageMetric } from "@/lib/constants";
+import { UsageCounter } from "@/models/UsageCounter";
 import { CheckInAudit } from "@/models/CheckInAudit";
 import { EventTemplate, type IEventTemplate } from "@/models/EventTemplate";
 import { dayKey, fromLocalInputValue } from "@/lib/format";
@@ -1091,6 +1092,55 @@ export async function getFeaturedMenuItems(limit = 8): Promise<MenuItemDTO[]> {
     { $project: { section: 0 } },
   ]);
   return docs.map(toMenuItemDTO);
+}
+
+// ---------------------------------------------------------------------------
+// Anonymous counters (`PLAN/DEKKA_PWA_APP.md` §5.4, 4c.1)
+// ---------------------------------------------------------------------------
+
+export type UsageStats = {
+  topItems: { id: string; nameAr: string; nameEn: string; views: number }[];
+  promptShown: number;
+  promptAccepted: number;
+  appOpens: number;
+  qrScans: number;
+};
+
+/** The admin's stats card: the last `days` Cairo days, in one aggregation. */
+export async function getUsageStats(days = 30): Promise<UsageStats> {
+  await connectDB();
+  const since = dayKey(new Date(Date.now() - (days - 1) * 86_400_000));
+  const [result] = await UsageCounter.aggregate<{
+    tallies: { _id: UsageMetric; total: number }[];
+    items: { _id: mongoose.Types.ObjectId; views: number; nameAr: string; nameEn: string }[];
+  }>([
+    { $match: { day: { $gte: since } } },
+    {
+      $facet: {
+        tallies: [
+          { $match: { metric: { $ne: "menu_item_view" } } },
+          { $group: { _id: "$metric", total: { $sum: "$count" } } },
+        ],
+        items: [
+          { $match: { metric: "menu_item_view" } },
+          { $group: { _id: "$item", views: { $sum: "$count" } } },
+          { $sort: { views: -1, _id: 1 } },
+          { $limit: 5 },
+          { $lookup: { from: MenuItem.collection.name, localField: "_id", foreignField: "_id", as: "doc" } },
+          { $unwind: "$doc" },
+          { $project: { views: 1, nameAr: "$doc.nameAr", nameEn: "$doc.nameEn" } },
+        ],
+      },
+    },
+  ]);
+  const tally = (metric: UsageMetric) => result?.tallies.find((t) => t._id === metric)?.total ?? 0;
+  return {
+    topItems: (result?.items ?? []).map((i) => ({ id: String(i._id), nameAr: i.nameAr, nameEn: i.nameEn, views: i.views })),
+    promptShown: tally("install_prompt_shown"),
+    promptAccepted: tally("install_prompt_accepted"),
+    appOpens: tally("app_open"),
+    qrScans: tally("qr_scan"),
+  };
 }
 
 // ---------------------------------------------------------------------------

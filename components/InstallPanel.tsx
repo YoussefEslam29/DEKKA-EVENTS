@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { CheckCircle2, Download } from "lucide-react";
+import { countOnce } from "@/lib/stats-client";
 import { useI18n } from "@/components/I18nProvider";
 import { useInstallState } from "@/components/InstallPrompt";
 import { Button } from "@/components/ui/Button";
@@ -18,6 +20,11 @@ export function InstallPanel() {
   const { t } = useI18n();
   const { platform, canPrompt, install } = useInstallState();
   const g = t.app.getApp;
+
+  // The install steps on screen count as the prompt shown (PLAN/DEKKA_PWA_APP.md §5.4).
+  useEffect(() => {
+    if (platform && platform !== "standalone") countOnce("install_prompt_shown");
+  }, [platform]);
 
   if (platform === "standalone") {
     return (

@@ -13,6 +13,7 @@ import {
   subscribeInstallPrompt,
   type AppPlatform,
 } from "@/lib/pwa";
+import { countOnce } from "@/lib/stats-client";
 
 /**
  * Install UI (PLAN/DEKKA_PWA_APP.md §2).
@@ -45,7 +46,9 @@ export function useInstallState() {
   async function install() {
     if (!prompt) return;
     await prompt.prompt();
-    await prompt.userChoice;
+    const choice = await prompt.userChoice;
+    // Chromium only: iPhones give websites no such signal (PLAN/DEKKA_PWA_APP.md §5.4).
+    if (choice.outcome === "accepted") countOnce("install_prompt_accepted");
     // A prompt can be shown once; accepted or not, it's spent.
     clearInstallPrompt();
   }
@@ -105,6 +108,11 @@ export function InstallPrompt() {
 
   return (
     <aside
+      // Counted only if actually on screen: the strip is CSS-hidden on wider screens
+      // and in the installed app, where it has no client rects.
+      ref={(el) => {
+        if (el && el.getClientRects().length > 0) countOnce("install_prompt_shown");
+      }}
       aria-label={t.app.install.title}
       className="flex items-center gap-3 border-b border-border-dark bg-surface-dark px-4 py-2 md:hidden standalone:hidden"
     >

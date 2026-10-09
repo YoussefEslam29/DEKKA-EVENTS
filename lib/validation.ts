@@ -6,6 +6,7 @@ import {
   SUBMISSION_STATUSES,
   MENU_TAGS,
   EVENT_TEMPLATE_KINDS,
+  TALLY_METRICS,
 } from "@/lib/constants";
 import { isRealDate, TIME_OF_DAY } from "@/lib/templates";
 import { CLIENT_ID_PATTERN } from "@/lib/door-queue";
@@ -400,13 +401,7 @@ const menuVariant = z
   .strict();
 
 /** A Cairo calendar day, "YYYY-MM-DD", that exists: no 31 February. */
-export const seasonDay = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
-  .refine((day) => {
-    const date = new Date(`${day}T00:00:00Z`);
-    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === day;
-  }, "Not a real day");
+export const seasonDay = z.string().refine(isRealDate, "Use a real day, YYYY-MM-DD");
 
 const menuCategoryCore = {
   nameAr: trimmed(80).min(1),
@@ -464,6 +459,24 @@ const menuItemCore = {
 };
 
 export const createMenuItemSchema = z.object(menuItemCore).strict();
+
+/**
+ * The anonymous counters' beacon (`POST /api/stats`, `PLAN/DEKKA_PWA_APP.md` §5.4): item
+ * views come in a batch of up to 100 ids, de-duplicated; every other metric is a bare tally.
+ */
+export const statsSchema = z.discriminatedUnion("metric", [
+  z
+    .object({
+      metric: z.literal("menu_item_view"),
+      items: z
+        .array(objectId)
+        .min(1)
+        .max(100)
+        .transform((ids) => [...new Set(ids.map((id) => id.toLowerCase()))]),
+    })
+    .strict(),
+  z.object({ metric: z.enum(TALLY_METRICS) }).strict(),
+]);
 /**
  * Every field optional — the admin grid saves one cell at a time. Defaults
  * stripped for the reason spelled out on `stripDefaults`: without it, a PATCH of
