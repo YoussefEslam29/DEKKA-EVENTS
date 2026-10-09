@@ -11,12 +11,18 @@ that order, before touching a single line.
 
 ---
 
-## 0. Start here — where the project stands (updated 2026-10-05)
+## 0. Start here — where the project stands (updated 2026-10-09)
 
 **What's live** (`main` auto-deploys to Vercel): the full events site — auth, events hub,
 reservations, Submit-a-Show, staff door table, admin dashboard, monthly report, PDF
 event report, legal pages, cookie consent — **plus** the three shipped phases of the
 installable-app plan below.
+
+**Built and committed on `main`, not yet pushed** (2026-10-09): the whole of
+`PLAN/SITE_ROADMAP.md`. Its phases are P0–P4, P-ID (dormant until email exists), and P5–P7,
+which are PWA phase 4 below. Each has a Feature Log entry (§8, "Roadmap P…"). Until the owner
+pushes, production runs the older code, **including the admin-page leak that P1's `requireRole`
+fix closes** (roadmap S2).
 
 **The active plan is `PLAN/DEKKA_PWA_APP.md`** (written with the owner after a
 brainstorm, 2026-10-03). The site *is* the app: an installable PWA, downloaded from the
@@ -48,10 +54,21 @@ mobile auth bridge was ever built, and v1 doesn't use it.
   fresh process logged the `[ratelimit] … INACTIVE` warning). The code is done; the
   Upstash integration just isn't connected to the Vercel project. Until it is, every
   limited endpoint is unthrottled (§3 rule 8).
-- **`PLAN/SITE_ROADMAP.md` (2026-10-08) is the current plan.** It audits the whole site and
-  sequences the fixes before the remaining PWA phase-4 features;
-  `PLAN/SITE_ROADMAP_IMPLEMENTATION.md` lists the tasks. Its §6 lists what only the owner
-  can do.
+- **`PLAN/SITE_ROADMAP.md` (2026-10-08) is built** (see above); its §6 lists what only the
+  owner can do. What the build itself left for the owner:
+  - **Push `main`.** Before or together with that, connect Upstash: phase 4 adds public
+    routes (calendar, share card, stats), and the roadmap says rate limiting must be live
+    before they ship.
+  - **Reminders** (P5) are built but off. Set `CRON_SECRET` in Vercel. Set
+    `REMINDERS_ENABLED=1` only after Gate G1 (push seen arriving on real phones).
+  - **Sign off the privacy and cookie wording** P7 changed (it's the plan's draft).
+  - **Opening hours:** "Open now" assumes 10:00–01:00 daily (decision Q5). If the hours
+    differ by day or for Ramadan, set `NEXT_PUBLIC_OPENING_HOURS`.
+  - **A phone checklist** for things headless Chrome can't prove: install, push, the
+    WhatsApp preview, adding the .ics, directions opening the maps app, the door code's
+    Wake Lock, printing the QR poster and scanning it.
+  - **P-ID** stays dormant until a domain and Resend exist; then Google sign-in.
+  - **CSP** is report-only; enforce it once the reports are quiet for a week (P2).
 - The menu starts empty in production until the owner adds sections and items at
   `/admin/menu`. There is no dish photography yet; every card is designed to work
   without a photo.

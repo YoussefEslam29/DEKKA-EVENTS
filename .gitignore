@@ -64,3 +64,7 @@ service-account*.json
 
 # scratch/debris
 _to_delete/
+
+# graphify knowledge-graph output: regenerated locally with /graphify, never committed
+# (the tracked copy had gone 92 commits stale; PLAN/SITE_ROADMAP.md §2.6).
+/graphify-out/

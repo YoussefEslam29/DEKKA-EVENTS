@@ -197,8 +197,14 @@ npm run start      # serve the production build
 npm run seed       # wipe and re-seed the database
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
+npm run check:all    # every DB-free check:* script (CI runs this too)
 npm run brand:assets # regenerate public/brand/* from IMGS/
 ```
+
+The `check:*` scripts (`scripts/check-*.ts`) are the test suite: DB-free assertions per
+area, each mutation-tested. `check:all` discovers them from `package.json`, so a new one
+joins CI as soon as its script entry exists. `python scripts/make-og-font.py` re-cuts the
+share card's font (`lib/og/fonts`).
 
 ---
 
@@ -234,56 +240,88 @@ there rather than at `/`.
 ### Public
 | Path | Screen |
 |---|---|
-| `/` | Events hub — upcoming feed, past nights |
-| `/events/[id]` | Event detail: date, time, location, price, payment terms, T&Cs, reserve |
+| `/` | Events hub: Tonight banner, next night, upcoming feed, Barista's picks, visit card, past nights |
+| `/events/[id]` | Event detail: date, time, price, terms, reserve, door code, add to calendar, WhatsApp share |
+| `/menu` | Cafe menu: sections, sizes, sold-out, seasonal sections, "Open now" |
+| `/get-app` | Install the app (iPhone and Android steps); the QR poster's target |
+| `/offline` | What the installed app shows with no signal, with the last-seen menu |
 | `/submit-show` | Band/artist application form (no account needed) |
-| `/about` | Cafe story, socials, address, map |
-| `/login`, `/signup` | Auth — email/password, Google, Facebook, continue as guest |
+| `/about` | Cafe story, socials, address, hours with "Open now", one-tap directions, map |
+| `/privacy`, `/terms`, `/cookies`, `/refund-policy` | Legal pages |
+| `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/verify-email` | Auth |
 
 ### Member
 | Path | Screen |
 |---|---|
-| `/my-events` | Reservations, upcoming and past, each with its door code |
+| `/my-events` | Reservations: upcoming until the night ends, door code full screen, cancel, calendar |
+| `/account` | Profile, password, linked sign-ins, data export and deletion |
 
 ### Staff (role `staff` or `admin`)
 | Path | Screen |
 |---|---|
-| `/staff` | Pick tonight's event |
-| `/staff/events/[id]` | Door check-in: attendee entry, reservation search, running totals |
+| `/staff` | Pick tonight's event (tonight first) |
+| `/staff/events/[id]` | Door check-in: attendee entry (works offline, queued), reservation search, totals |
+| `/staff/menu` | Mark menu items sold out / back |
 
 ### Admin (role `admin`)
 | Path | Screen |
 |---|---|
-| `/admin` | Overview tiles + next events with reservation counts |
-| `/admin/events` | All events with status and reservation counts |
-| `/admin/events/new` | Create an event |
-| `/admin/events/[id]` | Manage one event: lifecycle buttons, reservation list, door table, edit form |
+| `/admin` | Overview: close-out reminders, app usage stats, demo mode, tabs |
+| `/admin/events`, `/admin/events/new`, `/admin/events/[id]` | Events: lifecycle, reservations, door table and log, edit |
+| `/admin/templates` | Event templates: save a night once, make drafts from it |
+| `/admin/customers` | Every attendee across every night; CSV export |
+| `/admin/menu` | Menu sections (with seasons) and items |
 | `/admin/submissions` | Band pitches inbox, filterable, approve/decline/annotate |
-| `/admin/report` | Monthly earnings rolled up across every event |
+| `/admin/report` | Monthly earnings rolled up across every event; CSV export |
+| `/admin/qr` | Printable A4 table poster with the install QR |
 
 ---
 
 ## API
 
 All writes are Zod-validated and role-guarded. Responses are `{ data }` or `{ error }`.
+"Public" routes follow `developer-guide.md` §3 rule 9: they never vary by caller and are
+rate-limited per IP.
 
 | Method | Path | Access |
 |---|---|---|
 | `POST` | `/api/register` | public |
 | `GET/POST` | `/api/auth/*` | Auth.js |
+| `POST` | `/api/auth/forgot-password`, `/api/auth/reset-password` | public |
+| `POST` | `/api/auth/verify-email` | member (sends the link) |
+| `POST` | `/api/auth/verify-email/confirm` | public (holds the token) |
+| `POST` | `/api/auth/mobile-login` | public (mobile bridge) |
+| `PATCH` `DELETE` | `/api/account` | member (self) |
+| `PATCH` | `/api/account/password` | member (self) |
+| `GET` | `/api/account/export` | member (self) |
 | `GET` | `/api/events` | public (admin also sees drafts) |
-| `POST` | `/api/events` | admin |
+| `POST` | `/api/events`, `/api/events/from-template` | admin |
 | `GET` | `/api/events/:id` | public (drafts admin-only) |
 | `PATCH` `DELETE` | `/api/events/:id` | admin |
+| `GET` | `/api/events/:id/calendar?lang=` | public (.ics; public nights only) |
+| `GET` | `/api/events/:id/og` | public (share card PNG; public nights only) |
+| `GET` | `/api/events/:id/report` | admin (PDF analysis) |
 | `GET` | `/api/events/:id/reservations` | staff |
 | `POST` | `/api/events/:id/reservations` | member |
 | `DELETE` | `/api/reservations/:id` | owner or admin |
-| `GET` `POST` | `/api/events/:id/checkins` | staff |
-| `DELETE` | `/api/checkins/:id` | staff |
+| `GET` `POST` | `/api/events/:id/checkins` | staff (POST is idempotent per `clientId`) |
+| `PATCH` `DELETE` | `/api/checkins/:id` | staff (void, with a log) |
+| `POST` | `/api/event-templates`; `PATCH` `DELETE` `/:id`; `PATCH` `/order` | admin |
+| `GET` | `/api/menu` | public (cached by the service worker) |
+| `POST` / `PATCH` `DELETE` | `/api/menu/categories`, `/api/menu/items` (+ `/:id`, `/order`) | admin |
+| `PATCH` | `/api/menu/items/:id/availability` | staff |
 | `POST` | `/api/submissions` | public |
 | `GET` | `/api/submissions` | admin |
 | `PATCH` | `/api/submissions/:id` | admin |
-| `GET` | `/api/reports/monthly?month=YYYY-MM` | admin |
+| `POST` | `/api/submissions/:id/notify` | admin (email the band) |
+| `GET` | `/api/reports/monthly?month=YYYY-MM`, `/api/reports/monthly/csv?month=` | admin |
+| `GET` | `/api/reports/customers?eventId=&q=` | admin (CSV) |
+| `POST` `DELETE` | `/api/push/subscribe` | member |
+| `POST` | `/api/uploads` | member |
+| `POST` | `/api/stats` | public (anonymous counters; no identity) |
+| `POST` | `/api/demo` | admin (demo mode on this device) |
+| `GET` | `/api/cron/reminders` | Vercel Cron (`CRON_SECRET`); off unless `REMINDERS_ENABLED=1` |
+| `GET` | `/api/health` | public |
 
 ---
 
@@ -299,6 +337,13 @@ All writes are Zod-validated and role-guarded. Responses are `{ data }` or `{ er
 - **CheckIn** — one row of the door table. **This, not Reservation, is the record of money
   taken**, which is what the monthly report sums.
 - **BandSubmission** — a pitch, `pending` \| `approved` \| `declined`.
+- **CheckInAudit** — the door log: who added, changed or voided which entry, and when.
+- **MenuCategory** / **MenuItem** — the cafe menu. A section may carry a season
+  (`startsOn`/`endsOn`, Cairo days); an item may carry sizes, tags and a sold-out flag.
+- **EventTemplate** — a night saved once, to make drafts from.
+- **PushSubscription** — one row per subscribed browser.
+- **UsageCounter** — anonymous daily totals (`metric`, `day`, `item?`, `count`), nothing
+  about who.
 
 ---
 
