@@ -804,6 +804,27 @@ offline menu all call it.
 Short "what shipped" notes for anything implemented from a `PLAN/fix_*.md` spec, so
 the next session doesn't have to diff `git log` to understand intent. Newest first.
 
+### Dependency update: minor and patch versions (2026-10-13)
+
+- **`next` and `eslint-config-next` 16.3.8 → 16.4.0; `react` and `react-dom` 19.2.8 →
+  19.3.0** (all still exact pins). The bundled docs list nothing breaking in 16.4, only new
+  APIs (`navigation`, `prefetch`, `ensureStatic`) and new `agent*` / `turbopack*` options.
+  The app uses no `unstable_` APIs.
+- **In range (`npm update`, ranges in `package.json` unchanged):** `@sentry/nextjs` 10.76.2,
+  `@types/node` 24.19.2, `lucide-react` 1.56.0, `mongoose` 9.11.2, `puppeteer-core` 25.13.0,
+  `zod` 4.6.7, plus transitive patches.
+- **Held back (majors, each needs its own pass):** `@sentry/nextjs` 11, `framer-motion` 14,
+  `eslint` 10, TypeScript 6/7, `@types/node` 26 (we run Node 24), `@sparticuz/chromium` 153.
+
+**Verification.** typecheck, lint, all 16 checks and `next build` are clean (placeholder
+`MONGODB_URI`, as in CI). `npm audit --omit=dev`: 0 vulnerabilities. The dev-only chain in
+§7 is unchanged on `eslint-config-next` 16.4.0. The lockfile still has every Linux binary
+CI and Vercel install. `puppeteer-core` 25.13 targets Chrome 155, so it was also run against
+a Chrome 149 headless shell (`@sparticuz/chromium` is 149) with `renderReportPdf`'s exact
+calls: a valid A4 PDF, with Arabic names shaped and right-to-left.
+
+**Not verified:** the PDF route on Vercel itself, and anything on a real phone.
+
 ### Roadmap P7 — owner tools: anonymous stats, QR poster, demo mode, admin alerts, CSV (2026-10-09)
 
 PWA phase 4c (`PLAN/DEKKA_PWA_APP.md` §5.4) plus F2 and F5 from `PLAN/SITE_ROADMAP.md`, with
