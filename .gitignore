@@ -61,6 +61,8 @@ id_ecdsa
 .htpasswd
 secrets.json
 service-account*.json
+serviceAccountKey.json
+*firebase-adminsdk*.json
 
 # scratch/debris
 _to_delete/
